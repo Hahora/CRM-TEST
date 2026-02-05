@@ -8,25 +8,46 @@ import type {
 
 export interface ClientsFiltersApi {
   search?: string;
-  full_name?: string;
-  phone?: string;
-  email?: string;
   telegram_id?: string;
+  source?: string;
+  is_wedding?: boolean;
+  has_local_data?: boolean;
   created_after?: string;
   created_before?: string;
-  skip?: number;
+  offset?: number;
   limit?: number;
 }
 
 export interface UpdateClientData {
-  full_name: string;
-  phone: string;
+  name?: string;
+  phone?: string;
   email?: string;
-  gender?: "male" | "female";
+  sex?: "MALE" | "FEMALE" | "";
   birth_date?: string;
   telegram_id?: string;
   max_id?: string;
+  is_wedding?: boolean;
+  wedding_date?: string | null;
+  bride_name?: string | null;
+  source?: string;
   referred_by_id?: number;
+}
+
+export interface SearchResult {
+  id?: number;
+  moysklad_id?: string;
+  name?: string;
+  phone?: string;
+  email?: string;
+  [key: string]: any;
+}
+
+export interface SalesStats {
+  total_sales_amount: number;
+  total_sales_count: number;
+  average_receipt: number;
+  period_from: string;
+  period_to: string;
 }
 
 class ClientsApiService {
@@ -60,7 +81,6 @@ class ClientsApiService {
             newTokens.access_token,
             newTokens.refresh_token
           );
-
           return this.makeRequest(url, options);
         } catch (refreshError) {
           authService.clearTokens();
@@ -77,23 +97,27 @@ class ClientsApiService {
     return response.json();
   }
 
-  // Получить список клиентов
+  // ── Получить список клиентов (offset/limit, search по имени/телефону/email) ──
   async getClients(
     filters: ClientsFiltersApi = {}
   ): Promise<ClientsListResponse> {
     const params = new URLSearchParams();
 
     if (filters.search) params.append("search", filters.search);
-    if (filters.full_name) params.append("full_name", filters.full_name);
-    if (filters.phone) params.append("phone", filters.phone);
-    if (filters.email) params.append("email", filters.email);
     if (filters.telegram_id) params.append("telegram_id", filters.telegram_id);
+    if (filters.source) params.append("source", filters.source);
+    if (filters.is_wedding !== undefined)
+      params.append("is_wedding", String(filters.is_wedding));
+    if (filters.has_local_data !== undefined)
+      params.append("has_local_data", String(filters.has_local_data));
     if (filters.created_after)
       params.append("created_after", filters.created_after);
     if (filters.created_before)
       params.append("created_before", filters.created_before);
-    if (filters.skip !== undefined)
-      params.append("skip", filters.skip.toString());
+
+    // Пагинация: offset + limit
+    if (filters.offset !== undefined && filters.offset > 0)
+      params.append("offset", filters.offset.toString());
     if (filters.limit) params.append("limit", filters.limit.toString());
 
     const queryString = params.toString();
@@ -102,12 +126,42 @@ class ClientsApiService {
     return this.makeRequest<ClientsListResponse>(url);
   }
 
-  // Получить детали клиента
+  // ── Поиск по телефону ──
+  async searchByPhone(phone: string): Promise<SearchResult[]> {
+    const cleanPhone = phone.replace(/[^\d+]/g, "");
+    if (!cleanPhone) return [];
+    const params = new URLSearchParams({ phone: cleanPhone });
+    return this.makeRequest<SearchResult[]>(
+      `/clients/moysklad/search/phone?${params}`
+    );
+  }
+
+  // ── Поиск по имени ──
+  async searchByName(name: string): Promise<SearchResult[]> {
+    const trimmed = name.trim();
+    if (!trimmed) return [];
+    const params = new URLSearchParams({ name: trimmed });
+    return this.makeRequest<SearchResult[]>(
+      `/clients/moysklad/search/name?${params}`
+    );
+  }
+
+  // ── Поиск по email ──
+  async searchByEmail(email: string): Promise<SearchResult[]> {
+    const trimmed = email.trim();
+    if (!trimmed) return [];
+    const params = new URLSearchParams({ email: trimmed });
+    return this.makeRequest<SearchResult[]>(
+      `/clients/moysklad/search/email?${params}`
+    );
+  }
+
+  // ── Получить детали клиента ──
   async getClient(clientId: number): Promise<Client> {
     return this.makeRequest<Client>(`/api/v1/clients/${clientId}`);
   }
 
-  // Создать клиента
+  // ── Создать клиента ──
   async createClient(clientData: CreateClientData): Promise<Client> {
     return this.makeRequest<Client>("/api/v1/clients", {
       method: "POST",
@@ -115,7 +169,7 @@ class ClientsApiService {
     });
   }
 
-  // Обновить клиента
+  // ── Обновить клиента ──
   async updateClient(
     clientId: number,
     clientData: UpdateClientData
@@ -126,32 +180,20 @@ class ClientsApiService {
     });
   }
 
-  // Получить статистику клиентов
-  async getClientsStats(
-    filters: {
-      created_after?: string;
-      created_before?: string;
-      branch_id?: number;
-    } = {}
-  ): Promise<ClientsStats> {
-    const params = new URLSearchParams();
-
-    if (filters.created_after)
-      params.append("created_after", filters.created_after);
-    if (filters.created_before)
-      params.append("created_before", filters.created_before);
-    if (filters.branch_id)
-      params.append("branch_id", filters.branch_id.toString());
-
-    const queryString = params.toString();
-    const url = `/api/v1/clients/statistics/summary${
-      queryString ? `?${queryString}` : ""
-    }`;
-
-    return this.makeRequest<ClientsStats>(url);
+  // ── Статистика продаж ──
+  // GET /api/v1/clients/statistics/sales?moment_from=2020-01-01&moment_to=2026-02-06
+  async getSalesStats(): Promise<SalesStats> {
+    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    const params = new URLSearchParams({
+      moment_from: "2020-01-01",
+      moment_to: today,
+    });
+    return this.makeRequest<SalesStats>(
+      `/api/v1/clients/statistics/sales?${params}`
+    );
   }
 
-  // Экспорт клиентов
+  // ── Экспорт ──
   async exportClients(
     filters: { created_after?: string; created_before?: string } = {}
   ): Promise<Blob> {

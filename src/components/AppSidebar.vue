@@ -1,11 +1,9 @@
 <script setup lang="ts">
-import { ref } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import AppIcon from "./AppIcon.vue";
 
 const router = useRouter();
 const route = useRoute();
-const isCollapsed = ref(false);
 
 interface MenuItem {
   id: string;
@@ -91,10 +89,6 @@ const menuSections = [
   },
 ];
 
-const toggleSidebar = () => {
-  isCollapsed.value = !isCollapsed.value;
-};
-
 const navigateTo = (routePath: string) => {
   router.push(routePath);
 };
@@ -107,25 +101,13 @@ const isActiveRoute = (routePath: string) => {
 <template>
   <!-- Desktop Sidebar Only -->
   <aside
-    class="hidden md:flex fixed top-16 left-0 bottom-0 bg-white border-r border-gray-200 transition-all duration-300 z-40 flex-col"
-    :class="isCollapsed ? 'w-16' : 'w-64'"
+    class="hidden md:flex fixed top-16 left-0 bottom-0 w-64 bg-white border-r border-gray-200 z-40 flex-col"
   >
-    <!-- Toggle Button -->
-    <div class="p-3 border-b border-gray-200">
-      <button
-        @click="toggleSidebar"
-        class="w-full flex justify-center p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-      >
-        <AppIcon name="menu" :size="18" />
-      </button>
-    </div>
-
     <!-- Navigation -->
     <nav class="flex-1 overflow-y-auto py-4">
       <div v-for="section in menuSections" :key="section.title" class="mb-6">
         <!-- Section Title -->
         <div
-          v-if="!isCollapsed"
           class="px-4 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider"
         >
           {{ section.title }}
@@ -136,23 +118,21 @@ const isActiveRoute = (routePath: string) => {
           <li v-for="item in section.items" :key="item.id">
             <button
               @click="navigateTo(item.route!)"
-              :title="isCollapsed ? item.title : ''"
-              class="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-colors"
-              :class="[
-                  isActiveRoute(item.route!)
-                    ? 'bg-blue-50 text-blue-700'
-                    : 'text-gray-700 hover:bg-gray-100',
-                  isCollapsed ? 'justify-center' : 'justify-start',
-                ]"
+              class="w-full flex items-center justify-start gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-colors"
+              :class="
+                isActiveRoute(item.route!)
+                  ? 'bg-blue-50 text-blue-700'
+                  : 'text-gray-700 hover:bg-gray-100'
+              "
             >
               <AppIcon
                 :name="item.icon as any"
                 :size="20"
                 :class="
-                    isActiveRoute(item.route!) ? 'text-blue-600' : 'text-gray-500'
-                  "
+                  isActiveRoute(item.route!) ? 'text-blue-600' : 'text-gray-500'
+                "
               />
-              <span v-if="!isCollapsed" class="truncate">{{ item.title }}</span>
+              <span class="truncate">{{ item.title }}</span>
             </button>
           </li>
         </ul>
@@ -163,12 +143,8 @@ const isActiveRoute = (routePath: string) => {
     <div class="border-t border-gray-200 p-2">
       <button
         @click="navigateTo('/settings')"
-        :title="isCollapsed ? 'Настройки' : ''"
-        class="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-        :class="[
-          isActiveRoute('/settings') ? 'bg-blue-50 text-blue-700' : '',
-          isCollapsed ? 'justify-center' : 'justify-start',
-        ]"
+        class="w-full flex items-center justify-start gap-3 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+        :class="isActiveRoute('/settings') ? 'bg-blue-50 text-blue-700' : ''"
       >
         <AppIcon
           name="settings"
@@ -177,7 +153,7 @@ const isActiveRoute = (routePath: string) => {
             isActiveRoute('/settings') ? 'text-blue-600' : 'text-gray-500'
           "
         />
-        <span v-if="!isCollapsed">Настройки</span>
+        <span>Настройки</span>
       </button>
     </div>
   </aside>
