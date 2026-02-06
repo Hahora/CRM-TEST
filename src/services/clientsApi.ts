@@ -6,12 +6,15 @@ import type {
   ClientsListResponse,
 } from "@/types/clients";
 
+export type CompanyType = "individual" | "legal" | "entrepreneur";
+
 export interface ClientsFiltersApi {
   search?: string;
   telegram_id?: string;
   source?: string;
   is_wedding?: boolean;
   has_local_data?: boolean;
+  archived?: boolean;
   created_after?: string;
   created_before?: string;
   offset?: number;
@@ -20,6 +23,7 @@ export interface ClientsFiltersApi {
 
 export interface UpdateClientData {
   name?: string;
+  company_type?: CompanyType;
   phone?: string;
   email?: string;
   sex?: "MALE" | "FEMALE" | "";
@@ -31,6 +35,16 @@ export interface UpdateClientData {
   bride_name?: string | null;
   source?: string;
   referred_by_id?: number;
+  // Юр. лицо
+  inn?: string;
+  kpp?: string;
+  ogrn?: string;
+  legal_address?: string;
+  // ИП + Физ. лицо
+  ogrnip?: string;
+  legal_last_name?: string;
+  legal_first_name?: string;
+  legal_middle_name?: string;
 }
 
 export interface SearchResult {
@@ -48,6 +62,63 @@ export interface SalesStats {
   average_receipt: number;
   period_from: string;
   period_to: string;
+}
+
+export interface PurchaseItem {
+  name: string;
+  article?: string;
+  code?: string;
+  quantity: number;
+  price: number;
+  discount?: number;
+  total: number;
+}
+
+export interface Purchase {
+  id: string;
+  name: string;
+  moment: string;
+  sum: number;
+  store: string;
+  items: PurchaseItem[];
+}
+
+export interface ClientDetail {
+  id: number | null;
+  moysklad_id: string;
+  name: string;
+  phone: string;
+  email?: string;
+  company_type?: string;
+  sex?: string;
+  birth_date?: string;
+  telegram_id?: string;
+  max_id?: string;
+  is_wedding?: boolean;
+  wedding_date?: string;
+  bride_name?: string;
+  source?: string;
+  legal_first_name?: string;
+  legal_last_name?: string;
+  legal_middle_name?: string;
+  inn?: string;
+  kpp?: string;
+  ogrn?: string;
+  ogrnip?: string;
+  legal_address?: string;
+  sales_amount: number;
+  total_spent?: number;
+  total_purchases: number;
+  last_purchase_date: string | null;
+  visit_count: number;
+  created_at?: string;
+  updated_at?: string;
+  purchases: {
+    purchases: Purchase[];
+    total: number;
+    limit: number;
+    offset: number;
+  };
 }
 
 class ClientsApiService {
@@ -192,10 +263,20 @@ class ClientsApiService {
 
   // ── Удалить клиента ──
   // DELETE /clients/{id}
-  async deleteClient(clientId: number): Promise<void> {
-    return this.makeRequest<void>(`/api/v1/clients/${clientId}`, {
-      method: "DELETE",
-    });
+  async deleteClient(moyskladId: string): Promise<void> {
+    try {
+      await this.makeRequest<void>(`/api/v1/clients/${moyskladId}`, {
+        method: "DELETE",
+      });
+    } catch (e: any) {
+      if (e instanceof TypeError && e.message === "Failed to fetch") {
+        console.warn(
+          `DELETE ${moyskladId}: network error (CORS?), считаем удалённым`
+        );
+        return;
+      }
+      throw e;
+    }
   }
 
   // ── Статистика продаж ──
@@ -210,6 +291,22 @@ class ClientsApiService {
     });
     return this.makeRequest<SalesStats>(
       `/api/v1/clients/statistics/sales?${params}`
+    );
+  }
+
+  // ── Детали клиента с покупками ──
+  // GET /api/v1/clients/{moysklad_id}/detail
+  async getClientDetail(
+    moyskladId: string,
+    purchasesLimit = 10,
+    purchasesOffset = 0
+  ): Promise<ClientDetail> {
+    const params = new URLSearchParams({
+      purchases_limit: String(purchasesLimit),
+      purchases_offset: String(purchasesOffset),
+    });
+    return this.makeRequest<ClientDetail>(
+      `/api/v1/clients/${moyskladId}/detail?${params}`
     );
   }
 

@@ -219,22 +219,24 @@ export const useClients = () => {
     }
   };
 
-  // ── Удалить нескольких клиентов ──
-  const deleteClients = async (clientIds: number[]) => {
+  // ── Удалить нескольких клиентов по moysklad_id ──
+  const deleteClients = async (moyskladIds: string[]) => {
     let deleted = 0;
-    for (const id of clientIds) {
+    for (const msId of moyskladIds) {
       try {
-        await clientsApi.deleteClient(id);
+        await clientsApi.deleteClient(msId);
         deleted++;
       } catch (e) {
-        console.error(`Ошибка удаления клиента ${id}:`, e);
+        console.error(`Ошибка удаления клиента ${msId}:`, e);
       }
     }
-    clients.value = clients.value.filter((c) => !clientIds.includes(c.id));
+    clients.value = clients.value.filter(
+      (c: any) => !moyskladIds.includes(c.moysklad_id)
+    );
     totalClients.value = Math.max(0, totalClients.value - deleted);
     if (deleted > 0) showSuccess(`Удалено клиентов: ${deleted}`);
-    if (deleted < clientIds.length)
-      showError(`Не удалось удалить: ${clientIds.length - deleted}`);
+    if (deleted < moyskladIds.length)
+      showError(`Не удалось удалить: ${moyskladIds.length - deleted}`);
   };
 
   const exportClients = async (

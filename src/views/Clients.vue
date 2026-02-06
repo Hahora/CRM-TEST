@@ -18,11 +18,15 @@ import {
   UndoRedoEditModule,
   CellStyleModule,
   TooltipModule,
+  RenderApiModule,
   themeQuartz,
 } from "ag-grid-community";
 import { useClientsGrid, CLIENT_SOURCES } from "@/composables/useClientsGrid";
 import { useClients } from "@/composables/useClients";
-import type { CreateClientData } from "@/types/clients";
+import ClientDetailModal from "@/components/clients/ClientDetailModal.vue";
+import ClientCreateModal from "@/components/clients/ClientCreateModal.vue";
+import type { NewClientData } from "@/components/clients/ClientCreateModal.vue";
+import { clientsApi } from "@/services/clientsApi";
 import type {
   GridReadyEvent,
   CellValueChangedEvent,
@@ -47,6 +51,7 @@ ModuleRegistry.registerModules([
   UndoRedoEditModule,
   CellStyleModule,
   TooltipModule,
+  RenderApiModule,
 ]);
 
 // Тема
@@ -114,6 +119,7 @@ const showStatsPanel = ref(false);
 const selectedCount = ref(0);
 const isMobile = ref(false);
 const isFullscreen = ref(false);
+const detailMoyskladId = ref<string | null>(null);
 const PAGE_SIZE = 50;
 
 // ═══ Период статистики (дефолт: начало года → сегодня) ═══
@@ -121,20 +127,6 @@ const today = new Date().toISOString().slice(0, 10);
 const yearStart = `${new Date().getFullYear()}-01-01`;
 const statFrom = ref(yearStart);
 const statTo = ref(today);
-
-const newClient = ref<CreateClientData>({
-  name: "",
-  phone: "",
-  email: "",
-  sex: undefined,
-  birth_date: "",
-  telegram_id: "",
-  max_id: "",
-  is_wedding: false,
-  wedding_date: "",
-  bride_name: "",
-  source: "",
-});
 
 const checkMobile = () => {
   isMobile.value = window.innerWidth < 768;
@@ -208,18 +200,9 @@ const onGridReadyHandler = (params: GridReadyEvent) => {
   baseOnGridReady(params);
 
   if (!isMobile.value) {
-    const firstCol = params.api.getColumns()?.[0];
-    const secondCol = params.api.getColumns()?.[1];
-    const toPinIds: string[] = [];
-    if (firstCol) toPinIds.push(firstCol.getColId());
-    if (secondCol) toPinIds.push(secondCol.getColId());
-    if (toPinIds.length) {
-      params.api.setColumnsPinned(toPinIds, "left");
-    }
     params.api.sizeColumnsToFit();
   }
 
-  // Настраиваем DOM-скролл после готовности грида
   setTimeout(setupScrollListener, 300);
 };
 
@@ -259,11 +242,13 @@ const onCellValueChanged = async (event: CellValueChangedEvent) => {
       updateData.bride_name = null;
       event.data.wedding_date = null;
       event.data.bride_name = null;
-      event.api.refreshCells({ rowNodes: [event.node!] });
     }
 
     if (field === "is_wedding") {
-      event.api.refreshCells({ rowNodes: [event.node!] });
+      // Принудительно обновить всю строку — стили свадьбы, даты, невесты
+      setTimeout(() => {
+        event.api.refreshCells({ rowNodes: [event.node!], force: true });
+      }, 0);
     }
 
     await updateClient(event.data.id, updateData);
@@ -278,46 +263,64 @@ const onSelectionChanged = () => {
   selectedCount.value = getSelectedRows().length;
 };
 
-const handleAddClient = async () => {
-  if (!newClient.value.name.trim() || !newClient.value.phone.trim()) return;
+const handleAddClient = async (c: NewClientData) => {
+  // Для физ. лиц — собираем name из ФИО
+  if (c.company_type === "individual") {
+    const parts = [
+      c.legal_last_name?.trim(),
+      c.legal_first_name?.trim(),
+      c.legal_middle_name?.trim(),
+    ].filter(Boolean);
+    c.name = parts.join(" ");
+  }
+
+  if (!c.name?.trim() || !c.phone?.trim()) return;
+
   try {
-    const clientData: CreateClientData = {
-      ...newClient.value,
-      name: newClient.value.name.trim(),
-      phone: newClient.value.phone.trim(),
-      email: newClient.value.email?.trim() || undefined,
-      sex: newClient.value.sex || undefined,
-      birth_date: newClient.value.birth_date || undefined,
-      telegram_id: newClient.value.telegram_id?.trim() || undefined,
-      max_id: newClient.value.max_id?.trim() || undefined,
-      is_wedding: newClient.value.is_wedding || false,
-      wedding_date: newClient.value.wedding_date || undefined,
-      bride_name: newClient.value.bride_name?.trim() || undefined,
-      source: newClient.value.source || undefined,
+    const base: any = {
+      name: c.name.trim(),
+      company_type: c.company_type,
+      phone: c.phone.trim(),
+      email: c.email?.trim() || undefined,
+      telegram_id: c.telegram_id?.trim() || undefined,
+      max_id: c.max_id?.trim() || undefined,
+      source: c.source || undefined,
     };
-    await createClient(clientData);
+
+    if (c.company_type === "individual") {
+      Object.assign(base, {
+        sex: c.sex || undefined,
+        birth_date: c.birth_date || undefined,
+        legal_last_name: c.legal_last_name?.trim() || undefined,
+        legal_first_name: c.legal_first_name?.trim() || undefined,
+        legal_middle_name: c.legal_middle_name?.trim() || undefined,
+        is_wedding: c.is_wedding || false,
+        wedding_date: c.wedding_date || undefined,
+        bride_name: c.bride_name?.trim() || undefined,
+      });
+    } else if (c.company_type === "legal") {
+      Object.assign(base, {
+        inn: c.inn?.trim() || undefined,
+        kpp: c.kpp?.trim() || undefined,
+        ogrn: c.ogrn?.trim() || undefined,
+        legal_address: c.legal_address?.trim() || undefined,
+      });
+    } else if (c.company_type === "entrepreneur") {
+      Object.assign(base, {
+        inn: c.inn?.trim() || undefined,
+        ogrnip: c.ogrnip?.trim() || undefined,
+        legal_last_name: c.legal_last_name?.trim() || undefined,
+        legal_first_name: c.legal_first_name?.trim() || undefined,
+        legal_middle_name: c.legal_middle_name?.trim() || undefined,
+      });
+    }
+
+    await createClient(base);
     await refreshData({ search: "", dateFrom: "", dateTo: "" });
-    resetNewClientForm();
     showAddForm.value = false;
   } catch (error) {
     console.error("Ошибка создания клиента:", error);
   }
-};
-
-const resetNewClientForm = () => {
-  newClient.value = {
-    name: "",
-    phone: "",
-    email: "",
-    sex: undefined,
-    birth_date: "",
-    telegram_id: "",
-    max_id: "",
-    is_wedding: false,
-    wedding_date: "",
-    bride_name: "",
-    source: "",
-  };
 };
 
 const handleRefresh = async () => {
@@ -328,14 +331,35 @@ const handleExport = () => {
   exportToCsv();
 };
 
+const openDetail = () => {
+  const selected = getSelectedRows();
+  if (selected.length !== 1) return;
+  const msId = selected[0]?.moysklad_id;
+  if (msId) detailMoyskladId.value = msId;
+};
+
+const handleDetailDelete = async (moyskladId: string) => {
+  try {
+    await deleteClients([moyskladId]);
+    detailMoyskladId.value = null;
+  } catch (e) {
+    console.error("Ошибка удаления:", e);
+  }
+  selectedCount.value = 0;
+};
+
 const handleDeleteSelected = async () => {
   const selected = getSelectedRows();
   if (selected.length === 0) return;
   if (!confirm(`Удалить ${selected.length} клиент(ов)?`)) return;
 
-  const ids = selected.map((c: any) => c.id).filter((id: any) => id != null);
+  const ids = selected.map((c: any) => c.moysklad_id).filter(Boolean);
   if (ids.length > 0) {
-    await deleteClients(ids);
+    try {
+      await deleteClients(ids);
+    } catch (e) {
+      console.error("Ошибка при deleteClients:", e);
+    }
   }
   selectedCount.value = 0;
 };
@@ -593,7 +617,29 @@ const getRowId = (params: any) => {
         </button>
         <Transition name="fade">
           <button
-            v-if="selectedCount > 0"
+            v-if="selectedCount === 1"
+            class="hbtn hbtn--ghost"
+            @click="openDetail"
+            title="Подробнее о клиенте"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="16" x2="12" y2="12" />
+              <line x1="12" y1="8" x2="12.01" y2="8" />
+            </svg>
+            <span class="hbtn-text">Подробнее</span>
+          </button>
+        </Transition>
+        <Transition name="fade">
+          <button
+            v-if="selectedCount > 1"
             class="hbtn hbtn--danger"
             @click="handleDeleteSelected"
             title="Удалить выбранных"
@@ -611,7 +657,7 @@ const getRowId = (params: any) => {
                 d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
               />
             </svg>
-            <span class="hbtn-text">{{ selectedCount }}</span>
+            <span class="hbtn-text">Удалить {{ selectedCount }}</span>
           </button>
         </Transition>
       </div>
@@ -792,128 +838,6 @@ const getRowId = (params: any) => {
       </div>
     </Transition>
 
-    <!-- ADD FORM -->
-    <Transition name="fold">
-      <div v-if="showAddForm" class="add-panel">
-        <div class="add-panel-top">
-          <h3>Новый клиент</h3>
-          <button class="icon-close" @click="showAddForm = false">
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
-        </div>
-        <form @submit.prevent="handleAddClient" class="add-form">
-          <div class="add-grid">
-            <div class="fg fg--req">
-              <label>Имя</label
-              ><input
-                v-model="newClient.name"
-                type="text"
-                placeholder="Дмитрий"
-                required
-              />
-            </div>
-            <div class="fg fg--req">
-              <label>Телефон</label
-              ><input
-                v-model="newClient.phone"
-                type="tel"
-                placeholder="+7 (999) 123-45-67"
-                required
-              />
-            </div>
-            <div class="fg">
-              <label>Email</label
-              ><input
-                v-model="newClient.email"
-                type="email"
-                placeholder="email@mail.com"
-              />
-            </div>
-            <div class="fg">
-              <label>Пол</label
-              ><select v-model="newClient.sex">
-                <option value="">—</option>
-                <option value="MALE">М</option>
-                <option value="FEMALE">Ж</option>
-              </select>
-            </div>
-            <div class="fg">
-              <label>Дата рождения</label
-              ><input v-model="newClient.birth_date" type="date" />
-            </div>
-            <div class="fg">
-              <label>Telegram</label
-              ><input
-                v-model="newClient.telegram_id"
-                type="text"
-                placeholder="@user"
-              />
-            </div>
-            <div class="fg">
-              <label>МАКС ID</label
-              ><input v-model="newClient.max_id" type="text" placeholder="ID" />
-            </div>
-            <div class="fg">
-              <label>Откуда</label
-              ><select v-model="newClient.source">
-                <option value="">—</option>
-                <option v-for="s in CLIENT_SOURCES" :key="s" :value="s">
-                  {{ s }}
-                </option>
-              </select>
-            </div>
-            <div class="fg fg--chk">
-              <label class="chk-label"
-                ><input type="checkbox" v-model="newClient.is_wedding" /><span
-                  >Свадьба</span
-                ></label
-              >
-            </div>
-            <template v-if="newClient.is_wedding">
-              <div class="fg">
-                <label>Дата свадьбы</label
-                ><input v-model="newClient.wedding_date" type="date" />
-              </div>
-              <div class="fg">
-                <label>Имя невесты</label
-                ><input
-                  v-model="newClient.bride_name"
-                  type="text"
-                  placeholder="Имя"
-                />
-              </div>
-            </template>
-          </div>
-          <div class="add-actions">
-            <button
-              type="button"
-              class="hbtn hbtn--ghost"
-              @click="showAddForm = false"
-            >
-              Отмена
-            </button>
-            <button
-              type="submit"
-              class="hbtn hbtn--primary"
-              :disabled="!newClient.name.trim() || !newClient.phone.trim()"
-            >
-              Создать
-            </button>
-          </div>
-        </form>
-      </div>
-    </Transition>
-
     <!-- MOBILE BAR -->
     <div class="mobile-bar" v-if="isMobile && !isFullscreen">
       <div class="mobile-bar-hint">
@@ -1066,6 +990,21 @@ const getRowId = (params: any) => {
       </div>
     </footer>
   </div>
+
+  <!-- Detail modal -->
+  <ClientDetailModal
+    :moysklad-id="detailMoyskladId"
+    @close="detailMoyskladId = null"
+    @delete="handleDetailDelete"
+  />
+
+  <!-- Create modal -->
+  <ClientCreateModal
+    :open="showAddForm"
+    :sources="CLIENT_SOURCES"
+    @close="showAddForm = false"
+    @create="handleAddClient"
+  />
 </template>
 
 <style>
@@ -1398,6 +1337,41 @@ const getRowId = (params: any) => {
   min-height: 0;
   flex: 1;
 }
+.type-switcher {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 10px;
+  flex-shrink: 0;
+}
+.type-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: var(--rs);
+  border: 1px solid var(--bd);
+  background: var(--sf);
+  color: var(--tx2);
+  font: 600 11px/1 var(--fn);
+  cursor: pointer;
+  transition: all var(--tr);
+  flex: 1;
+  justify-content: center;
+}
+.type-btn:hover {
+  background: var(--sfh);
+  color: var(--tx);
+  border-color: var(--bds);
+}
+.type-btn--on {
+  background: var(--pr);
+  color: #fff;
+  border-color: var(--pr);
+}
+.type-btn--on:hover {
+  background: var(--prh);
+  border-color: var(--prh);
+}
 .add-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
@@ -1408,6 +1382,9 @@ const getRowId = (params: any) => {
   min-height: 0;
   padding-bottom: 4px;
   -webkit-overflow-scrolling: touch;
+}
+.fg--full {
+  grid-column: 1/-1;
 }
 .fg {
   display: flex;

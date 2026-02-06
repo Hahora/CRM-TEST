@@ -1,63 +1,75 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from "vue";
-import { useVisits } from "@/composables/useVisits";
-import { clientsApi } from "@/services/clientsApi";
-import { VISIT_SOURCES } from "@/types/visits";
-import type { Client } from "@/types/clients";
+import { visitsApi, VISIT_STATUSES, VISIT_SOURCES } from "@/services/visitsApi";
+import type {
+  Visit,
+  VisitStatus,
+  ScheduleResponse,
+  Branch,
+  VisitStatsSummary,
+} from "@/services/visitsApi";
+import VisitEditModal from "@/components/visits/VisitEditModal.vue";
+import type { VisitEditPayload } from "@/components/visits/VisitEditModal.vue";
+import ClientCreateModal from "@/components/clients/ClientCreateModal.vue";
 
-// ── Константы ──
-const FITTING_ROOMS = 6;
-const TIME_SLOTS = [
-  "10:00",
-  "11:00",
-  "12:00",
-  "13:00",
-  "14:00",
-  "15:00",
-  "16:00",
-  "17:00",
-  "18:00",
-  "19:00",
-  "20:00",
-];
-
-// Сотрудники для автокомплита консультантов
-type Employee = { id: number; full_name: string; position?: string };
-const allEmployees = ref<Employee[]>([]);
-const loadEmployees = async () => {
-  try {
-    // TODO: подключить ваш employeesApi
-    // const resp = await employeesApi.getEmployees({ limit: 100 });
-    // allEmployees.value = resp.employees || [];
-    allEmployees.value = []; // Пока пустой
-  } catch {
-    /* ignore */
-  }
-};
-
-const {
-  visits,
-  totalVisits,
-  stats,
-  isLoadingVisits,
-  isExporting,
-  loadVisits,
-  loadStats,
-  createVisit,
-  updateVisit,
-  exportVisits,
-} = useVisits();
-
-// ═══ Дата ═══
+// ── State ──
+const schedule = ref<ScheduleResponse | null>(null);
+const isLoading = ref(false);
 const selectedDate = ref(new Date());
+const isMobile = ref(false);
+const isFullscreen = ref(false);
+const showStats = ref(false);
+
+// Branches
+const branches = ref<Branch[]>([]);
+const branchMoyskladId = ref<string>("");
+const branchesLoaded = ref(false);
+
+// Current branch helper
+const currentBranch = computed(() =>
+  branches.value.find((b) => b.moysklad_id === branchMoyskladId.value)
+);
+const currentBranchLocalId = computed(() => currentBranch.value?.local_id);
+
 const dateStr = computed(() => selectedDate.value.toISOString().split("T")[0]);
-const dateDisplay = computed(() => ({
-  day: selectedDate.value.toLocaleDateString("ru-RU", {
-    day: "2-digit",
-    month: "2-digit",
-  }),
-  weekday: selectedDate.value.toLocaleDateString("ru-RU", { weekday: "short" }),
-}));
+const timeSlots = computed(
+  () =>
+    schedule.value?.time_slots || [
+      "10:00",
+      "11:00",
+      "12:00",
+      "13:00",
+      "14:00",
+      "15:00",
+      "16:00",
+      "17:00",
+      "18:00",
+      "19:00",
+      "20:00",
+    ]
+);
+const fittingRooms = computed(
+  () => schedule.value?.fitting_rooms || [1, 2, 3, 4, 5, 6]
+);
+
+// Grid
+const grid = computed(() => {
+  const g: Record<string, Record<number, Visit | null>> = {};
+  for (const slot of timeSlots.value) {
+    g[slot] = {};
+    for (const room of fittingRooms.value) g[slot][room] = null;
+  }
+  if (schedule.value) {
+    for (const v of schedule.value.visits) {
+      if (g[v.time_slot]?.[v.fitting_room] !== undefined) {
+        g[v.time_slot][v.fitting_room] = v;
+      }
+    }
+  }
+  return g;
+});
+
+// Date nav
 const weekDates = computed(() => {
   const cur = new Date(selectedDate.value);
   const dow = cur.getDay();
@@ -69,10 +81,7 @@ const weekDates = computed(() => {
     return d;
   });
 });
-const isToday = (d: Date) => {
-  const t = new Date();
-  return d.toDateString() === t.toDateString();
-};
+const isToday = (d: Date) => d.toDateString() === new Date().toDateString();
 const isSameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString();
 const selectDay = (d: Date) => {
   selectedDate.value = new Date(d);
@@ -90,394 +99,328 @@ const nextDay = () => {
 const goToday = () => {
   selectedDate.value = new Date();
 };
+const dateDisplay = computed(() => ({
+  day: selectedDate.value.toLocaleDateString("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+  }),
+  weekday: selectedDate.value.toLocaleDateString("ru-RU", { weekday: "short" }),
+}));
 
-// ═══ Данные сетки ═══
-type CellData = {
-  id?: number;
-  client_id?: number;
-  client_name: string;
-  client_phone: string;
-  size: string;
-  color: string;
-  source: string;
-  consultant: string;
-  comment: string;
-  // Статусы
-  no_show: boolean; // Не пришёл
-  fitting: boolean; // Примерка (галочка, информационная)
-  result: string; // "" | "purchased" | "not_purchased" | "hold_no_deposit" | "hold_deposit"
-  // Доп. поля
-  hold_until: string;
-  deposit_amount: number | null;
-  purchase_amount: number | null;
-  purchased_items: string;
-  dirty: boolean;
+// Load
+const loadBranches = async () => {
+  try {
+    const resp = await visitsApi.getBranches();
+    branches.value = (Array.isArray(resp) ? resp : []).filter(
+      (b) => b.is_active
+    );
+    if (
+      branches.value.length &&
+      !branches.value.find((b) => b.moysklad_id === branchMoyskladId.value)
+    ) {
+      branchMoyskladId.value = branches.value[0].moysklad_id;
+    }
+    branchesLoaded.value = true;
+  } catch (e) {
+    console.error("Ошибка загрузки филиалов:", e);
+    branchesLoaded.value = true;
+  }
 };
 
-const emptyCell = (): CellData => ({
-  client_name: "",
-  client_phone: "",
-  size: "",
-  color: "",
-  source: "",
-  consultant: "",
-  comment: "",
-  no_show: false,
-  fitting: false,
-  result: "",
-  hold_until: "",
-  deposit_amount: null,
-  purchase_amount: null,
-  purchased_items: "",
-  dirty: false,
-});
-
-const grid = ref<Record<string, CellData[]>>({});
-const initGrid = () => {
-  const g: Record<string, CellData[]> = {};
-  for (const slot of TIME_SLOTS)
-    g[slot] = Array.from({ length: FITTING_ROOMS }, () => emptyCell());
-  grid.value = g;
-};
-initGrid();
-
-const loadDayVisits = async () => {
-  await loadVisits({
-    search: "",
-    status: "",
-    start_date: dateStr.value,
-    end_date: dateStr.value,
-  });
-  await loadStats({ start_date: dateStr.value, end_date: dateStr.value });
-  initGrid();
-  for (const v of visits.value) {
-    if (!v.visit_datetime) continue;
-    const dt = new Date(v.visit_datetime);
-    const hour = dt.getHours().toString().padStart(2, "0") + ":00";
-    const slotCells = grid.value[hour];
-    if (!slotCells) continue;
-    const assignedRoom = (v as any).fitting_room ?? (v as any).room;
-    let idx =
-      assignedRoom != null && assignedRoom >= 0 && assignedRoom < FITTING_ROOMS
-        ? assignedRoom
-        : slotCells.findIndex((c) => !c.id && !c.client_name);
-    if (idx < 0 || idx >= FITTING_ROOMS) continue;
-    const cell = slotCells[idx];
-    cell.id = Number(v.id);
-    cell.client_id = (v as any).client_id
-      ? Number((v as any).client_id)
-      : undefined;
-    cell.client_name = v.client_name || (v.client as any)?.full_name || "";
-    cell.client_phone = v.client_phone || (v.client as any)?.phone || "";
-    cell.size = v.size || "";
-    cell.color = v.color || "";
-    cell.source = v.source || "";
-    cell.consultant = v.consultant || "";
-    cell.comment = v.comment || "";
-    const s = v.status;
-    cell.no_show = s === "no_show";
-    cell.fitting = v.fitting ?? false;
-    cell.result = ["purchased", "redeemed", "redeemed_deposit"].includes(s)
-      ? "purchased"
-      : s === "not_purchased"
-      ? "not_purchased"
-      : s === "hold_no_deposit"
-      ? "hold_no_deposit"
-      : s === "hold_deposit"
-      ? "hold_deposit"
-      : "";
-    cell.hold_until = v.hold_until || "";
-    cell.deposit_amount = v.deposit_amount ?? null;
-    cell.purchase_amount = v.purchase_amount ?? null;
-    cell.purchased_items = v.purchased_items || "";
-    cell.dirty = false;
+const loadSchedule = async () => {
+  isLoading.value = true;
+  try {
+    schedule.value = await visitsApi.getSchedule(
+      dateStr.value,
+      branchMoyskladId.value
+    );
+  } catch (e) {
+    console.error("Ошибка загрузки расписания:", e);
+  } finally {
+    isLoading.value = false;
   }
 };
 
 onMounted(async () => {
   checkMobile();
   window.addEventListener("resize", checkMobile);
-  await loadEmployees();
-  await loadDayVisits();
+  await loadBranches();
+  await loadSchedule();
 });
-onUnmounted(() => {
-  window.removeEventListener("resize", checkMobile);
+onUnmounted(() => window.removeEventListener("resize", checkMobile));
+watch(selectedDate, () => loadSchedule());
+watch(branchMoyskladId, () => {
+  loadSchedule();
+  if (showStats.value) loadVisitStats();
 });
-watch(selectedDate, () => loadDayVisits());
+watch(showStats, (v) => {
+  if (v && !visitStats.value) loadVisitStats();
+});
 
-// ═══ Автокомплит клиентов (по телефону, тг, максу) ═══
-const acResults = ref<Record<string, Client[]>>({});
-const acLoading = ref<Record<string, boolean>>({});
-const acOpen = ref<string | null>(null);
-let acTimer: ReturnType<typeof setTimeout> | null = null;
-const acKey = (slot: string, room: number) => `${slot}-${room}`;
+// ── Stats (server-side) ──
+const totalVisits = computed(() => schedule.value?.visits.length || 0);
+const visitStats = ref<VisitStatsSummary | null>(null);
+const isLoadingStats = ref(false);
 
-const searchClients = (slot: string, room: number, query: string) => {
-  const key = acKey(slot, room);
-  if (query.length < 2) {
-    acResults.value[key] = [];
-    acLoading.value[key] = false;
-    acOpen.value = null;
-    return;
-  }
-  acLoading.value[key] = true;
-  acOpen.value = key; // Открываем сразу, покажем "Поиск..."
-  if (acTimer) clearTimeout(acTimer);
-  acTimer = setTimeout(async () => {
-    try {
-      const resp = await clientsApi.getClients({ search: query, limit: 8 });
-      const clients = resp.clients || resp.data || resp.results || [];
-      acResults.value[key] = clients;
-      acLoading.value[key] = false;
-      // Если есть результаты или шёл поиск — держим открытым
-      acOpen.value = key;
-    } catch (e) {
-      console.error("Ошибка поиска клиентов:", e);
-      acResults.value[key] = [];
-      acLoading.value[key] = false;
-      acOpen.value = key; // Покажем "Не найдено"
-    }
-  }, 250);
-};
+// Период статистики (дефолт: начало года → сегодня)
+const today = new Date().toISOString().slice(0, 10);
+const yearStart = `${new Date().getFullYear()}-01-01`;
+const statFrom = ref(yearStart);
+const statTo = ref(today);
 
-const onClientInput = (slot: string, room: number) => {
-  markDirty(slot, room);
-  const query = grid.value[slot][room].client_name.trim();
-  searchClients(slot, room, query);
-};
-
-const onClientFocus = (slot: string, room: number) => {
-  const query = grid.value[slot][room].client_name.trim();
-  if (query.length >= 2) {
-    searchClients(slot, room, query);
-  }
-};
-
-const selectClient = (slot: string, room: number, client: Client) => {
-  const cell = grid.value[slot]?.[room];
-  if (!cell) return;
-  cell.client_id = Number(client.id);
-  cell.client_name =
-    (client as any).full_name ||
-    (client as any).name ||
-    `${(client as any).first_name || ""} ${
-      (client as any).last_name || ""
-    }`.trim() ||
-    "";
-  cell.client_phone =
-    (client as any).phone || (client as any).phone_number || "";
-  cell.dirty = true;
-  acOpen.value = null;
-  acResults.value[acKey(slot, room)] = [];
-  saveCell(slot, room);
-};
-
-const closeAc = () => {
-  acOpen.value = null;
-};
-
-// Получить отображаемое имя клиента
-const getClientDisplayName = (cl: any): string => {
-  return (
-    cl.full_name ||
-    cl.name ||
-    `${cl.first_name || ""} ${cl.last_name || ""}`.trim() ||
-    "Без имени"
-  );
-};
-
-const getClientPhone = (cl: any): string => {
-  return cl.phone || cl.phone_number || "";
-};
-
-// ═══ Автокомплит консультантов ═══
-const consultantResults = ref<Record<string, Employee[]>>({});
-const consultantOpen = ref<string | null>(null);
-const consultantKey = (slot: string, room: number) => `cons-${slot}-${room}`;
-
-const onConsultantInput = (slot: string, room: number) => {
-  markDirty(slot, room);
-  const query = grid.value[slot][room].consultant.trim().toLowerCase();
-  const key = consultantKey(slot, room);
-
-  if (query.length < 1) {
-    consultantResults.value[key] = [];
-    consultantOpen.value = null;
-    return;
-  }
-
-  // Фильтруем локально по списку сотрудников
-  const filtered = allEmployees.value
-    .filter((e) => e.full_name.toLowerCase().includes(query))
-    .slice(0, 6);
-
-  consultantResults.value[key] = filtered;
-  consultantOpen.value = filtered.length ? key : null;
-};
-
-const selectConsultant = (slot: string, room: number, emp: Employee) => {
-  const cell = grid.value[slot]?.[room];
-  if (!cell) return;
-  cell.consultant = emp.full_name;
-  cell.dirty = true;
-  consultantOpen.value = null;
-  consultantResults.value[consultantKey(slot, room)] = [];
-  saveCell(slot, room);
-};
-
-const closeConsultantAc = () => {
-  consultantOpen.value = null;
-};
-
-// ═══ Сохранение ═══
-const saveCell = async (slot: string, room: number) => {
-  const cell = grid.value[slot]?.[room];
-  if (!cell) return;
-
-  let status = "scheduled";
-  if (cell.no_show) status = "no_show";
-  else if (cell.result === "purchased") status = "purchased";
-  else if (cell.result === "not_purchased") status = "not_purchased";
-  else if (cell.result === "hold_no_deposit") status = "hold_no_deposit";
-  else if (cell.result === "hold_deposit") status = "hold_deposit";
-  else if (cell.fitting) status = "fitting_done";
-
-  const data: any = {
-    client_name: cell.client_name,
-    client_phone: cell.client_phone,
-    client_id: cell.client_id || undefined,
-    visit_datetime: `${dateStr.value}T${slot}:00`,
-    size: cell.size,
-    color: cell.color,
-    source: cell.source,
-    consultant: cell.consultant,
-    comment: cell.comment,
-    fitting: cell.fitting,
-    status,
-    hold_until: cell.hold_until || undefined,
-    deposit_amount: cell.deposit_amount ?? undefined,
-    purchase_amount: cell.purchase_amount ?? undefined,
-    purchased_items: cell.purchased_items || undefined,
-    fitting_room: room,
-  };
+const loadVisitStats = async (from?: string, to?: string) => {
+  isLoadingStats.value = true;
   try {
-    if (cell.id) {
-      await updateVisit(cell.id, data);
-    } else if (cell.client_name.trim()) {
-      const created = await createVisit(data);
-      cell.id = Number(created.id);
-    }
-    cell.dirty = false;
+    visitStats.value = await visitsApi.getVisitStats({
+      startDate: from || statFrom.value,
+      endDate: to || statTo.value,
+      branchId: currentBranchLocalId.value,
+    });
   } catch (e) {
-    console.error("Ошибка сохранения:", e);
+    console.error("Ошибка загрузки статистики визитов:", e);
+  } finally {
+    isLoadingStats.value = false;
   }
 };
 
-const markDirty = (slot: string, room: number) => {
-  const c = grid.value[slot]?.[room];
-  if (c) c.dirty = true;
-};
-const onFieldBlur = (slot: string, room: number) => {
-  const c = grid.value[slot]?.[room];
-  if (c?.dirty) saveCell(slot, room);
-  // Закрываем автокомплиты с задержкой (чтобы mousedown успел сработать)
-  setTimeout(() => {
-    closeAc();
-    closeConsultantAc();
-  }, 250);
-};
-
-// Статусы
-const toggleNoShow = (slot: string, room: number) => {
-  const cell = grid.value[slot]?.[room];
-  if (!cell) return;
-  cell.no_show = !cell.no_show;
-  if (cell.no_show) {
-    cell.result = "";
+const handleStatsDateChange = () => {
+  if (statFrom.value && statTo.value) {
+    loadVisitStats(statFrom.value, statTo.value);
   }
-  cell.dirty = true;
-  saveCell(slot, room);
-};
-const toggleFitting = (slot: string, room: number) => {
-  const cell = grid.value[slot]?.[room];
-  if (!cell) return;
-  cell.fitting = !cell.fitting;
-  cell.dirty = true;
-  saveCell(slot, room);
-};
-const setResult = (slot: string, room: number, result: string) => {
-  const cell = grid.value[slot]?.[room];
-  if (!cell || cell.no_show) return;
-  cell.result = cell.result === result ? "" : result;
-  cell.dirty = true;
-  saveCell(slot, room);
 };
 
-// ═══ UI ═══
-const isMobile = ref(false);
-const isFullscreen = ref(false);
-const showStatsPanel = ref(true);
+const setStatPreset = (preset: string) => {
+  const now = new Date();
+  const todayStr = now.toISOString().slice(0, 10);
+  let from = "";
+  switch (preset) {
+    case "today":
+      from = todayStr;
+      break;
+    case "week": {
+      const d = new Date(now);
+      d.setDate(d.getDate() - 7);
+      from = d.toISOString().slice(0, 10);
+      break;
+    }
+    case "month":
+      from = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(
+        2,
+        "0"
+      )}-01`;
+      break;
+    case "quarter": {
+      const qm = Math.floor(now.getMonth() / 3) * 3 + 1;
+      from = `${now.getFullYear()}-${String(qm).padStart(2, "0")}-01`;
+      break;
+    }
+    case "year":
+      from = `${now.getFullYear()}-01-01`;
+      break;
+    case "all":
+      from = "2020-01-01";
+      break;
+  }
+  statFrom.value = from;
+  statTo.value = todayStr;
+  loadVisitStats(from, todayStr);
+};
+
+const activePreset = computed(() => {
+  const now = new Date();
+  const todayStr = now.toISOString().slice(0, 10);
+  if (statTo.value !== todayStr) return "";
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  const ys = `${y}-01-01`;
+  const ms = `${y}-${String(m + 1).padStart(2, "0")}-01`;
+  const qm = Math.floor(m / 3) * 3 + 1;
+  const qs = `${y}-${String(qm).padStart(2, "0")}-01`;
+  const w = new Date(now);
+  w.setDate(w.getDate() - 7);
+  const ws = w.toISOString().slice(0, 10);
+  if (statFrom.value === todayStr) return "today";
+  if (statFrom.value === ws) return "week";
+  if (statFrom.value === ms) return "month";
+  if (statFrom.value === qs) return "quarter";
+  if (statFrom.value === ys) return "year";
+  if (statFrom.value === "2020-01-01") return "all";
+  return "";
+});
+
+const formatCurrency = (v: number) => {
+  if (v >= 1_000_000)
+    return (v / 1_000_000).toFixed(1).replace(/\.0$/, "") + "M";
+  if (v >= 1_000) return (v / 1_000).toFixed(0) + "K";
+  return v.toLocaleString("ru-RU");
+};
+
+// ── Edit modal ──
+const editOpen = ref(false);
+const editPayload = ref<VisitEditPayload | null>(null);
+const visitEditRef = ref<InstanceType<typeof VisitEditModal> | null>(null);
+const showNewClientModal = ref(false);
+
+const openCell = (slot: string, room: number) => {
+  editPayload.value = {
+    slot,
+    room,
+    visit: grid.value[slot]?.[room] || null,
+    dateStr: dateStr.value,
+    branchMoyskladId: branchMoyskladId.value,
+    branchLocalId: currentBranchLocalId.value,
+  };
+  editOpen.value = true;
+};
+const onEditSaved = () => loadSchedule();
+const onEditClose = () => {
+  editOpen.value = false;
+};
+const onOpenNewClient = () => {
+  showNewClientModal.value = true;
+};
+const onNewClientCreated = (data: any) => {
+  showNewClientModal.value = false;
+  if (data && visitEditRef.value) {
+    // Map NewClientData to client-like object for the visit modal
+    const client = {
+      moysklad_id: "",
+      name:
+        data.name ||
+        `${data.legal_last_name || ""} ${data.legal_first_name || ""} ${
+          data.legal_middle_name || ""
+        }`.trim(),
+      phone: data.phone || "",
+      email: data.email || "",
+    };
+    visitEditRef.value.onNewClientCreated(client);
+  }
+};
+
+// ── CSV export ──
+const exportCsv = () => {
+  const visits = schedule.value?.visits || [];
+  if (!visits.length) return;
+  const headers = [
+    "Время",
+    "Примерочная",
+    "Клиент",
+    "Телефон",
+    "Email",
+    "Размер",
+    "Цвет",
+    "Откуда",
+    "Консультант",
+    "Должность",
+    "Статус",
+    "Примерка",
+    "Комментарий",
+  ];
+  const rows = visits.map((v) =>
+    [
+      v.time_slot,
+      v.fitting_room,
+      v.client?.name || "",
+      v.client?.phone || "",
+      v.client?.email || "",
+      v.size || "",
+      v.color || "",
+      v.source || "",
+      v.employee?.full_name || "",
+      v.employee?.position || "",
+      VISIT_STATUSES.find((s) => s.value === v.status)?.label || v.status,
+      v.fitting ? "Да" : "Нет",
+      v.notes || "",
+    ]
+      .map((c) => `"${String(c).replace(/"/g, '""')}"`)
+      .join(",")
+  );
+  const csv = "\uFEFF" + [headers.join(","), ...rows].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  const branchName = currentBranch.value?.name || "branch";
+  a.download = `visits_${branchName}_${dateStr.value}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+// Helpers
 const checkMobile = () => {
   isMobile.value = window.innerWidth < 768;
 };
-
-const displayStats = computed(() => ({
-  total: stats.value?.total_visits || totalVisits.value || 0,
-  revenue: stats.value?.total_purchase_amount || 0,
-  conversion: stats.value?.conversion_rate || 0,
-}));
-const formatCurrency = (v: number | null | undefined): string => {
-  if (v == null) return "—";
-  return new Intl.NumberFormat("ru-RU", {
-    style: "currency",
-    currency: "RUB",
-    minimumFractionDigits: 0,
-  }).format(v);
+const statusLabel = (s: VisitStatus) =>
+  VISIT_STATUSES.find((x) => x.value === s)?.label || s;
+const statusColor = (s: VisitStatus): string => {
+  switch (s) {
+    case "kupil":
+      return "var(--ok)";
+    case "ne_prishel":
+    case "sdelka_provalena":
+      return "var(--er)";
+    case "otlozhil_bez_depozita":
+    case "otlozhil_do_vechera":
+      return "var(--am)";
+    case "otlozhil_s_depozitom":
+      return "#2563eb";
+    case "prishel":
+      return "var(--te)";
+    case "zapisalsya":
+      return "var(--pu)";
+    default:
+      return "var(--txm)";
+  }
 };
-const getCellBg = (cell: CellData): string => {
-  if (cell.no_show) return "var(--cell-er)";
-  if (cell.result === "purchased") return "var(--cell-ok)";
-  if (cell.result === "hold_deposit") return "var(--cell-bl)";
-  if (cell.result === "hold_no_deposit") return "var(--cell-am)";
-  if (cell.result === "not_purchased") return "var(--cell-er)";
-  if (cell.client_name) return "var(--cell-fill)";
-  return "transparent";
+const statusBg = (s: VisitStatus): string => {
+  switch (s) {
+    case "kupil":
+      return "#dcfce7";
+    case "ne_prishel":
+    case "sdelka_provalena":
+      return "#fee2e2";
+    case "otlozhil_bez_depozita":
+    case "otlozhil_do_vechera":
+      return "#fef3c7";
+    case "otlozhil_s_depozitom":
+      return "#dbeafe";
+    case "prishel":
+      return "#ccfbf1";
+    case "zapisalsya":
+      return "#ede9fe";
+    default:
+      return "var(--sfh)";
+  }
 };
-const handleRefresh = () => loadDayVisits();
-const handleExport = () =>
-  exportVisits({ start_date: dateStr.value, end_date: dateStr.value });
-
-const resultOptions = [
-  {
-    value: "hold_no_deposit",
-    label: "Отложил без деп.",
-    icon: "◷",
-    cls: "res-am",
-  },
-  { value: "hold_deposit", label: "Отложил с деп.", icon: "◈", cls: "res-bl" },
-  { value: "purchased", label: "Купил", icon: "✓", cls: "res-ok" },
-  { value: "not_purchased", label: "Не купил", icon: "✗", cls: "res-er" },
-];
 </script>
 
 <template>
-  <div class="visits-page" :class="{ 'visits-page--fs': isFullscreen }">
+  <div class="vp" :class="{ 'vp--fs': isFullscreen }">
     <!-- HEADER -->
-    <header class="v-header">
-      <div class="v-header-left">
-        <div class="v-header-title-row">
-          <h1 class="v-header-title">Посещения</h1>
-          <span class="v-badge">{{ displayStats.total }}</span>
-        </div>
-        <p class="v-header-sub">
-          Примерочные · {{ dateDisplay.day }} {{ dateDisplay.weekday }}
-        </p>
+    <header class="vp-header">
+      <div class="vp-hl">
+        <h1 class="vp-title">Посещения</h1>
+        <span class="vp-badge">{{ totalVisits }}</span>
       </div>
-      <div class="v-header-btns">
-        <button class="vb vb--ghost" @click="showStatsPanel = !showStatsPanel">
+      <div class="vp-hbtns">
+        <select v-model="branchMoyskladId" class="vp-branch">
+          <option
+            v-for="b in branches"
+            :key="b.moysklad_id"
+            :value="b.moysklad_id"
+          >
+            {{ b.name }}
+          </option>
+        </select>
+        <button
+          class="hbtn hbtn--ghost"
+          @click="showStats = !showStats"
+          :class="{ 'hbtn--active': showStats }"
+          title="Статистика"
+        >
           <svg
-            width="16"
-            height="16"
+            width="14"
+            height="14"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -485,17 +428,13 @@ const resultOptions = [
           >
             <line x1="18" y1="20" x2="18" y2="10" />
             <line x1="12" y1="20" x2="12" y2="4" />
-            <line x1="6" y1="20" x2="6" y2="14" /></svg
-          ><span class="vb-t">Стат</span>
+            <line x1="6" y1="20" x2="6" y2="14" />
+          </svg>
         </button>
-        <button
-          class="vb vb--ghost"
-          @click="handleExport"
-          :disabled="isExporting"
-        >
+        <button class="hbtn hbtn--ghost" @click="exportCsv" title="CSV">
           <svg
-            width="16"
-            height="16"
+            width="14"
+            height="14"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -503,100 +442,270 @@ const resultOptions = [
           >
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
             <polyline points="7 10 12 15 17 10" />
-            <line x1="12" y1="15" x2="12" y2="3" /></svg
-          ><span class="vb-t">Экспорт</span>
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
         </button>
         <button
-          class="vb vb--ghost"
-          @click="handleRefresh"
-          :disabled="isLoadingVisits"
+          class="hbtn hbtn--ghost"
+          @click="loadSchedule"
+          :disabled="isLoading"
+          title="Обновить"
         >
           <svg
-            width="16"
-            height="16"
+            width="14"
+            height="14"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
             stroke-width="2"
-            :class="{ spinning: isLoadingVisits }"
+            :class="{ spinning: isLoading }"
           >
             <polyline points="23 4 23 10 17 10" />
             <polyline points="1 20 1 14 7 14" />
             <path
               d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"
-            /></svg
-          ><span class="vb-t">Обновить</span>
+            />
+          </svg>
         </button>
       </div>
     </header>
 
     <!-- STATS -->
     <Transition name="fold">
-      <div v-if="showStatsPanel" class="v-stats">
-        <div class="vs">
-          <div class="vs-i vs-i--am">
+      <div v-if="showStats" class="vp-stats-panel">
+        <!-- Период -->
+        <div class="vp-stats-period">
+          <div class="vp-stats-dates">
             <svg
-              width="15"
-              height="15"
+              width="13"
+              height="13"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
               stroke-width="2"
             >
-              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-              <circle cx="9" cy="7" r="4" />
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+              <line x1="16" y1="2" x2="16" y2="6" />
+              <line x1="8" y1="2" x2="8" y2="6" />
+              <line x1="3" y1="10" x2="21" y2="10" />
             </svg>
+            <input
+              type="date"
+              v-model="statFrom"
+              @change="handleStatsDateChange"
+              class="vp-stats-dinput"
+            />
+            <span class="vp-stats-sep">—</span>
+            <input
+              type="date"
+              v-model="statTo"
+              @change="handleStatsDateChange"
+              class="vp-stats-dinput"
+            />
+            <div v-if="isLoadingStats" class="vp-stats-dot"></div>
           </div>
-          <div class="vs-b">
-            <b>{{ displayStats.total }}</b
-            ><span>Визитов</span>
+          <div class="vp-stats-presets">
+            <button
+              class="vp-sp"
+              :class="{ 'vp-sp--on': activePreset === 'today' }"
+              @click="setStatPreset('today')"
+            >
+              Сегодня
+            </button>
+            <button
+              class="vp-sp"
+              :class="{ 'vp-sp--on': activePreset === 'week' }"
+              @click="setStatPreset('week')"
+            >
+              7 дней
+            </button>
+            <button
+              class="vp-sp"
+              :class="{ 'vp-sp--on': activePreset === 'month' }"
+              @click="setStatPreset('month')"
+            >
+              Месяц
+            </button>
+            <button
+              class="vp-sp"
+              :class="{ 'vp-sp--on': activePreset === 'quarter' }"
+              @click="setStatPreset('quarter')"
+            >
+              Квартал
+            </button>
+            <button
+              class="vp-sp"
+              :class="{ 'vp-sp--on': activePreset === 'year' }"
+              @click="setStatPreset('year')"
+            >
+              Год
+            </button>
+            <button
+              class="vp-sp"
+              :class="{ 'vp-sp--on': activePreset === 'all' }"
+              @click="setStatPreset('all')"
+            >
+              Всё время
+            </button>
           </div>
         </div>
-        <div class="vs">
-          <div class="vs-i vs-i--ok">
-            <svg
-              width="15"
-              height="15"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <line x1="12" y1="1" x2="12" y2="23" />
-              <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-            </svg>
+        <!-- Карточки -->
+        <div class="vp-stats-row">
+          <div class="vs">
+            <div class="vs-i vs-i--pr">
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+              </svg>
+            </div>
+            <div class="vs-b">
+              <b>{{ visitStats?.total_visits ?? "—" }}</b
+              ><span>Визитов</span>
+            </div>
           </div>
-          <div class="vs-b">
-            <b>{{ formatCurrency(displayStats.revenue) }}</b
-            ><span>Выручка</span>
+          <div class="vs">
+            <div class="vs-i vs-i--ok">
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            </div>
+            <div class="vs-b">
+              <b>{{ visitStats?.purchased_count ?? "—" }}</b
+              ><span>Купили</span>
+            </div>
           </div>
-        </div>
-        <div class="vs">
-          <div class="vs-i vs-i--te">
-            <svg
-              width="15"
-              height="15"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-            </svg>
+          <div class="vs">
+            <div class="vs-i vs-i--am">
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+              </svg>
+            </div>
+            <div class="vs-b">
+              <b>{{
+                (visitStats?.postponed_deposit_count ?? 0) +
+                (visitStats?.postponed_no_deposit_count ?? 0)
+              }}</b
+              ><span>Отложили</span>
+            </div>
           </div>
-          <div class="vs-b">
-            <b>{{ displayStats.conversion }}%</b><span>Конверсия</span>
+          <div class="vs">
+            <div class="vs-i vs-i--er">
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <line x1="15" y1="9" x2="9" y2="15" />
+                <line x1="9" y1="9" x2="15" y2="15" />
+              </svg>
+            </div>
+            <div class="vs-b">
+              <b>{{ visitStats?.no_show_count ?? "—" }}</b
+              ><span>Не пришли</span>
+            </div>
+          </div>
+          <div class="vs">
+            <div class="vs-i vs-i--pu">
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <line x1="18" y1="20" x2="18" y2="10" />
+                <line x1="12" y1="20" x2="12" y2="4" />
+                <line x1="6" y1="20" x2="6" y2="14" />
+              </svg>
+            </div>
+            <div class="vs-b">
+              <b>{{ visitStats?.failed_count ?? "—" }}</b
+              ><span>Провалено</span>
+            </div>
+          </div>
+          <div class="vs">
+            <div class="vs-i vs-i--te">
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+              </svg>
+            </div>
+            <div class="vs-b">
+              <b>{{
+                visitStats?.conversion_rate != null
+                  ? visitStats.conversion_rate.toFixed(1) + "%"
+                  : "—"
+              }}</b
+              ><span>Конверсия</span>
+            </div>
+          </div>
+          <div class="vs">
+            <div class="vs-i vs-i--ok">
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M6 3v18" />
+                <path d="M6 12h8a4 4 0 0 0 0-8H6" />
+                <path d="M4 16h10" />
+              </svg>
+            </div>
+            <div class="vs-b">
+              <b>{{
+                visitStats?.total_purchase_amount != null
+                  ? formatCurrency(visitStats.total_purchase_amount)
+                  : "—"
+              }}</b
+              ><span>Сумма покупок</span>
+            </div>
           </div>
         </div>
       </div>
     </Transition>
 
     <!-- DATE BAR -->
-    <div class="v-date">
-      <button class="v-date-arr" @click="prevDay">
+    <div class="vp-date">
+      <button class="vp-date-arr" @click="prevDay">
         <svg
-          width="16"
-          height="16"
+          width="14"
+          height="14"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
@@ -605,31 +714,31 @@ const resultOptions = [
           <polyline points="15 18 9 12 15 6" />
         </svg>
       </button>
-      <div class="v-date-week">
+      <div class="vp-week">
         <button
           v-for="d in weekDates"
           :key="d.toISOString()"
-          class="v-dc"
+          class="vp-dc"
           :class="{
-            'v-dc--act': isSameDay(d, selectedDate),
-            'v-dc--today': isToday(d),
+            'vp-dc--act': isSameDay(d, selectedDate),
+            'vp-dc--today': isToday(d),
           }"
           @click="selectDay(d)"
         >
-          <span class="v-dc-d"
+          <span class="vp-dc-d"
             >{{ d.getDate().toString().padStart(2, "0") }}.{{
               (d.getMonth() + 1).toString().padStart(2, "0")
             }}</span
           >
-          <span class="v-dc-w">{{
+          <span class="vp-dc-w">{{
             d.toLocaleDateString("ru-RU", { weekday: "short" })
           }}</span>
         </button>
       </div>
-      <button class="v-date-arr" @click="nextDay">
+      <button class="vp-date-arr" @click="nextDay">
         <svg
-          width="16"
-          height="16"
+          width="14"
+          height="14"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
@@ -639,18 +748,40 @@ const resultOptions = [
         </svg>
       </button>
       <button
-        class="vb vb--ghost vb--xs"
+        class="hbtn hbtn--ghost hbtn--xs"
         @click="goToday"
-        style="margin-left: 4px"
+        style="margin-left: 6px"
       >
         Сегодня
       </button>
     </div>
 
-    <!-- MOBILE FS -->
-    <div class="v-mob" v-if="isMobile && !isFullscreen">
-      <span class="v-mob-h">Свайп ← → · Тап = редактировать</span>
-      <button class="v-mob-fs" @click="isFullscreen = true">
+    <!-- LOADING -->
+    <div v-if="isLoading" class="vp-loading">
+      <div class="vp-loading-bar"></div>
+    </div>
+
+    <!-- MOBILE BAR -->
+    <div class="vp-mob" v-if="isMobile && !isFullscreen">
+      <span class="vp-mob-hint">
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+          <circle cx="12" cy="12" r="3" />
+        </svg>
+        Свайп ← → · Тап = редактировать
+      </span>
+      <button
+        class="vp-mob-fs"
+        @click="isFullscreen = true"
+        title="Во весь экран"
+      >
         <svg
           width="15"
           height="15"
@@ -666,9 +797,14 @@ const resultOptions = [
         </svg>
       </button>
     </div>
-    <div class="v-fsx" v-if="isFullscreen">
-      <span>{{ dateDisplay.day }} · {{ displayStats.total }} визитов</span>
-      <button class="v-fsx-btn" @click="isFullscreen = false">
+
+    <!-- FULLSCREEN EXIT -->
+    <div class="vp-fsx" v-if="isFullscreen">
+      <span class="vp-fsx-info"
+        >{{ dateDisplay.day }} · <b>{{ totalVisits }}</b> визитов ·
+        {{ schedule?.branch_name || "" }}</span
+      >
+      <button class="vp-fsx-btn" @click="isFullscreen = false">
         <svg
           width="14"
           height="14"
@@ -686,301 +822,121 @@ const resultOptions = [
       </button>
     </div>
 
-    <!-- LOADING -->
-    <div class="v-load" v-if="isLoadingVisits"></div>
-
-    <!-- ═══ SPREADSHEET ═══ -->
-    <div class="v-grid">
-      <table class="sheet">
-        <colgroup>
-          <col class="col-time" />
-          <col class="col-lbl" />
-          <col v-for="r in FITTING_ROOMS" :key="'col' + r" class="col-room" />
-        </colgroup>
+    <!-- GRID -->
+    <div class="vp-grid">
+      <table class="vp-table">
         <thead>
           <tr>
-            <th class="sh-time">Время</th>
-            <th class="sh-lbl">Поле</th>
-            <th v-for="r in FITTING_ROOMS" :key="r" class="sh-room">
-              Примерочная&nbsp;{{ r }}
+            <th class="vp-th-time">Время</th>
+            <th v-for="r in fittingRooms" :key="r" class="vp-th-room">
+              Прим.&nbsp;{{ r }}
             </th>
           </tr>
         </thead>
         <tbody>
-          <template v-for="slot in TIME_SLOTS" :key="slot">
-            <!-- ROW: Статус (Не пришёл / Примерка / Результат) -->
-            <tr class="tr-time">
-              <td class="td-time" :rowspan="8">
-                <span class="time-pill">{{ slot }}</span>
-              </td>
-              <td class="td-lbl td-lbl--h">Статус</td>
-              <td
-                v-for="r in FITTING_ROOMS"
-                :key="'st' + r"
-                class="td-status"
-                :style="{ background: getCellBg(grid[slot][r - 1]) }"
-              >
-                <div class="st-row">
-                  <!-- Не пришёл -->
-                  <label
-                    class="ck"
-                    :class="{ 'ck--er': grid[slot][r - 1].no_show }"
-                    @click="toggleNoShow(slot, r - 1)"
-                  >
-                    <span class="ck-b ck-b--er">{{
-                      grid[slot][r - 1].no_show ? "✗" : ""
-                    }}</span>
-                    <span>Не пришёл</span>
-                  </label>
-                  <!-- Примерка (информационная галочка) -->
-                  <label
-                    class="ck"
-                    :class="{ 'ck--on': grid[slot][r - 1].fitting }"
-                    @click="toggleFitting(slot, r - 1)"
-                  >
-                    <span class="ck-b">{{
-                      grid[slot][r - 1].fitting ? "✓" : ""
-                    }}</span>
-                    <span>Примерка</span>
-                  </label>
-                  <!-- Результат (всегда показывается если НЕ "Не пришёл") -->
-                  <div class="rg" v-if="!grid[slot][r - 1].no_show">
-                    <button
-                      v-for="o in resultOptions"
-                      :key="o.value"
-                      class="rb"
-                      :class="[
-                        o.cls,
-                        { 'rb--a': grid[slot][r - 1].result === o.value },
-                      ]"
-                      @click="setResult(slot, r - 1, o.value)"
-                      :title="o.label"
-                    >
-                      {{ o.icon }}
-                    </button>
-                  </div>
-                </div>
-              </td>
-            </tr>
-
-            <!-- Клиент (автокомплит по телефону, тг, максу) -->
-            <tr class="tr-field">
-              <td class="td-lbl">Клиент</td>
-              <td
-                v-for="r in FITTING_ROOMS"
-                :key="'cn' + r"
-                class="td-inp td-inp--ac"
-                :style="{ background: getCellBg(grid[slot][r - 1]) }"
-              >
-                <input
-                  type="text"
-                  v-model="grid[slot][r - 1].client_name"
-                  class="cinp"
-                  placeholder="Поиск: имя, телефон, тг..."
-                  @input="onClientInput(slot, r - 1)"
-                  @blur="onFieldBlur(slot, r - 1)"
-                  @focus="onClientFocus(slot, r - 1)"
-                />
-                <!-- Dropdown автокомплита клиентов -->
-                <div class="ac-drop" v-if="acOpen === acKey(slot, r - 1)">
-                  <!-- Загрузка -->
-                  <div v-if="acLoading[acKey(slot, r - 1)]" class="ac-empty">
-                    <span class="ac-spinner"></span> Поиск клиентов...
-                  </div>
-                  <!-- Результаты -->
-                  <template
-                    v-else-if="(acResults[acKey(slot, r - 1)] || []).length > 0"
-                  >
-                    <div
-                      class="ac-item"
-                      v-for="cl in acResults[acKey(slot, r - 1)]"
-                      :key="cl.id"
-                      @mousedown.prevent="selectClient(slot, r - 1, cl)"
-                    >
-                      <span class="ac-name">{{
-                        getClientDisplayName(cl)
-                      }}</span>
-                      <span class="ac-phone" v-if="getClientPhone(cl)">{{
-                        getClientPhone(cl)
-                      }}</span>
-                      <span class="ac-extra" v-if="(cl as any).telegram_id"
-                        >тг: {{ (cl as any).telegram_id }}</span
-                      >
-                      <span class="ac-extra" v-if="(cl as any).max_id"
-                        >макс: {{ (cl as any).max_id }}</span
-                      >
-                    </div>
-                  </template>
-                  <!-- Не найдено -->
-                  <div v-else class="ac-empty">Клиенты не найдены</div>
-                </div>
-              </td>
-            </tr>
-
-            <!-- Телефон (автозаполняется при выборе клиента) -->
-            <tr class="tr-field">
-              <td class="td-lbl">Телефон</td>
-              <td
-                v-for="r in FITTING_ROOMS"
-                :key="'cp' + r"
-                class="td-inp"
-                :style="{ background: getCellBg(grid[slot][r - 1]) }"
-              >
-                <input
-                  type="text"
-                  v-model="grid[slot][r - 1].client_phone"
-                  class="cinp cinp--mono"
-                  placeholder="+7..."
-                  readonly
-                  :class="{ 'cinp--readonly': grid[slot][r - 1].client_id }"
-                />
-              </td>
-            </tr>
-
-            <!-- Размер -->
-            <tr class="tr-field">
-              <td class="td-lbl">Размер</td>
-              <td
-                v-for="r in FITTING_ROOMS"
-                :key="'sz' + r"
-                class="td-inp"
-                :style="{ background: getCellBg(grid[slot][r - 1]) }"
-              >
-                <input
-                  type="text"
-                  v-model="grid[slot][r - 1].size"
-                  class="cinp"
-                  placeholder="Размер"
-                  @input="markDirty(slot, r - 1)"
-                  @blur="onFieldBlur(slot, r - 1)"
-                />
-              </td>
-            </tr>
-
-            <!-- Цвет -->
-            <tr class="tr-field">
-              <td class="td-lbl">Цвет</td>
-              <td
-                v-for="r in FITTING_ROOMS"
-                :key="'cl' + r"
-                class="td-inp"
-                :style="{ background: getCellBg(grid[slot][r - 1]) }"
-              >
-                <input
-                  type="text"
-                  v-model="grid[slot][r - 1].color"
-                  class="cinp"
-                  placeholder="Цвет"
-                  @input="markDirty(slot, r - 1)"
-                  @blur="onFieldBlur(slot, r - 1)"
-                />
-              </td>
-            </tr>
-
-            <!-- Откуда узнал -->
-            <tr class="tr-field">
-              <td class="td-lbl">Откуда узнал</td>
-              <td
-                v-for="r in FITTING_ROOMS"
-                :key="'sr' + r"
-                class="td-inp"
-                :style="{ background: getCellBg(grid[slot][r - 1]) }"
-              >
-                <select
-                  v-model="grid[slot][r - 1].source"
-                  class="cinp cinp-sel"
-                  @change="
-                    markDirty(slot, r - 1);
-                    saveCell(slot, r - 1);
-                  "
-                >
-                  <option value="">—</option>
-                  <option v-for="s in VISIT_SOURCES" :key="s" :value="s">
-                    {{ s }}
-                  </option>
-                </select>
-              </td>
-            </tr>
-
-            <!-- Консультант (автокомплит) -->
-            <tr class="tr-field">
-              <td class="td-lbl">Консультант</td>
-              <td
-                v-for="r in FITTING_ROOMS"
-                :key="'co' + r"
-                class="td-inp td-inp--ac"
-                :style="{ background: getCellBg(grid[slot][r - 1]) }"
-              >
-                <input
-                  type="text"
-                  v-model="grid[slot][r - 1].consultant"
-                  class="cinp"
-                  placeholder="Поиск консультанта..."
-                  @input="onConsultantInput(slot, r - 1)"
-                  @blur="onFieldBlur(slot, r - 1)"
-                  @focus="onConsultantInput(slot, r - 1)"
-                />
+          <tr v-for="slot in timeSlots" :key="slot">
+            <td class="vp-td-time">
+              <span class="vp-time-pill">{{ slot }}</span>
+            </td>
+            <td
+              v-for="r in fittingRooms"
+              :key="r"
+              class="vp-td-cell"
+              @click="openCell(slot, r)"
+            >
+              <template v-if="grid[slot]?.[r]">
                 <div
-                  class="ac-drop"
-                  v-if="
-                    consultantOpen === consultantKey(slot, r - 1) &&
-                    (consultantResults[consultantKey(slot, r - 1)] || []).length
-                  "
+                  class="vp-card"
+                  :style="{ borderLeftColor: statusColor(grid[slot][r]!.status) }"
                 >
-                  <div
-                    class="ac-item"
-                    v-for="emp in consultantResults[consultantKey(slot, r - 1)]"
-                    :key="emp.id"
-                    @mousedown.prevent="selectConsultant(slot, r - 1, emp)"
-                  >
-                    <span class="ac-name">{{ emp.full_name }}</span>
-                    <span class="ac-extra" v-if="emp.position">{{
-                      emp.position
+                  <div class="vp-card-top">
+                    <span class="vp-card-name">{{
+                      grid[slot][r]!.client?.name || "—"
+                    }}</span>
+                    <span
+                      class="vp-card-badge"
+                      :style="{ background: statusBg(grid[slot][r]!.status), color: statusColor(grid[slot][r]!.status) }"
+                      >{{ statusLabel(grid[slot][r]!.status) }}</span
+                    >
+                  </div>
+                  <div class="vp-card-meta">
+                    <span v-if="grid[slot][r]!.size">{{
+                      grid[slot][r]!.size
+                    }}</span>
+                    <span v-if="grid[slot][r]!.color">{{
+                      grid[slot][r]!.color
+                    }}</span>
+                    <span v-if="grid[slot][r]!.employee" class="vp-card-emp">{{
+                      grid[slot][r]!.employee!.full_name
+                    }}</span>
+                    <span v-if="grid[slot][r]!.source" class="vp-card-src">{{
+                      grid[slot][r]!.source
                     }}</span>
                   </div>
                 </div>
-              </td>
-            </tr>
-
-            <!-- Комментарий -->
-            <tr class="tr-field">
-              <td class="td-lbl">Комментарий</td>
-              <td
-                v-for="r in FITTING_ROOMS"
-                :key="'cm' + r"
-                class="td-inp"
-                :style="{ background: getCellBg(grid[slot][r - 1]) }"
-              >
-                <textarea
-                  v-model="grid[slot][r - 1].comment"
-                  class="cinp cinp--comment"
-                  placeholder="Комментарий..."
-                  rows="2"
-                  @input="markDirty(slot, r - 1)"
-                  @blur="onFieldBlur(slot, r - 1)"
-                ></textarea>
-              </td>
-            </tr>
-          </template>
+              </template>
+              <div v-else class="vp-empty">
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                  opacity=".25"
+                >
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+              </div>
+            </td>
+          </tr>
         </tbody>
       </table>
     </div>
 
     <!-- FOOTER -->
-    <footer class="v-footer">
-      <div class="v-fl">
-        <span
-          >Визитов: <b>{{ displayStats.total }}</b></span
-        ><span v-if="isLoadingVisits" class="v-fl-load">загрузка...</span>
-      </div>
-      <div class="v-fr">
-        <span class="lg lg--am">Отлож. без деп.</span>
-        <span class="lg lg--bl">Отлож. с деп.</span>
-        <span class="lg lg--ok">Купил</span>
-        <span class="lg lg--er">Не купил / Не пришёл</span>
+    <footer class="vp-footer">
+      <span
+        >{{ dateDisplay.day }} {{ dateDisplay.weekday }} ·
+        <b>{{ totalVisits }}</b> визитов ·
+        {{ schedule?.branch_name || currentBranch?.name || "" }}</span
+      >
+      <div class="vp-legend">
+        <span class="vp-lg" style="background: #dcfce7; color: #059669"
+          >Купил</span
+        >
+        <span class="vp-lg" style="background: #fef3c7; color: #d97706"
+          >Отложил</span
+        >
+        <span class="vp-lg" style="background: #dbeafe; color: #2563eb"
+          >С деп.</span
+        >
+        <span class="vp-lg" style="background: #fee2e2; color: #dc2626"
+          >Не пришёл</span
+        >
+        <span class="vp-lg" style="background: #ede9fe; color: #7c3aed"
+          >Записался</span
+        >
       </div>
     </footer>
   </div>
+
+  <VisitEditModal
+    ref="visitEditRef"
+    :open="editOpen"
+    :payload="editPayload"
+    @close="onEditClose"
+    @saved="onEditSaved"
+    @open-new-client="onOpenNewClient"
+  />
+
+  <ClientCreateModal
+    :open="showNewClientModal"
+    :sources="VISIT_SOURCES"
+    @close="showNewClientModal = false"
+    @create="onNewClientCreated"
+  />
 </template>
 
 <style>
@@ -994,160 +950,256 @@ const resultOptions = [
   --tx: #0f172a;
   --tx2: #64748b;
   --txm: #94a3b8;
-  --am: #d97706;
-  --amh: #b45309;
-  --aml: #fffbeb;
+  --pr: #2563eb;
+  --prh: #1d4ed8;
+  --prl: #eff6ff;
   --ok: #059669;
   --okl: #ecfdf5;
   --er: #dc2626;
   --erl: #fef2f2;
   --pu: #7c3aed;
   --pul: #f5f3ff;
-  --bl: #2563eb;
-  --bll: #eff6ff;
   --te: #0d9488;
   --tel: #f0fdfa;
+  --am: #d97706;
+  --aml: #fffbeb;
   --r: 8px;
   --rs: 6px;
   --fn: "Manrope", -apple-system, BlinkMacSystemFont, sans-serif;
   --fm: "JetBrains Mono", monospace;
   --tr: 150ms cubic-bezier(0.4, 0, 0.2, 1);
-  --cell-fill: #f8fafc;
-  --cell-ok: #dcfce7;
-  --cell-er: #fee2e2;
-  --cell-am: #fef3c7;
-  --cell-bl: #dbeafe;
-  --cell-pu: #ede9fe;
 }
 
-.visits-page {
+.vp {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  height: 100dvh;
+  height: 100%;
   background: var(--bg);
   font-family: var(--fn);
   color: var(--tx);
   overflow: hidden;
 }
 
-/* Header */
-.v-header {
+.vp-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
+  padding: 8px 14px;
   background: var(--sf);
   border-bottom: 1px solid var(--bd);
   flex-shrink: 0;
-  gap: 10px;
+  gap: 8px;
 }
-.v-header-title-row {
+.vp-hl {
   display: flex;
   align-items: center;
   gap: 8px;
 }
-.v-header-title {
-  font-size: 20px;
-  font-weight: 800;
+.vp-title {
+  font: 800 17px/1 var(--fn);
   letter-spacing: -0.02em;
   margin: 0;
 }
-.v-badge {
-  font: 700 12px/1 var(--fm);
-  padding: 3px 8px;
+.vp-badge {
+  background: var(--prl);
+  color: var(--pr);
+  font: 700 11px/1 var(--fm);
+  padding: 2px 7px;
   border-radius: 20px;
-  background: var(--aml);
-  color: var(--am);
 }
-.v-header-sub {
-  font-size: 12px;
-  color: var(--tx2);
-  margin: 2px 0 0;
-}
-.v-header-btns {
+.vp-hbtns {
   display: flex;
-  gap: 6px;
-  flex-shrink: 0;
+  gap: 4px;
+  align-items: center;
+}
+.vp-branch {
+  padding: 6px 10px;
+  border: 1px solid var(--bd);
+  border-radius: var(--rs);
+  font: 600 11px/1 var(--fn);
+  background: var(--sf);
+  color: var(--tx);
+  cursor: pointer;
+  outline: none;
+  transition: all var(--tr);
+  max-width: 160px;
+}
+.vp-branch:focus {
+  border-color: var(--pr);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.08);
 }
 
-/* Buttons */
-.vb {
+.hbtn {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 7px 12px;
+  gap: 4px;
+  padding: 6px 8px;
   border-radius: var(--rs);
-  font: 600 12px/1 var(--fn);
+  font: 600 11px/1 var(--fn);
   border: none;
   cursor: pointer;
   transition: all var(--tr);
   white-space: nowrap;
 }
-.vb:disabled {
+.hbtn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
-.vb--ghost {
+.hbtn--ghost {
   background: none;
   color: var(--tx2);
   border: 1px solid var(--bd);
 }
-.vb--ghost:hover:not(:disabled) {
+.hbtn--ghost:hover:not(:disabled) {
   background: var(--sfh);
   color: var(--tx);
   border-color: var(--bds);
 }
-.vb--xs {
+.hbtn--active {
+  background: var(--prl);
+  color: var(--pr);
+  border-color: var(--pr);
+}
+.hbtn--xs {
   padding: 5px 9px;
-  font-size: 11px;
+  font-size: 10px;
 }
 
-/* Stats */
-.v-stats {
-  display: flex;
-  gap: 8px;
-  padding: 8px 16px;
+.vp-stats-panel {
   background: var(--sf);
   border-bottom: 1px solid var(--bd);
+  flex-shrink: 0;
+}
+.vp-stats-period {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--bd);
+  flex-wrap: wrap;
+}
+.vp-stats-dates {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--tx2);
+}
+.vp-stats-dinput {
+  padding: 5px 8px;
+  border: 1px solid var(--bd);
+  border-radius: var(--rs);
+  font: 500 11px var(--fn);
+  background: var(--bg);
+  color: var(--tx);
+  outline: none;
+  transition: all var(--tr);
+  width: 130px;
+}
+.vp-stats-dinput:focus {
+  border-color: var(--pr);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+  background: var(--sf);
+}
+.vp-stats-sep {
+  color: var(--txm);
+  font-size: 12px;
+  user-select: none;
+}
+.vp-stats-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--pr);
+  animation: pulse 1s ease-in-out infinite;
+  margin-left: 4px;
+}
+.vp-stats-presets {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.vp-sp {
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1px solid var(--bd);
+  background: var(--sf);
+  color: var(--tx2);
+  font: 600 10px/1 var(--fn);
+  cursor: pointer;
+  transition: all var(--tr);
+  white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.vp-sp:hover {
+  background: var(--sfh);
+  color: var(--tx);
+  border-color: var(--bds);
+}
+.vp-sp--on {
+  background: var(--pr);
+  color: #fff;
+  border-color: var(--pr);
+}
+.vp-sp--on:hover {
+  background: var(--prh);
+  border-color: var(--prh);
+}
+.vp-stats-row {
+  display: flex;
+  gap: 6px;
+  padding: 8px 14px;
   overflow-x: auto;
   flex-shrink: 0;
   scrollbar-width: none;
 }
-.v-stats::-webkit-scrollbar {
+.vp-stats-row::-webkit-scrollbar {
   display: none;
 }
 .vs {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 7px 10px;
+  gap: 7px;
+  padding: 6px 10px;
   background: var(--bg);
   border: 1px solid var(--bd);
   border-radius: var(--r);
-  min-width: 105px;
+  min-width: 90px;
   flex-shrink: 0;
 }
 .vs-i {
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: var(--rs);
   flex-shrink: 0;
 }
-.vs-i--am {
-  background: var(--aml);
-  color: var(--am);
+.vs-i--pr {
+  background: var(--prl);
+  color: var(--pr);
 }
 .vs-i--ok {
   background: var(--okl);
   color: var(--ok);
 }
+.vs-i--am {
+  background: var(--aml);
+  color: var(--am);
+}
+.vs-i--er {
+  background: var(--erl);
+  color: var(--er);
+}
 .vs-i--te {
   background: var(--tel);
   color: var(--te);
+}
+.vs-i--pu {
+  background: var(--pul);
+  color: var(--pu);
 }
 .vs-b {
   display: flex;
@@ -1159,26 +1211,24 @@ const resultOptions = [
   letter-spacing: -0.02em;
 }
 .vs-b span {
-  font-size: 9px;
+  font: 500 8px/1 var(--fn);
   color: var(--txm);
-  font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
 
-/* Date bar */
-.v-date {
+.vp-date {
   display: flex;
   align-items: center;
-  gap: 3px;
-  padding: 6px 16px;
+  gap: 4px;
+  padding: 6px 14px;
   background: var(--sf);
   border-bottom: 1px solid var(--bd);
   flex-shrink: 0;
 }
-.v-date-arr {
-  width: 30px;
-  height: 30px;
+.vp-date-arr {
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1190,21 +1240,20 @@ const resultOptions = [
   flex-shrink: 0;
   transition: all var(--tr);
 }
-.v-date-arr:hover {
+.vp-date-arr:hover {
   background: var(--sfh);
   color: var(--tx);
 }
-.v-date-week {
+.vp-week {
   display: flex;
   gap: 2px;
-  flex: 1;
   overflow-x: auto;
   scrollbar-width: none;
 }
-.v-date-week::-webkit-scrollbar {
+.vp-week::-webkit-scrollbar {
   display: none;
 }
-.v-dc {
+.vp-dc {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1215,139 +1264,72 @@ const resultOptions = [
   cursor: pointer;
   transition: all var(--tr);
   flex-shrink: 0;
-  min-width: 48px;
+  min-width: 44px;
 }
-.v-dc-d {
-  font: 700 12px/1 var(--fm);
+.vp-dc-d {
+  font: 700 11px/1 var(--fm);
   color: var(--tx);
 }
-.v-dc-w {
+.vp-dc-w {
   font: 500 8px/1 var(--fn);
   color: var(--txm);
   text-transform: uppercase;
   margin-top: 2px;
 }
-.v-dc:hover {
+.vp-dc:hover {
   background: var(--sfh);
 }
-.v-dc--act {
-  background: var(--am) !important;
-  border-color: var(--am);
+.vp-dc--act {
+  background: var(--pr) !important;
+  border-color: var(--pr);
 }
-.v-dc--act .v-dc-d {
+.vp-dc--act .vp-dc-d {
   color: #fff;
 }
-.v-dc--act .v-dc-w {
+.vp-dc--act .vp-dc-w {
   color: rgba(255, 255, 255, 0.8);
 }
-.v-dc--today:not(.v-dc--act) {
-  border-color: var(--am);
+.vp-dc--today:not(.vp-dc--act) {
+  border-color: var(--pr);
 }
-.v-dc--today:not(.v-dc--act) .v-dc-d {
-  color: var(--am);
-}
-
-/* Mobile */
-.v-mob {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 4px 12px;
-  background: var(--aml);
-  border-bottom: 1px solid var(--bd);
-  flex-shrink: 0;
-}
-.v-mob-h {
-  font-size: 10px;
-  color: var(--am);
-  font-weight: 500;
-}
-.v-mob-fs {
-  width: 30px;
-  height: 30px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--rs);
-  border: 1px solid var(--am);
-  background: var(--sf);
-  color: var(--am);
-  cursor: pointer;
-}
-.v-mob-fs:active {
-  background: var(--am);
-  color: #fff;
-}
-.v-fsx {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 5px 12px;
-  background: var(--sf);
-  border-bottom: 1px solid var(--bd);
-  flex-shrink: 0;
-  font-size: 11px;
-  color: var(--tx2);
-}
-.v-fsx-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  padding: 4px 8px;
-  border-radius: var(--rs);
-  border: 1px solid var(--bd);
-  background: var(--sf);
-  color: var(--tx2);
-  font: 600 10px var(--fn);
-  cursor: pointer;
-}
-.visits-page--fs .v-header,
-.visits-page--fs .v-stats,
-.visits-page--fs .v-date,
-.visits-page--fs .v-footer {
-  display: none !important;
+.vp-dc--today:not(.vp-dc--act) .vp-dc-d {
+  color: var(--pr);
 }
 
-/* Loading */
-.v-load {
+.vp-loading {
   height: 3px;
-  background: linear-gradient(90deg, var(--am), var(--pu), var(--am));
-  background-size: 200% 100%;
-  animation: ld 1.5s ease infinite;
   flex-shrink: 0;
+  overflow: hidden;
+  background: rgba(37, 99, 235, 0.1);
 }
-@keyframes ld {
+.vp-loading-bar {
+  height: 100%;
+  width: 40%;
+  background: linear-gradient(90deg, var(--pr), var(--pu), var(--pr));
+  border-radius: 2px;
+  animation: vp-slide 1.2s ease-in-out infinite;
+}
+@keyframes vp-slide {
   0% {
-    background-position: 200% 0;
+    transform: translateX(-100%);
   }
   100% {
-    background-position: -200% 0;
+    transform: translateX(350%);
   }
 }
 
-/* ═══ SPREADSHEET ═══ */
-.v-grid {
+.vp-grid {
   flex: 1;
   overflow: auto;
-  -webkit-overflow-scrolling: touch;
   min-height: 0;
+  -webkit-overflow-scrolling: touch;
 }
-.sheet {
+.vp-table {
   border-collapse: collapse;
   width: 100%;
-  min-width: 1100px;
-  table-layout: fixed;
+  min-width: 800px;
 }
-.col-time {
-  width: 54px;
-}
-.col-lbl {
-  width: 95px;
-}
-.col-room {
-  /* Равномерно занимают оставшееся пространство */
-}
-.sheet thead th {
+.vp-table thead th {
   position: sticky;
   top: 0;
   z-index: 10;
@@ -1361,387 +1343,223 @@ const resultOptions = [
   text-align: center;
   white-space: nowrap;
 }
-.sh-time {
-  width: 54px;
-  min-width: 54px;
+.vp-th-time {
+  width: 56px;
+  min-width: 56px;
 }
-.sh-lbl {
-  width: 95px;
-  min-width: 85px;
+.vp-th-room {
+  min-width: 130px;
 }
-.sh-room {
-  min-width: 160px;
-}
-
-/* Time cell */
-.td-time {
-  width: 54px;
-  min-width: 54px;
+.vp-td-time {
+  width: 56px;
+  min-width: 56px;
   text-align: center;
-  vertical-align: top;
-  padding: 4px 2px;
+  vertical-align: middle;
+  padding: 4px;
   border: 1px solid var(--bd);
   background: var(--sfh);
 }
-.time-pill {
+.vp-time-pill {
   display: inline-block;
-  font: 700 12px/1 var(--fm);
-  color: var(--am);
-  background: var(--aml);
-  padding: 3px 7px;
+  font: 700 11px/1 var(--fm);
+  color: var(--pr);
+  background: var(--prl);
+  padding: 4px 8px;
   border-radius: 4px;
 }
-
-/* Label cells */
-.td-lbl {
-  width: 95px;
-  min-width: 85px;
-  padding: 2px 6px;
+.vp-td-cell {
   border: 1px solid var(--bd);
+  padding: 4px;
+  vertical-align: top;
+  cursor: pointer;
+  transition: background var(--tr);
+  height: 68px;
+}
+.vp-td-cell:hover {
   background: var(--sfh);
-  font: 600 9px/1.3 var(--fn);
-  color: var(--tx2);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  white-space: nowrap;
-}
-.td-lbl--h {
-  font-weight: 700;
-  color: var(--tx);
-  text-transform: none;
-  font-size: 10px;
 }
 
-/* Status cell */
-.td-status {
-  padding: 2px 3px;
-  border: 1px solid var(--bd);
-  vertical-align: middle;
-  transition: background 0.15s;
+.vp-card {
+  background: var(--sf);
+  border-radius: 6px;
+  border-left: 3px solid var(--txm);
+  padding: 6px 8px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: all var(--tr);
 }
-.st-row {
+.vp-card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+.vp-card-top {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+.vp-card-name {
+  font: 600 11px/1.2 var(--fn);
+  color: var(--tx);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.vp-card-badge {
+  font: 700 7px/1 var(--fn);
+  padding: 2px 5px;
+  border-radius: 3px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.vp-card-meta {
+  display: flex;
   gap: 3px;
   flex-wrap: wrap;
 }
-.ck {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  font: 600 8px/1 var(--fn);
-  color: var(--txm);
-  cursor: pointer;
-  user-select: none;
-  padding: 1px 3px;
-  border-radius: 3px;
-  transition: all var(--tr);
-  white-space: nowrap;
-}
-.ck:hover {
-  background: rgba(0, 0, 0, 0.04);
-}
-.ck--on {
-  color: var(--ok);
-}
-.ck--er {
-  color: var(--er);
-}
-.ck-b {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 13px;
-  height: 13px;
-  border: 1.5px solid var(--bds);
-  border-radius: 3px;
-  font-size: 9px;
-  flex-shrink: 0;
-  transition: all var(--tr);
-}
-.ck--on .ck-b {
-  background: var(--ok);
-  border-color: var(--ok);
-  color: #fff;
-}
-.ck--er .ck-b {
-  background: var(--er);
-  border-color: var(--er);
-  color: #fff;
-}
-.ck-b--er {
-  border-color: var(--er);
-}
-
-/* Result buttons */
-.rg {
-  display: flex;
-  gap: 2px;
-  margin-left: auto;
-}
-.rb {
-  width: 20px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1.5px solid var(--bd);
-  border-radius: 3px;
-  background: var(--sf);
-  font-size: 10px;
-  cursor: pointer;
-  transition: all var(--tr);
-  opacity: 0.4;
-}
-.rb:hover {
-  opacity: 1;
-  transform: scale(1.1);
-}
-.rb--a {
-  opacity: 1;
-  border-width: 2px;
-}
-.res-ok {
-  color: var(--ok);
-}
-.res-ok.rb--a {
-  background: var(--okl);
-  border-color: var(--ok);
-}
-.res-er {
-  color: var(--er);
-}
-.res-er.rb--a {
-  background: var(--erl);
-  border-color: var(--er);
-}
-.res-am {
-  color: var(--am);
-}
-.res-am.rb--a {
-  background: var(--aml);
-  border-color: var(--am);
-}
-.res-bl {
-  color: var(--bl);
-}
-.res-bl.rb--a {
-  background: var(--bll);
-  border-color: var(--bl);
-}
-
-/* Input cells */
-.td-inp {
-  padding: 0;
-  border: 1px solid var(--bd);
-  vertical-align: middle;
-  transition: background 0.15s;
-  position: relative;
-  overflow: visible;
-}
-.td-inp--ac {
-  position: relative;
-  overflow: visible;
-}
-.cinp {
-  width: 100%;
-  border: none;
-  background: transparent;
-  font: 400 11px var(--fn);
-  color: var(--tx);
-  padding: 3px 5px;
-  outline: none;
-  transition: all var(--tr);
-  box-sizing: border-box;
-}
-.cinp:focus {
-  background: rgba(217, 119, 6, 0.06);
-  box-shadow: inset 0 0 0 2px var(--am);
-}
-.cinp::placeholder {
-  color: var(--bds);
-  font-size: 9px;
-}
-.cinp--mono {
-  font-family: var(--fm);
-  font-size: 10px;
-}
-.cinp--readonly {
-  background: var(--sfh);
+.vp-card-meta span {
+  font: 500 8px/1 var(--fn);
   color: var(--tx2);
-  cursor: default;
-}
-.cinp-sel {
-  font-size: 10px;
-  cursor: pointer;
-}
-
-/* Комментарий — textarea вместо input */
-.cinp--comment {
-  width: 100%;
-  border: none;
-  background: transparent;
-  font: 400 11px var(--fn);
-  color: var(--tx);
-  padding: 4px 5px;
-  outline: none;
-  transition: all var(--tr);
-  box-sizing: border-box;
-  resize: vertical;
-  min-height: 36px;
-  max-height: 120px;
-  line-height: 1.4;
-  display: block;
-}
-.cinp--comment:focus {
-  background: rgba(217, 119, 6, 0.06);
-  box-shadow: inset 0 0 0 2px var(--am);
-}
-.cinp--comment::placeholder {
-  color: var(--bds);
-  font-size: 9px;
-}
-
-/* Autocomplete dropdown */
-.ac-drop {
-  position: absolute;
-  top: 100%;
-  left: -1px;
-  right: -1px;
-  background: var(--sf);
-  border: 1px solid var(--bds);
-  border-top: 2px solid var(--am);
-  border-radius: 0 0 var(--rs) var(--rs);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
-  z-index: 100;
-  max-height: 220px;
-  overflow-y: auto;
-  min-width: 200px;
-}
-.ac-item {
-  padding: 8px 10px;
-  cursor: pointer;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  align-items: center;
-  border-bottom: 1px solid var(--bd);
-  transition: background var(--tr);
-}
-.ac-item:last-child {
-  border-bottom: none;
-}
-.ac-item:hover {
-  background: var(--aml);
-}
-.ac-name {
-  font-weight: 600;
-  font-size: 11px;
-  color: var(--tx);
-}
-.ac-phone {
-  font: 500 10px var(--fm);
-  color: var(--tx2);
-}
-.ac-extra {
-  font-size: 9px;
-  color: var(--txm);
   background: var(--sfh);
   padding: 1px 4px;
   border-radius: 3px;
 }
+.vp-card-emp {
+  color: var(--te) !important;
+  background: var(--tel) !important;
+}
+.vp-card-src {
+  color: var(--pu) !important;
+  background: var(--pul) !important;
+}
 
-/* Пустое состояние автокомплита */
-.ac-empty {
-  padding: 10px 12px;
-  font-size: 11px;
-  color: var(--tx2);
-  text-align: center;
+.vp-empty {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  height: 100%;
+  opacity: 0.4;
+  transition: opacity var(--tr);
+}
+.vp-td-cell:hover .vp-empty {
+  opacity: 0.7;
 }
 
-/* Спиннер в автокомплите */
-.ac-spinner {
-  display: inline-block;
-  width: 12px;
-  height: 12px;
-  border: 2px solid var(--bd);
-  border-top-color: var(--am);
-  border-radius: 50%;
-  animation: spin 0.6s linear infinite;
-}
-
-/* Row separators */
-.tr-time td {
-  border-top: 2px solid var(--bds);
-}
-
-/* Footer */
-.v-footer {
+.vp-footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 16px;
+  padding: 6px 14px;
   background: var(--sf);
   border-top: 1px solid var(--bd);
-  font-size: 11px;
+  font: 500 11px/1 var(--fn);
   color: var(--tx2);
   flex-shrink: 0;
+  gap: 8px;
 }
-.v-fl {
-  display: flex;
-  gap: 12px;
-}
-.v-fl b {
+.vp-footer b {
   color: var(--tx);
   font-family: var(--fm);
 }
-.v-fl-load {
-  color: var(--am);
-  font-weight: 500;
-  animation: pulse 1s ease-in-out infinite;
-}
-@keyframes pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.4;
-  }
-}
-.v-fr {
+.vp-legend {
   display: flex;
-  gap: 5px;
+  gap: 3px;
+  flex-wrap: wrap;
 }
-.lg {
-  font-size: 8px;
-  font-weight: 600;
+.vp-lg {
+  font: 700 7px/1 var(--fn);
   padding: 2px 5px;
   border-radius: 3px;
   white-space: nowrap;
 }
-.lg--am {
-  background: var(--cell-am);
-  color: var(--am);
+
+/* Mobile bar */
+.vp-mob {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 12px;
+  background: var(--prl);
+  border-bottom: 1px solid var(--bd);
+  flex-shrink: 0;
 }
-.lg--bl {
-  background: var(--cell-bl);
-  color: var(--bl);
+.vp-mob-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--pr);
+  font-size: 11px;
+  font-weight: 500;
 }
-.lg--ok {
-  background: var(--cell-ok);
-  color: var(--ok);
+.vp-mob-fs {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--rs);
+  border: 1px solid var(--pr);
+  background: var(--sf);
+  color: var(--pr);
+  cursor: pointer;
+  transition: all var(--tr);
+  flex-shrink: 0;
 }
-.lg--er {
-  background: var(--cell-er);
-  color: var(--er);
+.vp-mob-fs:active {
+  background: var(--pr);
+  color: #fff;
 }
 
-/* Transitions */
+/* Fullscreen exit */
+.vp-fsx {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  background: var(--sf);
+  border-bottom: 1px solid var(--bd);
+  flex-shrink: 0;
+}
+.vp-fsx-info {
+  font-size: 11px;
+  color: var(--tx2);
+}
+.vp-fsx-info b {
+  color: var(--tx);
+  font-family: var(--fm);
+}
+.vp-fsx-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  border-radius: var(--rs);
+  border: 1px solid var(--bd);
+  background: var(--sf);
+  color: var(--tx2);
+  font: 600 11px var(--fn);
+  cursor: pointer;
+  transition: all var(--tr);
+}
+.vp-fsx-btn:active {
+  background: var(--sfh);
+  color: var(--tx);
+}
+
+/* Fullscreen mode */
+.vp--fs .vp-header,
+.vp--fs .vp-stats-panel,
+.vp--fs .vp-date,
+.vp--fs .vp-footer,
+.vp--fs .vp-mob {
+  display: none !important;
+}
+
 .fold-enter-active {
   transition: all 200ms ease-out;
   overflow: hidden;
@@ -1756,15 +1574,24 @@ const resultOptions = [
 }
 .fold-enter-to {
   opacity: 1;
-  max-height: 500px;
+  max-height: 400px;
 }
 .fold-leave-from {
   opacity: 1;
-  max-height: 500px;
+  max-height: 400px;
 }
 .fold-leave-to {
   opacity: 0;
   max-height: 0;
+}
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
 }
 @keyframes spin {
   to {
@@ -1775,67 +1602,69 @@ const resultOptions = [
   animation: spin 1s linear infinite;
 }
 
-/* Responsive */
 @media (max-width: 768px) {
-  .v-header {
-    flex-direction: column;
-    align-items: stretch;
-    padding: 10px 12px;
-    gap: 6px;
+  .vp-header {
+    padding: 8px 10px;
+    flex-wrap: wrap;
   }
-  .v-header-btns {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
+  .vp-title {
+    font-size: 15px;
+  }
+  .vp-branch {
+    max-width: 120px;
+    font-size: 10px;
+  }
+  .vp-stats-panel .vp-stats-period {
+    flex-direction: column;
+    padding: 6px 10px;
+    gap: 6px;
+    align-items: stretch;
+  }
+  .vp-stats-dates {
+    justify-content: center;
+  }
+  .vp-stats-dinput {
+    width: 115px;
+    font-size: 10px;
+  }
+  .vp-stats-presets {
+    justify-content: center;
+  }
+  .vp-stats-row {
+    padding: 6px 10px;
     gap: 4px;
   }
-  .v-header-btns .vb {
-    justify-content: center;
-    padding: 8px 4px;
-  }
-  .vb-t {
-    display: none;
-  }
-  .v-header-title {
-    font-size: 17px;
-  }
-  .v-stats {
-    padding: 6px 12px;
-    gap: 5px;
-  }
   .vs {
-    min-width: 95px;
-    padding: 5px 8px;
+    min-width: 80px;
+    padding: 5px 7px;
   }
   .vs-b b {
     font-size: 12px;
   }
-  .v-date {
+  .vp-date {
     padding: 5px 8px;
   }
-  .v-dc {
+  .vp-dc {
     padding: 3px 5px;
     min-width: 38px;
   }
-  .v-dc-d {
+  .vp-dc-d {
     font-size: 10px;
   }
-  .v-footer {
+  .vp-table {
+    min-width: 700px;
+  }
+  .vp-td-cell {
+    height: 56px;
+  }
+  .vp-footer {
     flex-direction: column;
     gap: 3px;
-    padding: 4px 12px;
+    padding: 4px 10px;
     text-align: center;
   }
-  .v-fr {
-    flex-wrap: wrap;
+  .vp-legend {
     justify-content: center;
-  }
-  .sheet {
-    min-width: 900px;
-  }
-}
-@media (min-width: 400px) and (max-width: 768px) {
-  .vb-t {
-    display: inline;
   }
 }
 </style>

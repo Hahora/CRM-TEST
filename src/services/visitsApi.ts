@@ -1,24 +1,156 @@
 import { authService } from "./auth";
-import type {
-  Visit,
-  VisitsStats,
-  VisitsListResponse,
-  CreateVisitData,
-  UpdateVisitData,
-  VisitFeedback,
-} from "@/types/visits";
 
-export interface VisitsFiltersApi {
-  search?: string;
-  client_id?: number;
-  employee_id?: number;
-  branch_id?: number;
-  status?: string;
-  start_date?: string;
-  end_date?: string;
-  skip?: number;
-  limit?: number;
+// ── Типы ──
+
+export type VisitStatus =
+  | "zaplanirovano"
+  | "zapisalsya"
+  | "prishel"
+  | "ne_prishel"
+  | "otlozhil_bez_depozita"
+  | "otlozhil_s_depozitom"
+  | "otlozhil_do_vechera"
+  | "kupil"
+  | "sdelka_provalena";
+
+export interface VisitClient {
+  moysklad_id: string;
+  name: string;
+  phone: string;
+  email?: string;
 }
+
+export interface VisitEmployee {
+  moysklad_id: string;
+  full_name: string;
+  short_fio?: string;
+  phone?: string;
+  email?: string;
+  position?: string;
+  archived?: boolean;
+  retail_store_id?: string;
+  local_id?: number;
+  branch_id?: number;
+  branch_name?: string;
+}
+
+export interface Visit {
+  id: number;
+  client_moysklad_id: string | null;
+  employee_moysklad_id: string | null;
+  time_slot: string;
+  fitting_room: number;
+  status: VisitStatus;
+  fitting: boolean;
+  size: string | null;
+  color: string | null;
+  source: string | null;
+  notes: string | null;
+  client: VisitClient | null;
+  employee: VisitEmployee | null;
+}
+
+export interface ScheduleResponse {
+  date: string;
+  branch_id?: number;
+  branch_moysklad_id?: string;
+  branch_name: string;
+  time_slots: string[];
+  fitting_rooms: number[];
+  visits: Visit[];
+}
+
+export interface CreateVisitData {
+  client_moysklad_id?: string;
+  employee_moysklad_id?: string;
+  branch_moysklad_id: string;
+  visit_datetime: string;
+  fitting_room: number;
+  size?: string;
+  color?: string;
+  source?: string;
+  notes?: string;
+  status?: VisitStatus;
+  fitting?: boolean;
+}
+
+export interface UpdateVisitData {
+  client_moysklad_id?: string;
+  employee_moysklad_id?: string;
+  status?: VisitStatus;
+  fitting_room?: number;
+  fitting?: boolean;
+  size?: string;
+  color?: string;
+  source?: string;
+  notes?: string;
+}
+
+// ── Branches ──
+
+export interface Branch {
+  moysklad_id: string;
+  name: string;
+  address?: string;
+  city?: string;
+  postal_code?: string;
+  description?: string;
+  is_active: boolean;
+  // merged local fields
+  local_id?: number;
+  code?: string;
+  region?: string;
+  country?: string;
+  phone?: string;
+  email?: string;
+  working_hours?: string;
+  timezone?: string;
+  is_main?: boolean;
+}
+
+// ── Statistics ──
+
+export interface VisitStatsSummary {
+  total_visits: number;
+  by_status: Record<string, number>;
+  scheduled_count: number;
+  purchased_count: number;
+  failed_count: number;
+  postponed_deposit_count: number;
+  postponed_no_deposit_count: number;
+  no_show_count: number;
+  conversion_rate: number;
+  total_purchase_amount: number;
+  by_branch: Record<string, number>;
+}
+
+// ── Статусы ──
+
+export const VISIT_STATUSES: { value: VisitStatus; label: string }[] = [
+  { value: "zaplanirovano", label: "Запланировано" },
+  { value: "zapisalsya", label: "Записался" },
+  { value: "prishel", label: "Пришёл" },
+  { value: "ne_prishel", label: "Не пришёл" },
+  { value: "otlozhil_bez_depozita", label: "Отложил без деп." },
+  { value: "otlozhil_s_depozitom", label: "Отложил с деп." },
+  { value: "otlozhil_do_vechera", label: "Отложил до вечера" },
+  { value: "kupil", label: "Купил" },
+  { value: "sdelka_provalena", label: "Сделка провалена" },
+];
+
+export const VISIT_SOURCES = [
+  "Instagram",
+  "WhatsApp",
+  "Telegram",
+  "Звонок",
+  "Сайт",
+  "Рекомендация",
+  "Проходил мимо",
+  "Повторный визит",
+  "Другое",
+];
+
+// ── API ──
 
 class VisitsApiService {
   private baseUrl: string;
@@ -33,7 +165,6 @@ class VisitsApiService {
     options: RequestInit = {}
   ): Promise<T> {
     const token = authService.getAccessToken();
-
     const response = await fetch(`${this.baseUrl}${url}`, {
       ...options,
       headers: {
@@ -51,137 +182,106 @@ class VisitsApiService {
             newTokens.access_token,
             newTokens.refresh_token
           );
-
           return this.makeRequest(url, options);
-        } catch (refreshError) {
+        } catch {
           authService.clearTokens();
           throw new Error("Сессия истекла");
         }
       }
-
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(
-        errorData.detail || errorData.message || `HTTP ${response.status}`
-      );
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.detail || err.message || `HTTP ${response.status}`);
     }
 
+    if (
+      response.status === 204 ||
+      response.headers.get("content-length") === "0"
+    ) {
+      return undefined as T;
+    }
     return response.json();
   }
 
-  // Получить список посещений
-  async getVisits(filters: VisitsFiltersApi = {}): Promise<VisitsListResponse> {
-    const params = new URLSearchParams();
+  // ── Schedule ──
 
-    if (filters.search) params.append("search", filters.search);
-    if (filters.client_id)
-      params.append("client_id", filters.client_id.toString());
-    if (filters.employee_id)
-      params.append("employee_id", filters.employee_id.toString());
-    if (filters.branch_id)
-      params.append("branch_id", filters.branch_id.toString());
-    if (filters.status) params.append("status", filters.status);
-    if (filters.start_date) params.append("start_date", filters.start_date);
-    if (filters.end_date) params.append("end_date", filters.end_date);
-    if (filters.skip !== undefined)
-      params.append("skip", filters.skip.toString());
-    if (filters.limit) params.append("limit", filters.limit.toString());
-
-    const queryString = params.toString();
-    const url = `/api/v1/visits${queryString ? `?${queryString}` : ""}`;
-
-    return this.makeRequest<VisitsListResponse>(url);
+  async getSchedule(
+    date: string,
+    branchMoyskladId: string
+  ): Promise<ScheduleResponse> {
+    const params = new URLSearchParams({
+      schedule_date: date,
+      branch_moysklad_id: branchMoyskladId,
+    });
+    return this.makeRequest<ScheduleResponse>(
+      `/api/v1/visits/schedule?${params}`
+    );
   }
 
-  // Получить детали посещения
-  async getVisit(visitId: number): Promise<Visit> {
-    return this.makeRequest<Visit>(`/api/v1/visits/${visitId}`);
-  }
-
-  // Создать посещение
-  async createVisit(visitData: CreateVisitData): Promise<Visit> {
-    return this.makeRequest<Visit>("/api/v1/visits", {
+  async createVisit(data: CreateVisitData): Promise<Visit> {
+    return this.makeRequest<Visit>("/api/v1/visits/schedule", {
       method: "POST",
-      body: JSON.stringify(visitData),
+      body: JSON.stringify(data),
     });
   }
 
-  // Обновить посещение
-  async updateVisit(
-    visitId: number,
-    visitData: UpdateVisitData
-  ): Promise<Visit> {
-    return this.makeRequest<Visit>(`/api/v1/visits/${visitId}`, {
+  async updateVisit(visitId: number, data: UpdateVisitData): Promise<Visit> {
+    return this.makeRequest<Visit>(`/api/v1/visits/schedule/${visitId}`, {
       method: "PUT",
-      body: JSON.stringify(visitData),
+      body: JSON.stringify(data),
     });
   }
 
-  // Добавить отзыв к посещению
-  async addVisitFeedback(
-    visitId: number,
-    feedback: VisitFeedback
-  ): Promise<Visit> {
-    return this.makeRequest<Visit>(`/api/v1/visits/${visitId}/feedback`, {
-      method: "POST",
-      body: JSON.stringify(feedback),
-    });
-  }
+  // ── Employees ──
 
-  // Получить статистику посещений
-  async getVisitsStats(
-    filters: {
-      start_date?: string;
-      end_date?: string;
-      branch_id?: number;
-    } = {}
-  ): Promise<VisitsStats> {
+  /** Сотрудники филиала по local branch_id */
+  async getEmployeesByBranch(
+    branchId: number,
+    search?: string
+  ): Promise<VisitEmployee[]> {
     const params = new URLSearchParams();
-
-    if (filters.start_date) params.append("start_date", filters.start_date);
-    if (filters.end_date) params.append("end_date", filters.end_date);
-    if (filters.branch_id)
-      params.append("branch_id", filters.branch_id.toString());
-
-    const queryString = params.toString();
-    const url = `/api/v1/visits/statistics/summary${
-      queryString ? `?${queryString}` : ""
-    }`;
-
-    return this.makeRequest<VisitsStats>(url);
+    if (search) params.set("search", search);
+    const qs = params.toString();
+    return this.makeRequest<VisitEmployee[]>(
+      `/api/v1/employees/branch/${branchId}${qs ? "?" + qs : ""}`
+    );
   }
 
-  // Экспорт посещений
-  async exportVisits(
-    filters: {
-      start_date?: string;
-      end_date?: string;
-      branch_id?: number;
-    } = {}
-  ): Promise<Blob> {
+  /** Все сотрудники (merged) с фильтрацией */
+  async searchEmployees(
+    search?: string,
+    branchId?: number
+  ): Promise<VisitEmployee[]> {
     const params = new URLSearchParams();
+    if (search) params.set("search", search);
+    if (branchId) params.set("branch_id", String(branchId));
+    const qs = params.toString();
+    return this.makeRequest<VisitEmployee[]>(
+      `/api/v1/employees${qs ? "?" + qs : ""}`
+    );
+  }
 
-    if (filters.start_date) params.append("start_date", filters.start_date);
-    if (filters.end_date) params.append("end_date", filters.end_date);
-    if (filters.branch_id)
-      params.append("branch_id", filters.branch_id.toString());
+  // ── Statistics ──
 
-    const queryString = params.toString();
-    const url = `/api/v1/visits/export/data${
-      queryString ? `?${queryString}` : ""
-    }`;
+  /** Сводная статистика визитов с фильтрацией по датам и филиалу */
+  async getVisitStats(opts?: {
+    startDate?: string;
+    endDate?: string;
+    branchId?: number;
+  }): Promise<VisitStatsSummary> {
+    const params = new URLSearchParams();
+    if (opts?.startDate) params.set("start_date", opts.startDate);
+    if (opts?.endDate) params.set("end_date", opts.endDate);
+    if (opts?.branchId) params.set("branch_id", String(opts.branchId));
+    const qs = params.toString();
+    return this.makeRequest<VisitStatsSummary>(
+      `/api/v1/visits/statistics/summary${qs ? "?" + qs : ""}`
+    );
+  }
 
-    const token = authService.getAccessToken();
-    const response = await fetch(`${this.baseUrl}${url}`, {
-      headers: {
-        ...(token && { Authorization: `Bearer ${token}` }),
-      },
-    });
+  // ── Branches ──
 
-    if (!response.ok) {
-      throw new Error("Ошибка экспорта данных");
-    }
-
-    return response.blob();
+  /** Live branches (MoySklad + local merged) */
+  async getBranches(): Promise<Branch[]> {
+    return this.makeRequest<Branch[]>("/api/v1/branches/live");
   }
 }
 

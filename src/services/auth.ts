@@ -30,13 +30,11 @@ export interface User {
     id: number;
     name: string;
     description: string;
-    permissions: Record<string, any>; // Объект, а не массив
+    permissions: Record<string, any>;
   };
   created_at: string;
   updated_at: string;
 }
-
-// ... rest of the class remains the same ...
 
 class AuthService {
   private baseUrl: string;
@@ -45,8 +43,6 @@ class AuthService {
   constructor() {
     this.baseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
     this.timeout = parseInt(import.meta.env.VITE_API_TIMEOUT) || 10000;
-
-    // Убираем слэш в конце если есть
     this.baseUrl = this.baseUrl.replace(/\/$/, "");
   }
 
@@ -239,16 +235,30 @@ class AuthService {
   }
 
   setTokens(accessToken: string, refreshToken: string): void {
-    localStorage.setItem("access_token", accessToken);
-    localStorage.setItem("refresh_token", refreshToken);
+    // Не сохраняем undefined/null/пустые значения
+    if (accessToken && accessToken !== "undefined" && accessToken !== "null") {
+      localStorage.setItem("access_token", accessToken);
+    }
+    if (
+      refreshToken &&
+      refreshToken !== "undefined" &&
+      refreshToken !== "null"
+    ) {
+      localStorage.setItem("refresh_token", refreshToken);
+    }
   }
 
   getAccessToken(): string | null {
-    return localStorage.getItem("access_token");
+    const token = localStorage.getItem("access_token");
+    // Защита от сохранённых "undefined" / "null"
+    if (!token || token === "undefined" || token === "null") return null;
+    return token;
   }
 
   getRefreshToken(): string | null {
-    return localStorage.getItem("refresh_token");
+    const token = localStorage.getItem("refresh_token");
+    if (!token || token === "undefined" || token === "null") return null;
+    return token;
   }
 
   clearTokens(): void {
