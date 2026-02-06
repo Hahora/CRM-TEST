@@ -94,6 +94,14 @@ class ClientsApiService {
       );
     }
 
+    // 204 No Content — нет тела (DELETE и т.д.)
+    if (
+      response.status === 204 ||
+      response.headers.get("content-length") === "0"
+    ) {
+      return undefined as T;
+    }
+
     return response.json();
   }
 
@@ -132,7 +140,7 @@ class ClientsApiService {
     if (!cleanPhone) return [];
     const params = new URLSearchParams({ phone: cleanPhone });
     return this.makeRequest<SearchResult[]>(
-      `/clients/moysklad/search/phone?${params}`
+      `/api/v1/clients/moysklad/search/phone?${params}`
     );
   }
 
@@ -142,7 +150,7 @@ class ClientsApiService {
     if (!trimmed) return [];
     const params = new URLSearchParams({ name: trimmed });
     return this.makeRequest<SearchResult[]>(
-      `/clients/moysklad/search/name?${params}`
+      `/api/v1/clients/moysklad/search/name?${params}`
     );
   }
 
@@ -152,7 +160,7 @@ class ClientsApiService {
     if (!trimmed) return [];
     const params = new URLSearchParams({ email: trimmed });
     return this.makeRequest<SearchResult[]>(
-      `/clients/moysklad/search/email?${params}`
+      `/api/v1/clients/moysklad/search/email?${params}`
     );
   }
 
@@ -161,32 +169,44 @@ class ClientsApiService {
     return this.makeRequest<Client>(`/api/v1/clients/${clientId}`);
   }
 
-  // ── Создать клиента ──
+  // ── Создать клиента (MoySklad + локальные extras) ──
+  // POST /clients/full
   async createClient(clientData: CreateClientData): Promise<Client> {
-    return this.makeRequest<Client>("/api/v1/clients", {
+    return this.makeRequest<Client>("/api/v1/clients/full", {
       method: "POST",
       body: JSON.stringify(clientData),
     });
   }
 
-  // ── Обновить клиента ──
+  // ── Обновить клиента (MoySklad + локальные extras) ──
+  // PUT /clients/{id}/full
   async updateClient(
     clientId: number,
     clientData: UpdateClientData
   ): Promise<Client> {
-    return this.makeRequest<Client>(`/api/v1/clients/${clientId}`, {
+    return this.makeRequest<Client>(`/api/v1/clients/${clientId}/full`, {
       method: "PUT",
       body: JSON.stringify(clientData),
     });
   }
 
+  // ── Удалить клиента ──
+  // DELETE /clients/{id}
+  async deleteClient(clientId: number): Promise<void> {
+    return this.makeRequest<void>(`/api/v1/clients/${clientId}`, {
+      method: "DELETE",
+    });
+  }
+
   // ── Статистика продаж ──
-  // GET /api/v1/clients/statistics/sales?moment_from=2020-01-01&moment_to=2026-02-06
-  async getSalesStats(): Promise<SalesStats> {
-    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  // GET /api/v1/clients/statistics/sales?moment_from=...&moment_to=...
+  async getSalesStats(
+    momentFrom: string,
+    momentTo: string
+  ): Promise<SalesStats> {
     const params = new URLSearchParams({
-      moment_from: "2020-01-01",
-      moment_to: today,
+      moment_from: momentFrom,
+      moment_to: momentTo,
     });
     return this.makeRequest<SalesStats>(
       `/api/v1/clients/statistics/sales?${params}`

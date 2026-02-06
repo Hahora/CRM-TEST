@@ -127,10 +127,14 @@ export const useClients = () => {
     }
   };
 
-  const loadStats = async () => {
+  const loadStats = async (momentFrom?: string, momentTo?: string) => {
     try {
       isLoadingStats.value = true;
-      const response = await clientsApi.getSalesStats();
+      const today = new Date().toISOString().slice(0, 10);
+      const yearStart = `${new Date().getFullYear()}-01-01`;
+      const from = momentFrom || yearStart;
+      const to = momentTo || today;
+      const response = await clientsApi.getSalesStats(from, to);
       stats.value = response;
     } catch (error) {
       console.error("Ошибка загрузки статистики:", error);
@@ -201,6 +205,38 @@ export const useClients = () => {
     return clientsApi.searchByEmail(email);
   };
 
+  // ── Удалить клиента ──
+  const deleteClient = async (clientId: number) => {
+    try {
+      await clientsApi.deleteClient(clientId);
+      clients.value = clients.value.filter((c) => c.id !== clientId);
+      totalClients.value = Math.max(0, totalClients.value - 1);
+      showSuccess("Клиент удалён");
+    } catch (error) {
+      console.error("Ошибка удаления клиента:", error);
+      showError("Ошибка удаления клиента");
+      throw error;
+    }
+  };
+
+  // ── Удалить нескольких клиентов ──
+  const deleteClients = async (clientIds: number[]) => {
+    let deleted = 0;
+    for (const id of clientIds) {
+      try {
+        await clientsApi.deleteClient(id);
+        deleted++;
+      } catch (e) {
+        console.error(`Ошибка удаления клиента ${id}:`, e);
+      }
+    }
+    clients.value = clients.value.filter((c) => !clientIds.includes(c.id));
+    totalClients.value = Math.max(0, totalClients.value - deleted);
+    if (deleted > 0) showSuccess(`Удалено клиентов: ${deleted}`);
+    if (deleted < clientIds.length)
+      showError(`Не удалось удалить: ${clientIds.length - deleted}`);
+  };
+
   const exportClients = async (
     filters: {
       created_after?: string;
@@ -263,6 +299,8 @@ export const useClients = () => {
     loadStats,
     createClient,
     updateClient,
+    deleteClient,
+    deleteClients,
     searchByPhone,
     searchByName,
     searchByEmail,

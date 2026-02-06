@@ -13,6 +13,7 @@ import {
   SelectEditorModule,
   RowSelectionModule,
   ColumnAutoSizeModule,
+  ColumnApiModule,
   QuickFilterModule,
   UndoRedoEditModule,
   CellStyleModule,
@@ -41,6 +42,7 @@ ModuleRegistry.registerModules([
   SelectEditorModule,
   RowSelectionModule,
   ColumnAutoSizeModule,
+  ColumnApiModule,
   QuickFilterModule,
   UndoRedoEditModule,
   CellStyleModule,
@@ -90,6 +92,7 @@ const {
   loadStats,
   createClient,
   updateClient,
+  deleteClients,
   refreshData,
 } = useClients();
 
@@ -107,11 +110,17 @@ const {
 
 const searchText = ref("");
 const showAddForm = ref(false);
-const showStatsPanel = ref(true);
+const showStatsPanel = ref(false);
 const selectedCount = ref(0);
 const isMobile = ref(false);
 const isFullscreen = ref(false);
 const PAGE_SIZE = 50;
+
+// ═══ Период статистики (дефолт: начало года → сегодня) ═══
+const today = new Date().toISOString().slice(0, 10);
+const yearStart = `${new Date().getFullYear()}-01-01`;
+const statFrom = ref(yearStart);
+const statTo = ref(today);
 
 const newClient = ref<CreateClientData>({
   name: "",
@@ -323,7 +332,12 @@ const handleDeleteSelected = async () => {
   const selected = getSelectedRows();
   if (selected.length === 0) return;
   if (!confirm(`Удалить ${selected.length} клиент(ов)?`)) return;
-  await handleRefresh();
+
+  const ids = selected.map((c: any) => c.id).filter((id: any) => id != null);
+  if (ids.length > 0) {
+    await deleteClients(ids);
+  }
+  selectedCount.value = 0;
 };
 
 const displayStats = computed(() => ({
@@ -333,12 +347,97 @@ const displayStats = computed(() => ({
   avgReceipt: stats.value?.average_receipt || 0,
 }));
 
+// ═══ Управление периодом статистики ═══
+const handleStatsDateChange = () => {
+  if (statFrom.value && statTo.value) {
+    loadStats(statFrom.value, statTo.value);
+  }
+};
+
+const setStatPreset = (preset: string) => {
+  const now = new Date();
+  const todayStr = now.toISOString().slice(0, 10);
+  let from = "";
+
+  switch (preset) {
+    case "today": {
+      from = todayStr;
+      break;
+    }
+    case "week": {
+      const d = new Date(now);
+      d.setDate(d.getDate() - 7);
+      from = d.toISOString().slice(0, 10);
+      break;
+    }
+    case "month": {
+      from = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(
+        2,
+        "0"
+      )}-01`;
+      break;
+    }
+    case "quarter": {
+      const qMonth = Math.floor(now.getMonth() / 3) * 3 + 1;
+      from = `${now.getFullYear()}-${String(qMonth).padStart(2, "0")}-01`;
+      break;
+    }
+    case "year": {
+      from = `${now.getFullYear()}-01-01`;
+      break;
+    }
+    case "all": {
+      from = "2020-01-01";
+      break;
+    }
+  }
+
+  statFrom.value = from;
+  statTo.value = todayStr;
+  loadStats(from, todayStr);
+};
+
+const activePreset = computed(() => {
+  const now = new Date();
+  const todayStr = now.toISOString().slice(0, 10);
+  if (statTo.value !== todayStr) return "";
+
+  const yearStart = `${now.getFullYear()}-01-01`;
+  const monthStart = `${now.getFullYear()}-${String(
+    now.getMonth() + 1
+  ).padStart(2, "0")}-01`;
+  const qMonth = Math.floor(now.getMonth() / 3) * 3 + 1;
+  const quarterStart = `${now.getFullYear()}-${String(qMonth).padStart(
+    2,
+    "0"
+  )}-01`;
+  const weekAgo = new Date(now);
+  weekAgo.setDate(weekAgo.getDate() - 7);
+  const weekStr = weekAgo.toISOString().slice(0, 10);
+
+  if (statFrom.value === todayStr) return "today";
+  if (statFrom.value === weekStr) return "week";
+  if (statFrom.value === monthStart) return "month";
+  if (statFrom.value === quarterStart) return "quarter";
+  if (statFrom.value === yearStart) return "year";
+  if (statFrom.value === "2020-01-01") return "all";
+  return "";
+});
+
 // v35 rowSelection — через GridOptions, НЕ через colDef checkboxSelection
 const rowSelection = ref<any>({
   mode: "multiRow",
   enableClickSelection: false,
-  checkboxes: false,
-  headerCheckbox: false,
+});
+
+// Отдельная колонка чекбоксов — всегда первая, перед №
+const selectionColumnDef = ref({
+  width: 42,
+  minWidth: 42,
+  maxWidth: 42,
+  suppressHeaderMenuButton: true,
+  sortable: false,
+  pinned: "left" as const,
 });
 
 // Фикс duplicate null id — если у строки нет id, генерируем уникальный
@@ -354,24 +453,75 @@ const getRowId = (params: any) => {
 
 <template>
   <div class="clients-page" :class="{ 'clients-page--fs': isFullscreen }">
-    <!-- HEADER -->
+    <!-- HEADER + TOOLBAR (объединены) -->
     <header class="page-header">
       <div class="header-left">
-        <div class="header-title-row">
-          <h1 class="header-title">Клиенты</h1>
-          <span class="badge-count">{{ displayStats.totalClients }}</span>
-        </div>
-        <p class="header-sub">Управление базой клиентов</p>
+        <h1 class="header-title">Клиенты</h1>
+        <span class="badge-count">{{ displayStats.totalClients }}</span>
+      </div>
+      <div class="header-search">
+        <svg
+          class="toolbar-search-ico"
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <circle cx="11" cy="11" r="8" />
+          <line x1="21" y1="21" x2="16.65" y2="16.65" />
+        </svg>
+        <input
+          v-model="searchText"
+          type="text"
+          placeholder="Поиск по имени, телефону, email..."
+          class="toolbar-search-input"
+        />
+        <button
+          v-if="searchText"
+          class="toolbar-search-clear"
+          @click="searchText = ''"
+        >
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+          >
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
       </div>
       <div class="header-btns">
         <button
           class="hbtn hbtn--ghost"
-          @click="showStatsPanel = !showStatsPanel"
-          title="Статистика"
+          @click="clearAllFilters"
+          title="Сброс фильтров"
         >
           <svg
-            width="16"
-            height="16"
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+          </svg>
+        </button>
+        <button
+          class="hbtn hbtn--ghost"
+          @click="showStatsPanel = !showStatsPanel"
+          title="Статистика"
+          :class="{ 'hbtn--active': showStatsPanel }"
+        >
+          <svg
+            width="14"
+            height="14"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -381,7 +531,6 @@ const getRowId = (params: any) => {
             <line x1="12" y1="20" x2="12" y2="4" />
             <line x1="6" y1="20" x2="6" y2="14" />
           </svg>
-          <span class="hbtn-text">Стат</span>
         </button>
         <button
           class="hbtn hbtn--ghost"
@@ -390,8 +539,8 @@ const getRowId = (params: any) => {
           title="Экспорт CSV"
         >
           <svg
-            width="16"
-            height="16"
+            width="14"
+            height="14"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -401,7 +550,6 @@ const getRowId = (params: any) => {
             <polyline points="7 10 12 15 17 10" />
             <line x1="12" y1="15" x2="12" y2="3" />
           </svg>
-          <span class="hbtn-text">CSV</span>
         </button>
         <button
           class="hbtn hbtn--ghost"
@@ -410,8 +558,8 @@ const getRowId = (params: any) => {
           title="Обновить"
         >
           <svg
-            width="16"
-            height="16"
+            width="14"
+            height="14"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -424,12 +572,15 @@ const getRowId = (params: any) => {
               d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"
             />
           </svg>
-          <span class="hbtn-text">Обновить</span>
         </button>
-        <button class="hbtn hbtn--primary" @click="showAddForm = !showAddForm">
+        <button
+          class="hbtn hbtn--primary"
+          @click="showAddForm = !showAddForm"
+          title="Новый клиент"
+        >
           <svg
-            width="16"
-            height="16"
+            width="14"
+            height="14"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -440,95 +591,202 @@ const getRowId = (params: any) => {
           </svg>
           <span class="hbtn-text">Новый</span>
         </button>
+        <Transition name="fade">
+          <button
+            v-if="selectedCount > 0"
+            class="hbtn hbtn--danger"
+            @click="handleDeleteSelected"
+            title="Удалить выбранных"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <polyline points="3 6 5 6 21 6" />
+              <path
+                d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+              />
+            </svg>
+            <span class="hbtn-text">{{ selectedCount }}</span>
+          </button>
+        </Transition>
       </div>
     </header>
 
     <!-- STATS -->
     <Transition name="fold">
-      <div v-if="showStatsPanel" class="stats-row">
-        <div class="scard">
-          <div class="scard-ico scard-ico--blue">
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-              <circle cx="9" cy="7" r="4" />
-            </svg>
-          </div>
-          <div class="scard-body">
-            <span class="scard-val">{{ displayStats.totalClients }}</span
-            ><span class="scard-lbl">Клиентов</span>
-          </div>
-        </div>
-        <div class="scard">
-          <div class="scard-ico scard-ico--green">
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <line x1="12" y1="1" x2="12" y2="23" />
-              <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-            </svg>
-          </div>
-          <div class="scard-body">
-            <span class="scard-val">{{
-              formatCurrency(displayStats.salesAmount)
-            }}</span
-            ><span class="scard-lbl">Оборот</span>
-          </div>
-        </div>
-        <div class="scard">
-          <div class="scard-ico scard-ico--amber">
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <path
-                d="M9 5H2v7l6.29 6.29c.94.94 2.48.94 3.42 0l4.58-4.58c.94-.94.94-2.48 0-3.42L9 5z"
+      <div v-if="showStatsPanel" class="stats-panel">
+        <!-- Период -->
+        <div class="stats-period">
+          <div class="stats-period-dates">
+            <div class="stats-date-field">
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                <line x1="16" y1="2" x2="16" y2="6" />
+                <line x1="8" y1="2" x2="8" y2="6" />
+                <line x1="3" y1="10" x2="21" y2="10" />
+              </svg>
+              <input
+                type="date"
+                v-model="statFrom"
+                @change="handleStatsDateChange"
+                class="stats-date-input"
               />
-              <circle cx="6" cy="9" r="1" />
-            </svg>
+            </div>
+            <span class="stats-date-sep">—</span>
+            <div class="stats-date-field">
+              <input
+                type="date"
+                v-model="statTo"
+                @change="handleStatsDateChange"
+                class="stats-date-input"
+              />
+            </div>
+            <div v-if="isLoadingStats" class="stats-loading-dot"></div>
           </div>
-          <div class="scard-body">
-            <span class="scard-val">{{
-              displayStats.salesCount.toLocaleString("ru-RU")
-            }}</span
-            ><span class="scard-lbl">Продаж</span>
+          <div class="stats-presets">
+            <button
+              class="stats-preset"
+              :class="{ 'stats-preset--on': activePreset === 'today' }"
+              @click="setStatPreset('today')"
+            >
+              Сегодня
+            </button>
+            <button
+              class="stats-preset"
+              :class="{ 'stats-preset--on': activePreset === 'week' }"
+              @click="setStatPreset('week')"
+            >
+              7 дней
+            </button>
+            <button
+              class="stats-preset"
+              :class="{ 'stats-preset--on': activePreset === 'month' }"
+              @click="setStatPreset('month')"
+            >
+              Месяц
+            </button>
+            <button
+              class="stats-preset"
+              :class="{ 'stats-preset--on': activePreset === 'quarter' }"
+              @click="setStatPreset('quarter')"
+            >
+              Квартал
+            </button>
+            <button
+              class="stats-preset"
+              :class="{ 'stats-preset--on': activePreset === 'year' }"
+              @click="setStatPreset('year')"
+            >
+              Год
+            </button>
+            <button
+              class="stats-preset"
+              :class="{ 'stats-preset--on': activePreset === 'all' }"
+              @click="setStatPreset('all')"
+            >
+              Всё время
+            </button>
           </div>
         </div>
-        <div class="scard">
-          <div class="scard-ico scard-ico--purple">
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <line x1="18" y1="20" x2="18" y2="10" />
-              <line x1="12" y1="20" x2="12" y2="4" />
-              <line x1="6" y1="20" x2="6" y2="14" />
-            </svg>
+        <!-- Карточки -->
+        <div class="stats-row">
+          <div class="scard">
+            <div class="scard-ico scard-ico--blue">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+              </svg>
+            </div>
+            <div class="scard-body">
+              <span class="scard-val">{{ displayStats.totalClients }}</span
+              ><span class="scard-lbl">Клиентов</span>
+            </div>
           </div>
-          <div class="scard-body">
-            <span class="scard-val">{{
-              formatCurrency(displayStats.avgReceipt)
-            }}</span
-            ><span class="scard-lbl">Ср. чек</span>
+          <div class="scard">
+            <div class="scard-ico scard-ico--green">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M6 3v18" />
+                <path d="M6 12h8a4 4 0 0 0 0-8H6" />
+                <path d="M4 16h10" />
+              </svg>
+            </div>
+            <div class="scard-body">
+              <span class="scard-val">{{
+                formatCurrency(displayStats.salesAmount)
+              }}</span
+              ><span class="scard-lbl">Оборот</span>
+            </div>
+          </div>
+          <div class="scard">
+            <div class="scard-ico scard-ico--amber">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  d="M9 5H2v7l6.29 6.29c.94.94 2.48.94 3.42 0l4.58-4.58c.94-.94.94-2.48 0-3.42L9 5z"
+                />
+                <circle cx="6" cy="9" r="1" />
+              </svg>
+            </div>
+            <div class="scard-body">
+              <span class="scard-val">{{
+                displayStats.salesCount.toLocaleString("ru-RU")
+              }}</span
+              ><span class="scard-lbl">Продаж</span>
+            </div>
+          </div>
+          <div class="scard">
+            <div class="scard-ico scard-ico--purple">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <line x1="18" y1="20" x2="18" y2="10" />
+                <line x1="12" y1="20" x2="12" y2="4" />
+                <line x1="6" y1="20" x2="6" y2="14" />
+              </svg>
+            </div>
+            <div class="scard-body">
+              <span class="scard-val">{{
+                formatCurrency(displayStats.avgReceipt)
+              }}</span
+              ><span class="scard-lbl">Ср. чек</span>
+            </div>
           </div>
         </div>
       </div>
@@ -656,71 +914,6 @@ const getRowId = (params: any) => {
       </div>
     </Transition>
 
-    <!-- TOOLBAR -->
-    <div class="toolbar">
-      <div class="toolbar-search">
-        <svg
-          class="toolbar-search-ico"
-          width="15"
-          height="15"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-        >
-          <circle cx="11" cy="11" r="8" />
-          <line x1="21" y1="21" x2="16.65" y2="16.65" />
-        </svg>
-        <input
-          v-model="searchText"
-          type="text"
-          placeholder="Поиск..."
-          class="toolbar-search-input"
-        />
-        <button
-          v-if="searchText"
-          class="toolbar-search-clear"
-          @click="searchText = ''"
-        >
-          <svg
-            width="12"
-            height="12"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2.5"
-          >
-            <line x1="18" y1="6" x2="6" y2="18" />
-            <line x1="6" y1="6" x2="18" y2="18" />
-          </svg>
-        </button>
-      </div>
-      <div class="toolbar-right">
-        <button class="hbtn hbtn--ghost hbtn--xs" @click="clearAllFilters">
-          <svg
-            width="13"
-            height="13"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-          >
-            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
-          </svg>
-          <span class="hbtn-text">Сброс</span>
-        </button>
-        <Transition name="fade">
-          <button
-            v-if="selectedCount > 0"
-            class="hbtn hbtn--danger hbtn--xs"
-            @click="handleDeleteSelected"
-          >
-            Удалить ({{ selectedCount }})
-          </button>
-        </Transition>
-      </div>
-    </div>
-
     <!-- MOBILE BAR -->
     <div class="mobile-bar" v-if="isMobile && !isFullscreen">
       <div class="mobile-bar-hint">
@@ -821,6 +1014,7 @@ const getRowId = (params: any) => {
         :defaultColDef="defaultColDef"
         :rowData="clients"
         :rowSelection="rowSelection"
+        :selectionColumnDef="selectionColumnDef"
         :getRowId="getRowId"
         :animateRows="true"
         :enableCellTextSelection="true"
@@ -907,8 +1101,7 @@ const getRowId = (params: any) => {
 .clients-page {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  height: 100dvh;
+  height: 100%;
   background: var(--bg);
   font-family: var(--fn);
   color: var(--tx);
@@ -917,20 +1110,20 @@ const getRowId = (params: any) => {
 .page-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 14px 16px;
+  padding: 8px 12px;
   background: var(--sf);
   border-bottom: 1px solid var(--bd);
   flex-shrink: 0;
-  gap: 10px;
-}
-.header-title-row {
-  display: flex;
-  align-items: center;
   gap: 8px;
 }
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
 .header-title {
-  font-size: 20px;
+  font-size: 16px;
   font-weight: 800;
   letter-spacing: -0.02em;
   margin: 0;
@@ -938,27 +1131,29 @@ const getRowId = (params: any) => {
 .badge-count {
   background: var(--prl);
   color: var(--pr);
-  font: 700 12px/1 var(--fm);
-  padding: 3px 8px;
+  font: 700 11px/1 var(--fm);
+  padding: 2px 7px;
   border-radius: 20px;
 }
-.header-sub {
-  font-size: 12px;
-  color: var(--tx2);
-  margin: 2px 0 0;
+.header-search {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  max-width: 400px;
 }
 .header-btns {
   display: flex;
-  gap: 6px;
+  gap: 4px;
   flex-shrink: 0;
+  align-items: center;
 }
 .hbtn {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 7px 12px;
+  gap: 4px;
+  padding: 6px 8px;
   border-radius: var(--rs);
-  font: 600 12px/1 var(--fn);
+  font: 600 11px/1 var(--fn);
   border: none;
   cursor: pointer;
   transition: all var(--tr);
@@ -997,6 +1192,11 @@ const getRowId = (params: any) => {
   padding: 5px 9px;
   font-size: 11px;
 }
+.hbtn--active {
+  background: var(--prl);
+  color: var(--pr);
+  border-color: var(--pr);
+}
 .icon-close {
   width: 28px;
   height: 28px;
@@ -1014,12 +1214,98 @@ const getRowId = (params: any) => {
   background: var(--sfh);
   color: var(--tx);
 }
+/* ── Stats panel ── */
+.stats-panel {
+  background: var(--sf);
+  border-bottom: 1px solid var(--bd);
+  flex-shrink: 0;
+}
+.stats-period {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--bd);
+  flex-wrap: wrap;
+}
+.stats-period-dates {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.stats-date-field {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  position: relative;
+  color: var(--tx2);
+}
+.stats-date-input {
+  padding: 5px 8px;
+  border: 1px solid var(--bd);
+  border-radius: var(--rs);
+  font: 500 11px var(--fn);
+  background: var(--bg);
+  color: var(--tx);
+  outline: none;
+  transition: all var(--tr);
+  width: 130px;
+}
+.stats-date-input:focus {
+  border-color: var(--pr);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+  background: var(--sf);
+}
+.stats-date-sep {
+  color: var(--txm);
+  font-size: 12px;
+  user-select: none;
+}
+.stats-loading-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--pr);
+  animation: pulse 1s ease-in-out infinite;
+  margin-left: 4px;
+}
+.stats-presets {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.stats-preset {
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1px solid var(--bd);
+  background: var(--sf);
+  color: var(--tx2);
+  font: 600 10px/1 var(--fn);
+  cursor: pointer;
+  transition: all var(--tr);
+  white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.stats-preset:hover {
+  background: var(--sfh);
+  color: var(--tx);
+  border-color: var(--bds);
+}
+.stats-preset--on {
+  background: var(--pr);
+  color: #fff;
+  border-color: var(--pr);
+}
+.stats-preset--on:hover {
+  background: var(--prh);
+  border-color: var(--prh);
+}
 .stats-row {
   display: flex;
   gap: 8px;
   padding: 10px 16px;
-  background: var(--sf);
-  border-bottom: 1px solid var(--bd);
   overflow-x: auto;
   flex-shrink: 0;
   -webkit-overflow-scrolling: touch;
@@ -1185,24 +1471,9 @@ const getRowId = (params: any) => {
   flex-shrink: 0;
   background: var(--sf);
 }
-.toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 16px;
-  background: var(--sf);
-  border-bottom: 1px solid var(--bd);
-  gap: 10px;
-  flex-shrink: 0;
-}
-.toolbar-search {
-  position: relative;
-  flex: 1;
-  max-width: 380px;
-}
 .toolbar-search-ico {
   position: absolute;
-  left: 9px;
+  left: 8px;
   top: 50%;
   transform: translateY(-50%);
   color: var(--txm);
@@ -1210,7 +1481,7 @@ const getRowId = (params: any) => {
 }
 .toolbar-search-input {
   width: 100%;
-  padding: 7px 28px 7px 30px;
+  padding: 6px 26px 6px 28px;
   border: 1px solid var(--bd);
   border-radius: var(--rs);
   font: 400 12px var(--fn);
@@ -1222,18 +1493,18 @@ const getRowId = (params: any) => {
 .toolbar-search-input:focus {
   background: var(--sf);
   border-color: var(--pr);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.08);
 }
 .toolbar-search-input::placeholder {
   color: var(--txm);
 }
 .toolbar-search-clear {
   position: absolute;
-  right: 7px;
+  right: 6px;
   top: 50%;
   transform: translateY(-50%);
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   border: none;
   background: var(--bd);
@@ -1247,11 +1518,6 @@ const getRowId = (params: any) => {
 .toolbar-search-clear:hover {
   background: var(--bds);
   color: var(--tx);
-}
-.toolbar-right {
-  display: flex;
-  align-items: center;
-  gap: 6px;
 }
 .mobile-bar {
   display: flex;
@@ -1323,9 +1589,8 @@ const getRowId = (params: any) => {
   color: var(--tx);
 }
 .clients-page--fs .page-header,
-.clients-page--fs .stats-row,
+.clients-page--fs .stats-panel,
 .clients-page--fs .add-panel,
-.clients-page--fs .toolbar,
 .clients-page--fs .page-footer {
   display: none !important;
 }
@@ -1530,10 +1795,10 @@ const getRowId = (params: any) => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 7px 16px;
+  padding: 5px 12px;
   background: var(--sf);
   border-top: 1px solid var(--bd);
-  font-size: 11px;
+  font-size: 10px;
   color: var(--tx2);
   flex-shrink: 0;
 }
@@ -1628,25 +1893,43 @@ const getRowId = (params: any) => {
 }
 @media (max-width: 768px) {
   .page-header {
-    flex-direction: column;
-    align-items: stretch;
-    padding: 10px 12px;
-    gap: 8px;
+    flex-wrap: wrap;
+    padding: 8px 10px;
+    gap: 6px;
+  }
+  .header-left {
+    order: 1;
+  }
+  .header-search {
+    order: 3;
+    flex: 1 1 100%;
+    max-width: 100%;
   }
   .header-btns {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 5px;
-  }
-  .header-btns .hbtn {
-    justify-content: center;
-    padding: 9px 6px;
+    order: 2;
+    margin-left: auto;
   }
   .hbtn-text {
     display: none;
   }
   .header-title {
-    font-size: 17px;
+    font-size: 15px;
+  }
+  .stats-period {
+    flex-direction: column;
+    padding: 6px 12px;
+    gap: 6px;
+    align-items: stretch;
+  }
+  .stats-period-dates {
+    justify-content: center;
+  }
+  .stats-date-input {
+    width: 115px;
+    font-size: 10px;
+  }
+  .stats-presets {
+    justify-content: center;
   }
   .stats-row {
     padding: 8px 12px;
@@ -1666,18 +1949,6 @@ const getRowId = (params: any) => {
   .add-grid {
     grid-template-columns: 1fr 1fr;
     gap: 8px;
-  }
-  .toolbar {
-    flex-direction: column;
-    padding: 6px 12px;
-    gap: 6px;
-  }
-  .toolbar-search {
-    max-width: 100%;
-  }
-  .toolbar-right {
-    width: 100%;
-    justify-content: space-between;
   }
   .page-footer {
     flex-direction: column;

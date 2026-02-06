@@ -123,9 +123,9 @@ export function useClientsGrid() {
     {
       headerName: "№",
       valueGetter: "node.rowIndex + 1",
-      width: 60,
-      minWidth: 50,
-      maxWidth: 80,
+      width: 70,
+      minWidth: 60,
+      maxWidth: 90,
       sortable: false,
       filter: false,
       editable: false,
@@ -201,19 +201,27 @@ export function useClientsGrid() {
       minWidth: 125,
       editable: true,
       cellEditor: "agTextCellEditor",
-      cellEditorParams: {
-        useFormatter: true,
-      },
       valueFormatter: (params: ValueFormatterParams) =>
         formatDate(params.value),
+      valueGetter: (params: any) => params.data?.birth_date || null,
       valueSetter: (params: ValueSetterParams) => {
-        params.data.birth_date = parseDateInput(params.newValue);
-        return true;
+        const raw = params.newValue;
+        if (!raw || !raw.trim()) {
+          params.data.birth_date = null;
+          return true;
+        }
+        const parsed = parseDateInput(raw);
+        if (parsed) {
+          params.data.birth_date = parsed;
+          return true;
+        }
+        // Не удалось распарсить — не сохраняем
+        return false;
       },
       tooltipValueGetter: (params: any) =>
         params.value
-          ? `${formatDate(params.value)} (формат: ДД.ММ.ГГГГ)`
-          : "Пусто — кликните для ввода",
+          ? `${formatDate(params.value)} · Введите: ДД.ММ.ГГГГ`
+          : "Кликните и введите: ДД.ММ.ГГГГ",
       filter: "agDateColumnFilter",
     },
     {
@@ -298,21 +306,28 @@ export function useClientsGrid() {
       minWidth: 125,
       editable: (params: any) => params.data?.is_wedding === true,
       cellEditor: "agTextCellEditor",
-      cellEditorParams: {
-        useFormatter: true,
-      },
       valueFormatter: (params: ValueFormatterParams) =>
         formatDate(params.value),
+      valueGetter: (params: any) => params.data?.wedding_date || null,
       valueSetter: (params: ValueSetterParams) => {
-        params.data.wedding_date = parseDateInput(params.newValue);
-        return true;
+        const raw = params.newValue;
+        if (!raw || !raw.trim()) {
+          params.data.wedding_date = null;
+          return true;
+        }
+        const parsed = parseDateInput(raw);
+        if (parsed) {
+          params.data.wedding_date = parsed;
+          return true;
+        }
+        return false;
       },
       tooltipValueGetter: (params: any) => {
         if (params.data?.is_wedding !== true)
           return "Сначала включите флаг Свадьба";
         return params.value
-          ? `${formatDate(params.value)} (формат: ДД.ММ.ГГГГ)`
-          : "Пусто — кликните для ввода (ДД.ММ.ГГГГ)";
+          ? `${formatDate(params.value)} · Введите: ДД.ММ.ГГГГ`
+          : "Кликните и введите: ДД.ММ.ГГГГ";
       },
       cellStyle: (params: any) => {
         if (params.data?.is_wedding !== true) {

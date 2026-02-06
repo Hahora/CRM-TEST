@@ -26,7 +26,7 @@ const closeMobileMenu = () => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-50">
+  <div class="h-screen h-[100dvh] overflow-hidden bg-gray-50">
     <!-- Global Loading Overlay -->
     <LoadingOverlay
       :is-visible="loadingState.isVisible"
@@ -43,7 +43,9 @@ const closeMobileMenu = () => {
       <AppSidebar />
       <MobileMenu :is-open="isMobileMenuOpen" @close="closeMobileMenu" />
 
-      <main class="pt-14 md:pt-16 md:ml-64 transition-all duration-300">
+      <main
+        class="pt-14 md:pt-16 md:ml-64 transition-all duration-300 h-full overflow-hidden"
+      >
         <RouterView />
       </main>
     </template>
