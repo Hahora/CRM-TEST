@@ -21,7 +21,6 @@ import {
   Ruler,
   MessageSquare,
   Calendar,
-  CheckCircle,
 } from "lucide-vue-next";
 
 export interface VisitEditPayload {
@@ -30,7 +29,6 @@ export interface VisitEditPayload {
   visit: Visit | null;
   dateStr: string;
   branchMoyskladId: string;
-  branchLocalId?: number;
 }
 
 const props = defineProps<{
@@ -48,7 +46,7 @@ const emit = defineEmits<{
 const onNewClientCreated = (client: any) => {
   if (client) {
     form.value.client_moysklad_id = client.moysklad_id || "";
-    form.value.client_name = client.name || client.full_name || "";
+    form.value.client_name = client.full_name || client.name || "";
     form.value.client_phone = client.phone || "";
     form.value.client_email = client.email || "";
   }
@@ -72,6 +70,25 @@ const form = ref({
 const visitId = ref<number | null>(null);
 const isSaving = ref(false);
 
+// ── Russian status → enum mapping ──
+const russianStatusMap: Record<string, VisitStatus> = {
+  запланировано: "zaplanirovano",
+  записался: "zapisalsya",
+  пришел: "prishel",
+  пришёл: "prishel",
+  "не пришел": "ne_prishel",
+  "не пришёл": "ne_prishel",
+  "отложил без депозита": "otlozhil_bez_depozita",
+  "отложил с депозитом": "otlozhil_s_depozitom",
+  "отложил до вечера": "otlozhil_do_vechera",
+  купил: "kupil",
+  "сделка провалена": "sdelka_provalena",
+};
+const normalizeStatus = (s: string): VisitStatus => {
+  if (VISIT_STATUSES.some((st) => st.value === s)) return s as VisitStatus;
+  return russianStatusMap[s.toLowerCase()] || "zaplanirovano";
+};
+
 watch(
   () => props.open,
   (v) => {
@@ -81,14 +98,14 @@ watch(
       visitId.value = vis.id;
       form.value = {
         client_moysklad_id: vis.client_moysklad_id || "",
-        client_name: vis.client?.name || "",
+        client_name: vis.client?.name || vis.client?.full_name || "",
         client_phone: vis.client?.phone || "",
         client_email: vis.client?.email || "",
         size: vis.size || "",
         color: vis.color || "",
         source: vis.source || "",
         notes: vis.notes || "",
-        status: vis.status,
+        status: normalizeStatus(vis.status),
         fitting: vis.fitting,
         employee_moysklad_id: vis.employee_moysklad_id || "",
         employee_name: vis.employee?.full_name || "",
@@ -142,10 +159,9 @@ const handleSave = async () => {
         return;
       }
       const data: CreateVisitData = {
-        visit_datetime: `${p.dateStr}T${p.slot}:00`,
+        visit_datetime: `${p.dateStr}T${p.slot}:00+03:00`,
         fitting_room: p.room,
         branch_moysklad_id: p.branchMoyskladId,
-        status: form.value.status,
         fitting: form.value.fitting,
         size: form.value.size || undefined,
         color: form.value.color || undefined,
@@ -192,14 +208,14 @@ const searchClient = (query: string) => {
 };
 const selectAcClient = (cl: any) => {
   form.value.client_moysklad_id = cl.moysklad_id || "";
-  form.value.client_name = cl.name || cl.full_name || "";
+  form.value.client_name = cl.full_name || cl.name || "";
   form.value.client_phone = cl.phone || "";
   form.value.client_email = cl.email || "";
   acClientOpen.value = false;
 };
 const getClientName = (cl: any) =>
-  cl.name ||
   cl.full_name ||
+  cl.name ||
   `${cl.first_name || ""} ${cl.last_name || ""}`.trim() ||
   "Без имени";
 const getClientPhone = (cl: any) => cl.phone || "";
@@ -207,6 +223,7 @@ const getClientEmail = (cl: any) => cl.email || "";
 
 // ── Employee autocomplete ──
 const acEmployees = ref<VisitEmployee[]>([]);
+const acEmpLoading = ref(false);
 const acEmpOpen = ref(false);
 let empTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -216,22 +233,22 @@ const searchEmployee = (query: string) => {
     acEmpOpen.value = false;
     return;
   }
+  acEmpLoading.value = true;
   acEmpOpen.value = true;
   if (empTimer) clearTimeout(empTimer);
   empTimer = setTimeout(async () => {
     try {
-      const branchLocalId = props.payload?.branchLocalId;
-      if (branchLocalId) {
+      const branchMsId = props.payload?.branchMoyskladId;
+      if (branchMsId) {
         acEmployees.value = await visitsApi.getEmployeesByBranch(
-          branchLocalId,
+          branchMsId,
           query
         );
-      } else {
-        acEmployees.value = await visitsApi.searchEmployees(query);
       }
     } catch {
       acEmployees.value = [];
     }
+    acEmpLoading.value = false;
   }, 200);
 };
 const selectAcEmployee = (emp: VisitEmployee) => {
@@ -458,23 +475,29 @@ defineExpose({ onNewClientCreated });
                     @input="searchEmployee(form.employee_name)"
                     @focus="searchEmployee(form.employee_name)"
                   />
-                  <div v-if="acEmpOpen && acEmployees.length" class="vem-ac">
-                    <div
-                      v-for="emp in acEmployees"
-                      :key="emp.moysklad_id"
-                      class="vem-ac-item"
-                      @mousedown.prevent="selectAcEmployee(emp)"
-                    >
-                      <div class="vem-ac-main">
-                        <span class="vem-ac-name">{{ emp.full_name }}</span>
-                        <span class="vem-ac-pos" v-if="emp.position">{{
-                          emp.position
-                        }}</span>
-                      </div>
-                      <span class="vem-ac-phone" v-if="emp.phone"
-                        ><Phone :size="9" /> {{ emp.phone }}</span
-                      >
+                  <div v-if="acEmpOpen" class="vem-ac">
+                    <div v-if="acEmpLoading" class="vem-ac-empty">
+                      <span class="vem-spinner"></span> Поиск...
                     </div>
+                    <template v-else-if="acEmployees.length">
+                      <div
+                        v-for="emp in acEmployees"
+                        :key="emp.moysklad_id"
+                        class="vem-ac-item"
+                        @mousedown.prevent="selectAcEmployee(emp)"
+                      >
+                        <div class="vem-ac-main">
+                          <span class="vem-ac-name">{{ emp.full_name }}</span>
+                          <span class="vem-ac-pos" v-if="emp.position">{{
+                            emp.position
+                          }}</span>
+                        </div>
+                        <span class="vem-ac-phone" v-if="emp.phone"
+                          ><Phone :size="9" /> {{ emp.phone }}</span
+                        >
+                      </div>
+                    </template>
+                    <div v-else class="vem-ac-empty">Сотрудники не найдены</div>
                   </div>
                 </div>
                 <div class="vem-field vem-field--full">
@@ -514,10 +537,6 @@ defineExpose({ onNewClientCreated });
               </div>
               <label class="vem-check">
                 <input type="checkbox" v-model="form.fitting" />
-                <CheckCircle
-                  :size="15"
-                  :style="{ color: form.fitting ? '#059669' : '#cbd5e1' }"
-                />
                 <span>Примерка состоялась</span>
               </label>
             </div>

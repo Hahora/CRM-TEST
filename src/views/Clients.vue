@@ -984,8 +984,7 @@ const getRowId = (params: any) => {
       </div>
       <div class="footer-r">
         <span class="footer-tip"
-          >Клик по ячейке → редактирование · Ctrl+Z → отмена · Даты:
-          ДД.ММ.ГГГГ</span
+          >Клик по ячейке → редактирование · Даты: ДД.ММ.ГГГГ</span
         >
       </div>
     </footer>

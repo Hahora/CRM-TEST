@@ -52,6 +52,16 @@ import {
   MailOpen,
   Save,
   Heart,
+  Shirt,
+  Palette,
+  Ruler,
+  UserCheck,
+  CircleDot,
+  Ban,
+  Hourglass,
+  Banknote,
+  ThumbsDown,
+  Sunset,
 } from "lucide-vue-next";
 
 export const iconComponents = {
@@ -108,6 +118,16 @@ export const iconComponents = {
   "mail-open": MailOpen,
   save: Save,
   heart: Heart,
+  shirt: Shirt,
+  palette: Palette,
+  ruler: Ruler,
+  "user-check": UserCheck,
+  "circle-dot": CircleDot,
+  ban: Ban,
+  hourglass: Hourglass,
+  banknote: Banknote,
+  "thumbs-down": ThumbsDown,
+  sunset: Sunset,
 };
 
 export type IconName = keyof typeof iconComponents;

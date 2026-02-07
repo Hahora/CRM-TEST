@@ -10,15 +10,38 @@ import type {
 } from "@/services/visitsApi";
 import VisitEditModal from "@/components/visits/VisitEditModal.vue";
 import type { VisitEditPayload } from "@/components/visits/VisitEditModal.vue";
+import TimeSettingsModal from "@/components/visits/TimeSettingsModal.vue";
+import type { TimeSettings } from "@/components/visits/TimeSettingsModal.vue";
 import ClientCreateModal from "@/components/clients/ClientCreateModal.vue";
+import ClientDetailModal from "@/components/clients/ClientDetailModal.vue";
+import {
+  Phone,
+  Mail,
+  Shirt,
+  Ruler,
+  Palette,
+  UserCheck,
+  MessageSquare,
+  CheckCircle,
+  XCircle,
+  CircleDot,
+  Ban,
+  Hourglass,
+  Banknote,
+  ThumbsDown,
+  Sunset,
+  ShoppingBag,
+  Clock,
+} from "lucide-vue-next";
 
 // ── State ──
 const schedule = ref<ScheduleResponse | null>(null);
-const isLoading = ref(false);
+const isLoading = ref(true);
 const selectedDate = ref(new Date());
 const isMobile = ref(false);
 const isFullscreen = ref(false);
 const showStats = ref(false);
+const showTimeSettings = ref(false);
 
 // Branches
 const branches = ref<Branch[]>([]);
@@ -29,25 +52,55 @@ const branchesLoaded = ref(false);
 const currentBranch = computed(() =>
   branches.value.find((b) => b.moysklad_id === branchMoyskladId.value)
 );
-const currentBranchLocalId = computed(() => currentBranch.value?.local_id);
 
 const dateStr = computed(() => selectedDate.value.toISOString().split("T")[0]);
-const timeSlots = computed(
-  () =>
-    schedule.value?.time_slots || [
-      "10:00",
-      "11:00",
-      "12:00",
-      "13:00",
-      "14:00",
-      "15:00",
-      "16:00",
-      "17:00",
-      "18:00",
-      "19:00",
-      "20:00",
-    ]
-);
+
+// ── Time slots: loaded from branch schedule API ──
+const branchScheduleSlots = ref<string[] | null>(null);
+const branchAdditionalSlots = ref<string[]>([]);
+
+const loadBranchTimeSlots = async () => {
+  const branch = currentBranch.value;
+  if (!branch?.local_id) return;
+  try {
+    const res = await visitsApi.getBranchScheduleForDate(
+      branch.local_id,
+      dateStr.value
+    );
+    branchScheduleSlots.value =
+      res.merged_schedule || res.base_schedule || null;
+    branchAdditionalSlots.value = res.additional_slots || [];
+  } catch {
+    branchScheduleSlots.value = null;
+    branchAdditionalSlots.value = [];
+  }
+};
+
+const timeSlots = computed(() => {
+  const serverSlots = schedule.value?.time_slots || [];
+  const scheduleSlots = branchScheduleSlots.value;
+  const base =
+    scheduleSlots ||
+    (serverSlots.length
+      ? serverSlots
+      : [
+          "10:00",
+          "11:00",
+          "12:00",
+          "13:00",
+          "14:00",
+          "15:00",
+          "16:00",
+          "17:00",
+          "18:00",
+          "19:00",
+          "20:00",
+        ]);
+  // Also include time_slots from actual visits so they always appear in the grid
+  const visitSlots = (schedule.value?.visits || []).map((v) => v.time_slot);
+  const merged = [...new Set([...base, ...visitSlots])];
+  return merged.sort((a, b) => a.localeCompare(b));
+});
 const fittingRooms = computed(
   () => schedule.value?.fitting_rooms || [1, 2, 3, 4, 5, 6]
 );
@@ -128,6 +181,7 @@ const loadBranches = async () => {
 };
 
 const loadSchedule = async () => {
+  if (!branchMoyskladId.value) return;
   isLoading.value = true;
   try {
     schedule.value = await visitsApi.getSchedule(
@@ -145,11 +199,16 @@ onMounted(async () => {
   checkMobile();
   window.addEventListener("resize", checkMobile);
   await loadBranches();
+  await loadBranchTimeSlots();
   await loadSchedule();
 });
 onUnmounted(() => window.removeEventListener("resize", checkMobile));
-watch(selectedDate, () => loadSchedule());
+watch(selectedDate, () => {
+  loadBranchTimeSlots();
+  loadSchedule();
+});
 watch(branchMoyskladId, () => {
+  loadBranchTimeSlots();
   loadSchedule();
   if (showStats.value) loadVisitStats();
 });
@@ -174,7 +233,7 @@ const loadVisitStats = async (from?: string, to?: string) => {
     visitStats.value = await visitsApi.getVisitStats({
       startDate: from || statFrom.value,
       endDate: to || statTo.value,
-      branchId: currentBranchLocalId.value,
+      branchMoyskladId: branchMoyskladId.value || undefined,
     });
   } catch (e) {
     console.error("Ошибка загрузки статистики визитов:", e);
@@ -248,18 +307,21 @@ const activePreset = computed(() => {
   return "";
 });
 
-const formatCurrency = (v: number) => {
-  if (v >= 1_000_000)
-    return (v / 1_000_000).toFixed(1).replace(/\.0$/, "") + "M";
-  if (v >= 1_000) return (v / 1_000).toFixed(0) + "K";
-  return v.toLocaleString("ru-RU");
-};
-
 // ── Edit modal ──
 const editOpen = ref(false);
 const editPayload = ref<VisitEditPayload | null>(null);
 const visitEditRef = ref<InstanceType<typeof VisitEditModal> | null>(null);
 const showNewClientModal = ref(false);
+
+// ── Client detail modal ──
+const clientDetailId = ref<string | null>(null);
+const openClientDetail = (
+  moyskladId: string | null | undefined,
+  event: Event
+) => {
+  event.stopPropagation();
+  if (moyskladId) clientDetailId.value = moyskladId;
+};
 
 const openCell = (slot: string, room: number) => {
   editPayload.value = {
@@ -268,13 +330,17 @@ const openCell = (slot: string, room: number) => {
     visit: grid.value[slot]?.[room] || null,
     dateStr: dateStr.value,
     branchMoyskladId: branchMoyskladId.value,
-    branchLocalId: currentBranchLocalId.value,
   };
   editOpen.value = true;
 };
 const onEditSaved = () => loadSchedule();
 const onEditClose = () => {
   editOpen.value = false;
+};
+const onTimeSettingsSave = (_settings: TimeSettings) => {
+  loadBranchTimeSlots();
+  loadSchedule();
+  showTimeSettings.value = false;
 };
 const onOpenNewClient = () => {
   showNewClientModal.value = true;
@@ -320,7 +386,7 @@ const exportCsv = () => {
     [
       v.time_slot,
       v.fitting_room,
-      v.client?.name || "",
+      v.client?.name || v.client?.full_name || "",
       v.client?.phone || "",
       v.client?.email || "",
       v.size || "",
@@ -350,10 +416,31 @@ const exportCsv = () => {
 const checkMobile = () => {
   isMobile.value = window.innerWidth < 768;
 };
-const statusLabel = (s: VisitStatus) =>
-  VISIT_STATUSES.find((x) => x.value === s)?.label || s;
-const statusColor = (s: VisitStatus): string => {
-  switch (s) {
+
+const russianStatusMap: Record<string, VisitStatus> = {
+  запланировано: "zaplanirovano",
+  записался: "zapisalsya",
+  пришел: "prishel",
+  пришёл: "prishel",
+  "не пришел": "ne_prishel",
+  "не пришёл": "ne_prishel",
+  "отложил без депозита": "otlozhil_bez_depozita",
+  "отложил с депозитом": "otlozhil_s_depozitom",
+  "отложил до вечера": "otlozhil_do_vechera",
+  купил: "kupil",
+  "сделка провалена": "sdelka_provalena",
+};
+const norm = (s: string): VisitStatus =>
+  (VISIT_STATUSES.some((x) => x.value === s)
+    ? s
+    : russianStatusMap[s.toLowerCase()] || "zaplanirovano") as VisitStatus;
+
+const statusLabel = (s: string) => {
+  const n = norm(s);
+  return VISIT_STATUSES.find((x) => x.value === n)?.label || s;
+};
+const statusColor = (s: string): string => {
+  switch (norm(s)) {
     case "kupil":
       return "var(--ok)";
     case "ne_prishel":
@@ -372,8 +459,8 @@ const statusColor = (s: VisitStatus): string => {
       return "var(--txm)";
   }
 };
-const statusBg = (s: VisitStatus): string => {
-  switch (s) {
+const statusBg = (s: string): string => {
+  switch (norm(s)) {
     case "kupil":
       return "#dcfce7";
     case "ne_prishel":
@@ -412,6 +499,25 @@ const statusBg = (s: VisitStatus): string => {
             {{ b.name }}
           </option>
         </select>
+        <button
+          class="hbtn hbtn--ghost"
+          @click="showTimeSettings = true"
+          title="Настройки времени"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <circle cx="12" cy="12" r="3" />
+            <path
+              d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"
+            />
+          </svg>
+        </button>
         <button
           class="hbtn hbtn--ghost"
           @click="showStats = !showStats"
@@ -672,30 +778,6 @@ const statusBg = (s: VisitStatus): string => {
               ><span>Конверсия</span>
             </div>
           </div>
-          <div class="vs">
-            <div class="vs-i vs-i--ok">
-              <svg
-                width="15"
-                height="15"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <path d="M6 3v18" />
-                <path d="M6 12h8a4 4 0 0 0 0-8H6" />
-                <path d="M4 16h10" />
-              </svg>
-            </div>
-            <div class="vs-b">
-              <b>{{
-                visitStats?.total_purchase_amount != null
-                  ? formatCurrency(visitStats.total_purchase_amount)
-                  : "—"
-              }}</b
-              ><span>Сумма покупок</span>
-            </div>
-          </div>
         </div>
       </div>
     </Transition>
@@ -756,11 +838,6 @@ const statusBg = (s: VisitStatus): string => {
       </button>
     </div>
 
-    <!-- LOADING -->
-    <div v-if="isLoading" class="vp-loading">
-      <div class="vp-loading-bar"></div>
-    </div>
-
     <!-- MOBILE BAR -->
     <div class="vp-mob" v-if="isMobile && !isFullscreen">
       <span class="vp-mob-hint">
@@ -802,7 +879,7 @@ const statusBg = (s: VisitStatus): string => {
     <div class="vp-fsx" v-if="isFullscreen">
       <span class="vp-fsx-info"
         >{{ dateDisplay.day }} · <b>{{ totalVisits }}</b> визитов ·
-        {{ schedule?.branch_name || "" }}</span
+        {{ currentBranch?.name || "" }}</span
       >
       <button class="vp-fsx-btn" @click="isFullscreen = false">
         <svg
@@ -842,39 +919,87 @@ const statusBg = (s: VisitStatus): string => {
               v-for="r in fittingRooms"
               :key="r"
               class="vp-td-cell"
-              @click="openCell(slot, r)"
+              @click="!isLoading && openCell(slot, r)"
             >
-              <template v-if="grid[slot]?.[r]">
+              <!-- Loading shimmer skeleton -->
+              <div v-if="isLoading" class="vp-skel">
+                <div class="vp-skel-line vp-skel-w70"></div>
+                <div class="vp-skel-line vp-skel-w50"></div>
+                <div class="vp-skel-line vp-skel-w90"></div>
+                <div class="vp-skel-line vp-skel-w40"></div>
+              </div>
+              <!-- Visit card -->
+              <template v-else-if="grid[slot]?.[r]">
                 <div
                   class="vp-card"
                   :style="{ borderLeftColor: statusColor(grid[slot][r]!.status) }"
                 >
                   <div class="vp-card-top">
-                    <span class="vp-card-name">{{
-                      grid[slot][r]!.client?.name || "—"
-                    }}</span>
+                    <span
+                      class="vp-card-name vp-card-name--link"
+                      @click.stop="
+                        openClientDetail(
+                          grid[slot][r]!.client_moysklad_id,
+                          $event
+                        )
+                      "
+                      >{{
+                        grid[slot][r]!.client?.name ||
+                        grid[slot][r]!.client?.full_name ||
+                        "—"
+                      }}</span
+                    >
                     <span
                       class="vp-card-badge"
                       :style="{ background: statusBg(grid[slot][r]!.status), color: statusColor(grid[slot][r]!.status) }"
                       >{{ statusLabel(grid[slot][r]!.status) }}</span
                     >
                   </div>
+                  <div class="vp-card-contacts">
+                    <a
+                      v-if="grid[slot][r]!.client?.phone"
+                      class="vp-card-phone"
+                      :href="'tel:' + grid[slot][r]!.client!.phone"
+                      @click.stop
+                    >
+                      <Phone :size="11" /> {{ grid[slot][r]!.client!.phone }}
+                    </a>
+                    <a
+                      v-if="grid[slot][r]!.client?.email"
+                      class="vp-card-email"
+                      :href="'mailto:' + grid[slot][r]!.client!.email"
+                      @click.stop
+                    >
+                      <Mail :size="11" /> {{ grid[slot][r]!.client!.email }}
+                    </a>
+                  </div>
                   <div class="vp-card-meta">
-                    <span v-if="grid[slot][r]!.size">{{
-                      grid[slot][r]!.size
-                    }}</span>
-                    <span v-if="grid[slot][r]!.color">{{
-                      grid[slot][r]!.color
-                    }}</span>
-                    <span v-if="grid[slot][r]!.employee" class="vp-card-emp">{{
-                      grid[slot][r]!.employee!.full_name
-                    }}</span>
+                    <span v-if="grid[slot][r]!.size"
+                      ><Ruler :size="10" /> {{ grid[slot][r]!.size }}</span
+                    >
+                    <span v-if="grid[slot][r]!.color"
+                      ><Palette :size="10" /> {{ grid[slot][r]!.color }}</span
+                    >
+                    <span v-if="grid[slot][r]!.fitting" class="vp-card-fitting"
+                      ><Shirt :size="10" /> Примерка</span
+                    >
                     <span v-if="grid[slot][r]!.source" class="vp-card-src">{{
                       grid[slot][r]!.source
                     }}</span>
                   </div>
+                  <div v-if="grid[slot][r]!.employee" class="vp-card-emp-row">
+                    <span class="vp-card-emp"
+                      ><UserCheck :size="10" />
+                      {{ grid[slot][r]!.employee!.full_name }}</span
+                    >
+                  </div>
+                  <div v-if="grid[slot][r]!.notes" class="vp-card-notes">
+                    <MessageSquare :size="10" class="vp-card-notes-ico" />
+                    {{ grid[slot][r]!.notes }}
+                  </div>
                 </div>
               </template>
+              <!-- Empty -->
               <div v-else class="vp-empty">
                 <svg
                   width="14"
@@ -899,8 +1024,7 @@ const statusBg = (s: VisitStatus): string => {
     <footer class="vp-footer">
       <span
         >{{ dateDisplay.day }} {{ dateDisplay.weekday }} ·
-        <b>{{ totalVisits }}</b> визитов ·
-        {{ schedule?.branch_name || currentBranch?.name || "" }}</span
+        <b>{{ totalVisits }}</b> визитов · {{ currentBranch?.name || "" }}</span
       >
       <div class="vp-legend">
         <span class="vp-lg" style="background: #dcfce7; color: #059669"
@@ -936,6 +1060,21 @@ const statusBg = (s: VisitStatus): string => {
     :sources="VISIT_SOURCES"
     @close="showNewClientModal = false"
     @create="onNewClientCreated"
+  />
+
+  <TimeSettingsModal
+    :open="showTimeSettings"
+    :branch-id="currentBranch?.local_id || null"
+    :branch-name="currentBranch?.name || ''"
+    :current-date="dateStr"
+    @close="showTimeSettings = false"
+    @save="onTimeSettingsSave"
+  />
+
+  <ClientDetailModal
+    :moysklad-id="clientDetailId"
+    @close="clientDetailId = null"
+    @delete="clientDetailId = null"
   />
 </template>
 
@@ -1318,6 +1457,47 @@ const statusBg = (s: VisitStatus): string => {
   }
 }
 
+/* Skeleton shimmer */
+.vp-skel {
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+}
+.vp-skel-line {
+  height: 10px;
+  border-radius: 5px;
+  background: linear-gradient(
+    90deg,
+    var(--bd, #e2e8f0) 25%,
+    var(--sfh, #f1f5f9) 50%,
+    var(--bd, #e2e8f0) 75%
+  );
+  background-size: 400% 100%;
+  animation: vp-shimmer 1.5s ease-in-out infinite;
+}
+.vp-skel-w70 {
+  width: 70%;
+}
+.vp-skel-w50 {
+  width: 50%;
+}
+.vp-skel-w90 {
+  width: 90%;
+}
+.vp-skel-w40 {
+  width: 40%;
+}
+@keyframes vp-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
 .vp-grid {
   flex: 1;
   overflow: auto;
@@ -1327,53 +1507,53 @@ const statusBg = (s: VisitStatus): string => {
 .vp-table {
   border-collapse: collapse;
   width: 100%;
-  min-width: 800px;
+  min-width: 900px;
 }
 .vp-table thead th {
   position: sticky;
   top: 0;
   z-index: 10;
   background: var(--sfh);
-  font: 700 10px/1 var(--fn);
+  font: 700 12px/1 var(--fn);
   color: var(--tx2);
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  padding: 8px 6px;
+  padding: 10px 8px;
   border: 1px solid var(--bd);
   text-align: center;
   white-space: nowrap;
 }
 .vp-th-time {
-  width: 56px;
-  min-width: 56px;
+  width: 64px;
+  min-width: 64px;
 }
 .vp-th-room {
-  min-width: 130px;
+  min-width: 170px;
 }
 .vp-td-time {
-  width: 56px;
-  min-width: 56px;
+  width: 64px;
+  min-width: 64px;
   text-align: center;
   vertical-align: middle;
-  padding: 4px;
+  padding: 6px;
   border: 1px solid var(--bd);
   background: var(--sfh);
 }
 .vp-time-pill {
   display: inline-block;
-  font: 700 11px/1 var(--fm);
+  font: 700 13px/1 var(--fm);
   color: var(--pr);
   background: var(--prl);
-  padding: 4px 8px;
-  border-radius: 4px;
+  padding: 5px 10px;
+  border-radius: 6px;
 }
 .vp-td-cell {
   border: 1px solid var(--bd);
-  padding: 4px;
+  padding: 5px;
   vertical-align: top;
   cursor: pointer;
   transition: background var(--tr);
-  height: 68px;
+  height: 130px;
 }
 .vp-td-cell:hover {
   background: var(--sfh);
@@ -1381,61 +1561,127 @@ const statusBg = (s: VisitStatus): string => {
 
 .vp-card {
   background: var(--sf);
-  border-radius: 6px;
-  border-left: 3px solid var(--txm);
-  padding: 6px 8px;
+  border-radius: 8px;
+  border-left: 3.5px solid var(--txm);
+  padding: 8px 10px;
   height: 100%;
   display: flex;
   flex-direction: column;
   gap: 4px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
   transition: all var(--tr);
 }
 .vp-card:hover {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.1);
 }
 .vp-card-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 4px;
+  gap: 6px;
 }
 .vp-card-name {
-  font: 600 11px/1.2 var(--fn);
+  font: 700 14px/1.2 var(--fn);
   color: var(--tx);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
 }
+.vp-card-name--link {
+  cursor: pointer;
+  transition: color 150ms;
+}
+.vp-card-name--link:hover {
+  color: var(--pr);
+  text-decoration: underline;
+}
 .vp-card-badge {
-  font: 700 7px/1 var(--fn);
-  padding: 2px 5px;
-  border-radius: 3px;
+  font: 700 9px/1 var(--fn);
+  padding: 3px 7px;
+  border-radius: 4px;
   white-space: nowrap;
   flex-shrink: 0;
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
+.vp-card-contacts {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.vp-card-phone,
+.vp-card-email {
+  font: 500 12px/1.3 var(--fm);
+  color: var(--tx2);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: color 150ms;
+  cursor: pointer;
+  width: fit-content;
+}
+.vp-card-phone:hover,
+.vp-card-email:hover {
+  color: var(--pr);
+}
+.vp-card-email {
+  font-family: var(--fn);
+}
 .vp-card-meta {
   display: flex;
-  gap: 3px;
+  gap: 4px;
   flex-wrap: wrap;
 }
 .vp-card-meta span {
-  font: 500 8px/1 var(--fn);
+  font: 500 11px/1 var(--fn);
   color: var(--tx2);
   background: var(--sfh);
-  padding: 1px 4px;
-  border-radius: 3px;
+  padding: 3px 7px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.vp-card-fitting {
+  color: var(--am) !important;
+  background: var(--aml) !important;
+}
+.vp-card-emp-row {
+  margin-top: auto;
 }
 .vp-card-emp {
+  font: 500 11px/1 var(--fn);
   color: var(--te) !important;
   background: var(--tel) !important;
+  padding: 3px 7px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
 }
 .vp-card-src {
   color: var(--pu) !important;
   background: var(--pul) !important;
+}
+.vp-card-notes {
+  font: 400 11px/1.4 var(--fn);
+  color: var(--txm);
+  border-top: 1px dashed var(--bd);
+  padding-top: 3px;
+  margin-top: 2px;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.vp-card-notes-ico {
+  flex-shrink: 0;
+  margin-top: 2px;
+  opacity: 0.5;
 }
 
 .vp-empty {
