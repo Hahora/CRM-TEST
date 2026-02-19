@@ -21,6 +21,7 @@ import {
   MessageSquare,
   Calendar,
   Ghost,
+  Heart,
 } from "lucide-vue-next";
 
 export interface VisitEditPayload {
@@ -59,7 +60,11 @@ const onNewClientCreated = (client: any) => {
     form.value.client_name = client.full_name || client.name || "";
     form.value.client_phone = client.phone || "";
     form.value.client_email = client.email || "";
+    form.value.client_local_id = null;
     form.value.is_phantom = false;
+    form.value.is_wedding = false;
+    form.value.wedding_date = "";
+    form.value.bride_name = "";
   }
 };
 
@@ -69,10 +74,14 @@ const form = ref({
   client_name: "",
   client_phone: "",
   client_email: "",
+  client_local_id: null as number | null,
   is_phantom: false,
   phantom_name: "",
   phantom_phone: "",
   phantom_email: "",
+  is_wedding: false,
+  wedding_date: "",
+  bride_name: "",
   size: "",
   color: "",
   source: "",
@@ -104,6 +113,24 @@ const russianStatusMap: Record<string, VisitStatus> = {
 const normalizeStatus = (s: string): VisitStatus => {
   if (VISIT_STATUSES.some((st) => st.value === s)) return s as VisitStatus;
   return russianStatusMap[s.toLowerCase()] || "zapisalsya";
+};
+
+// ── Client wedding details ──
+const isLoadingClientDetails = ref(false);
+
+const loadClientDetails = async (moyskladId: string) => {
+  if (!moyskladId) return;
+  isLoadingClientDetails.value = true;
+  try {
+    const detail = await clientsApi.getClientDetail(moyskladId, 0);
+    form.value.client_local_id = detail.id;
+    form.value.is_wedding = detail.is_wedding || false;
+    form.value.wedding_date = detail.wedding_date || "";
+    form.value.bride_name = detail.bride_name || "";
+  } catch {
+    // не критично — просто не заполняем поля свадьбы
+  }
+  isLoadingClientDetails.value = false;
 };
 
 // ── Employees (dropdown) ──
@@ -143,12 +170,16 @@ watch(
         client_name: vis.client?.name || vis.client?.full_name || "",
         client_phone: vis.client?.phone || "",
         client_email: vis.client?.email || "",
+        client_local_id: null,
         is_phantom: isPhantom,
         phantom_name: isPhantom
           ? vis.client?.name || vis.client?.full_name || ""
           : "",
         phantom_phone: isPhantom ? vis.client?.phone || "" : "",
         phantom_email: isPhantom ? vis.client?.email || "" : "",
+        is_wedding: false,
+        wedding_date: "",
+        bride_name: "",
         size: vis.size || "",
         color: vis.color || "",
         source: vis.source?.startsWith("Порекомендовали: ")
@@ -165,6 +196,10 @@ watch(
         postponed_until: vis.postponed_until || "",
         deposit_amount: vis.deposit_amount ?? "",
       };
+      // Подтягиваем данные свадьбы клиента если есть
+      if (!isPhantom && vis.client_moysklad_id) {
+        loadClientDetails(vis.client_moysklad_id);
+      }
     } else {
       visitId.value = null;
       form.value = {
@@ -172,10 +207,14 @@ watch(
         client_name: "",
         client_phone: "",
         client_email: "",
+        client_local_id: null,
         is_phantom: false,
         phantom_name: "",
         phantom_phone: "",
         phantom_email: "",
+        is_wedding: false,
+        wedding_date: "",
+        bride_name: "",
         size: "",
         color: "",
         source: "",
@@ -247,7 +286,15 @@ const handleSave = async () => {
         upd.phantom_client_email = form.value.phantom_email || undefined;
         upd.client_moysklad_id = undefined;
       }
-      await visitsApi.updateVisit(visitId.value, upd);
+      const promises: Promise<any>[] = [visitsApi.updateVisit(visitId.value, upd)];
+      if (form.value.client_local_id && !form.value.is_phantom) {
+        promises.push(clientsApi.updateClient(form.value.client_local_id, {
+          is_wedding: form.value.is_wedding,
+          wedding_date: form.value.is_wedding && form.value.wedding_date ? form.value.wedding_date : null,
+          bride_name: form.value.is_wedding && form.value.bride_name ? form.value.bride_name : null,
+        }));
+      }
+      await Promise.all(promises);
     } else {
       // New visit: validate client
       const hasClient =
@@ -284,7 +331,15 @@ const handleSave = async () => {
       } else {
         data.client_moysklad_id = form.value.client_moysklad_id || undefined;
       }
-      await visitsApi.createVisit(data);
+      const promises: Promise<any>[] = [visitsApi.createVisit(data)];
+      if (form.value.client_local_id && !form.value.is_phantom) {
+        promises.push(clientsApi.updateClient(form.value.client_local_id, {
+          is_wedding: form.value.is_wedding,
+          wedding_date: form.value.is_wedding && form.value.wedding_date ? form.value.wedding_date : null,
+          bride_name: form.value.is_wedding && form.value.bride_name ? form.value.bride_name : null,
+        }));
+      }
+      await Promise.all(promises);
     }
     emit("saved");
     emit("close");
@@ -327,12 +382,17 @@ const selectAcClient = (cl: any) => {
   form.value.client_email = cl.email || "";
   form.value.is_phantom = false;
   acClientOpen.value = false;
+  if (cl.moysklad_id) loadClientDetails(cl.moysklad_id);
 };
 const clearClient = () => {
   form.value.client_moysklad_id = "";
   form.value.client_name = "";
   form.value.client_phone = "";
   form.value.client_email = "";
+  form.value.client_local_id = null;
+  form.value.is_wedding = false;
+  form.value.wedding_date = "";
+  form.value.bride_name = "";
 };
 const enablePhantom = () => {
   clearClient();
@@ -585,6 +645,30 @@ defineExpose({ onNewClientCreated });
                     class="vem-inp--ro"
                   />
                 </div>
+
+                <!-- Свадьба -->
+                <div class="vem-field vem-field--full">
+                  <label class="vem-wedding-toggle">
+                    <input type="checkbox" v-model="form.is_wedding" />
+                    <Heart :size="12" />
+                    Свадьба
+                    <span v-if="isLoadingClientDetails" class="vem-spinner vem-spinner--sm"></span>
+                  </label>
+                </div>
+                <template v-if="form.is_wedding">
+                  <div class="vem-field">
+                    <label><Calendar :size="11" /> Дата свадьбы</label>
+                    <input v-model="form.wedding_date" type="date" />
+                  </div>
+                  <div class="vem-field">
+                    <label><User :size="11" /> Имя невесты</label>
+                    <input
+                      v-model="form.bride_name"
+                      type="text"
+                      placeholder="Имя невесты..."
+                    />
+                  </div>
+                </template>
               </div>
             </div>
 
@@ -1076,6 +1160,25 @@ defineExpose({ onNewClientCreated });
   border-radius: 50%;
   animation: vem-spin 0.6s linear infinite;
   display: inline-block;
+}
+.vem-spinner--sm {
+  width: 10px;
+  height: 10px;
+}
+.vem-wedding-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font: 600 13px/1 var(--fn, sans-serif);
+  color: #be185d;
+  user-select: none;
+}
+.vem-wedding-toggle input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  accent-color: #be185d;
+  cursor: pointer;
 }
 
 /* ── Status grid — 4 columns ── */
