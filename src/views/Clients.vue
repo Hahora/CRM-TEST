@@ -928,6 +928,12 @@ const getRowId = (params: any) => {
     <!-- FILTER PANEL -->
     <Transition name="fold">
       <div v-if="showFilters" class="cf-panel">
+        <button v-if="hasActiveFilters" class="cf-reset-btn" @click="clearServerFilters()" title="Сбросить все фильтры">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+          Сбросить
+        </button>
         <div class="cf-inner">
           <!-- Тип клиента -->
           <div class="cf-group">
@@ -1011,15 +1017,6 @@ const getRowId = (params: any) => {
                 <button class="cf-chip" :class="{ 'cf-chip--on': filterSortOrder === 'desc' }" @click="filterSortOrder = 'desc'; applyFilters()">↓ По убыв.</button>
               </div>
             </div>
-          </div>
-          <!-- Сброс -->
-          <div v-if="hasActiveFilters" class="cf-reset">
-            <button class="hbtn hbtn--ghost hbtn--xs" @click="clearServerFilters()">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-              </svg>
-              Сбросить
-            </button>
           </div>
         </div>
       </div>
@@ -2074,9 +2071,32 @@ const getRowId = (params: any) => {
 
 /* ── Filter panel ── */
 .cf-panel {
+  position: relative;
   background: var(--sf);
   border-bottom: 1px solid var(--bd);
   flex-shrink: 0;
+}
+.cf-reset-btn {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 9px;
+  border-radius: var(--rs);
+  border: 1px solid var(--bd);
+  background: none;
+  color: var(--tx2);
+  font: 600 10px/1 var(--fn);
+  cursor: pointer;
+  transition: all var(--tr);
+  white-space: nowrap;
+}
+.cf-reset-btn:hover {
+  background: var(--erl);
+  color: var(--er);
+  border-color: var(--er);
 }
 .cf-inner {
   display: flex;
@@ -2162,6 +2182,7 @@ const getRowId = (params: any) => {
 }
 .cf-input[type="number"] {
   -moz-appearance: textfield;
+  appearance: textfield;
 }
 .cf-sort {
   display: flex;
@@ -2185,12 +2206,6 @@ const getRowId = (params: any) => {
   box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.08);
   background: var(--sf);
 }
-.cf-reset {
-  display: flex;
-  align-items: flex-end;
-  padding-bottom: 1px;
-}
-
 @media (max-width: 768px) {
   .page-header {
     flex-wrap: wrap;
