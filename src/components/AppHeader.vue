@@ -6,7 +6,6 @@ import { useAuth } from "@/composables/useAuth";
 const { user, logout, userRole, fullName } = useAuth();
 
 const isProfileOpen = ref(false);
-const notificationCount = ref(3);
 const isScrolled = ref(false);
 
 const emit = defineEmits<{
@@ -94,28 +93,6 @@ onUnmounted(() => {
 
     <!-- Authorized user controls -->
     <div v-if="user" class="flex items-center gap-1.5 md:gap-2 relative">
-      <!-- Notifications -->
-      <button
-        class="relative p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100/80 rounded-xl transition-all duration-200 active:scale-95 group"
-        aria-label="Уведомления"
-      >
-        <AppIcon
-          name="bell"
-          :size="18"
-          class="md:w-5 md:h-5 transition-transform duration-200 group-hover:rotate-12"
-        />
-        <span
-          v-if="notificationCount > 0"
-          class="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white"
-        />
-        <span
-          v-if="notificationCount > 0"
-          class="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full animate-ping"
-        />
-      </button>
-
-      <!-- Divider -->
-      <div class="hidden md:block w-px h-8 bg-gray-200/80 mx-1" />
 
       <!-- Profile -->
       <div class="relative" @click.stop>

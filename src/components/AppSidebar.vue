@@ -79,12 +79,6 @@ const menuSections = [
         icon: "user-cog",
         route: "/users",
       },
-      {
-        id: "consultants",
-        title: "Консультанты",
-        icon: "user-check",
-        route: "/consultants",
-      },
     ],
   },
 ];
