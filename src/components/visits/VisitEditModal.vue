@@ -118,19 +118,15 @@ const normalizeStatus = (s: string): VisitStatus => {
 // ── Client wedding details ──
 const isLoadingClientDetails = ref(false);
 
-const loadClientDetails = async (moyskladId: string, searchHint: string) => {
-  if (!moyskladId || !searchHint) return;
+const loadClientDetails = async (moyskladId: string) => {
+  if (!moyskladId) return;
   isLoadingClientDetails.value = true;
   try {
-    const resp = await clientsApi.getClients({ search: searchHint, limit: 20 });
-    const clients = (resp as any).clients || (resp as any).data || [];
-    const found = clients.find((c: any) => c.moysklad_id === moyskladId);
-    if (found) {
-      form.value.client_local_id = found.id || null;
-      form.value.is_wedding = found.is_wedding || false;
-      form.value.wedding_date = found.wedding_date || "";
-      form.value.bride_name = found.bride_name || "";
-    }
+    const detail = await clientsApi.getClientDetail(moyskladId, 1);
+    form.value.client_local_id = detail.id;
+    form.value.is_wedding = detail.is_wedding || false;
+    form.value.wedding_date = detail.wedding_date || "";
+    form.value.bride_name = detail.bride_name || "";
   } catch {
     // не критично — просто не заполняем поля свадьбы
   }
@@ -202,8 +198,7 @@ watch(
       };
       // Подтягиваем данные свадьбы клиента если есть
       if (!isPhantom && vis.client_moysklad_id) {
-        const hint = vis.client?.name || vis.client?.full_name || vis.client?.phone || "";
-        loadClientDetails(vis.client_moysklad_id, hint);
+        loadClientDetails(vis.client_moysklad_id);
       }
     } else {
       visitId.value = null;
