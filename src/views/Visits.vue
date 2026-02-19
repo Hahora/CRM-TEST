@@ -615,7 +615,7 @@ const toggleFitting = async (visit: Visit | null, e: Event) => {
         <button
           class="hbtn hbtn--ghost"
           @click="showTimeSettings = true"
-          title="Настройки времени"
+          title="Настройки"
         >
           <svg
             width="14"

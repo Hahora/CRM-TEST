@@ -264,7 +264,7 @@ const isLoading = computed(() => isLoadingBase.value || isLoadingDate.value);
               <div class="tsm-header-left">
                 <div class="tsm-avatar"><Settings :size="18" /></div>
                 <div>
-                  <h2 class="tsm-title">Настройки времени</h2>
+                  <h2 class="tsm-title">Настройки</h2>
                   <span class="tsm-sub">{{ branchName }}</span>
                 </div>
               </div>
