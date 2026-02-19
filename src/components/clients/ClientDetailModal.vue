@@ -411,6 +411,18 @@ const handleOverlayClick = (e: MouseEvent) => {
                     }}</span>
                   </div>
                   <div class="cdm-info-row">
+                    <span class="cdm-info-label">Средний чек</span
+                    ><span class="cdm-info-val cdm-info-val--mono">{{
+                      client.avg_receipt != null ? fmtMoney(client.avg_receipt) : "—"
+                    }}</span>
+                  </div>
+                  <div class="cdm-info-row">
+                    <span class="cdm-info-label">Макс. чек</span
+                    ><span class="cdm-info-val cdm-info-val--mono">{{
+                      client.max_receipt != null ? fmtMoney(client.max_receipt) : "—"
+                    }}</span>
+                  </div>
+                  <div class="cdm-info-row">
                     <span class="cdm-info-label">МАКС ID</span
                     ><span class="cdm-info-val cdm-info-val--mono">{{
                       client.max_id || "—"
