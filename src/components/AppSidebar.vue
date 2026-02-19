@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import AppIcon from "./AppIcon.vue";
 import { useAuth } from "@/composables/useAuth";
@@ -7,10 +8,17 @@ const router = useRouter();
 const route = useRoute();
 const { user, userRole, fullName, logout } = useAuth();
 
+const isProfileOpen = ref(false);
+
 const getInitials = () => {
   if (!user.value) return "?";
   if (user.value.first_name) return user.value.first_name.charAt(0).toUpperCase();
   return user.value.login.charAt(0).toUpperCase();
+};
+
+const handleLogout = async () => {
+  isProfileOpen.value = false;
+  await logout();
 };
 
 interface MenuItem {
@@ -160,26 +168,78 @@ const isActiveRoute = (routePath: string) => {
     </div>
 
     <!-- Profile -->
-    <div class="border-t border-gray-200 p-3 flex-shrink-0">
-      <div class="flex items-center gap-2.5 px-1">
-        <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-violet-500 flex items-center justify-center flex-shrink-0 shadow-sm">
+    <div class="border-t border-gray-200 p-2 flex-shrink-0 relative">
+      <!-- Dropdown (opens upward) -->
+      <Transition
+        enter-active-class="transition duration-150 ease-out"
+        enter-from-class="opacity-0 translate-y-2"
+        enter-to-class="opacity-100 translate-y-0"
+        leave-active-class="transition duration-100 ease-in"
+        leave-from-class="opacity-100 translate-y-0"
+        leave-to-class="opacity-0 translate-y-2"
+      >
+        <div
+          v-if="isProfileOpen"
+          class="absolute bottom-full left-2 right-2 mb-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden z-50"
+        >
+          <!-- User info header -->
+          <div class="px-4 py-3 bg-gradient-to-br from-gray-50 to-blue-50/40 border-b border-gray-100">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-violet-500 flex items-center justify-center shadow-md flex-shrink-0">
+                <span class="text-sm font-semibold text-white">{{ getInitials() }}</span>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="text-sm font-semibold text-gray-900 truncate">{{ fullName }}</div>
+                <div v-if="user" class="text-xs text-gray-500 truncate">{{ user.login }}</div>
+                <div class="flex items-center gap-2 mt-0.5">
+                  <span class="text-[10px] font-mono text-gray-400 bg-gray-100 px-1 py-0.5 rounded">ID:{{ user?.id }}</span>
+                  <span class="text-[10px] text-gray-400 capitalize">{{ userRole }}</span>
+                  <span v-if="user" class="flex items-center gap-1 text-[10px]" :class="user.is_active ? 'text-emerald-600' : 'text-red-500'">
+                    <span class="w-1.5 h-1.5 rounded-full" :class="user.is_active ? 'bg-emerald-500' : 'bg-red-400'" />
+                    {{ user.is_active ? 'Активен' : 'Неактивен' }}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- Logout -->
+          <button
+            @click="handleLogout"
+            class="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
+          >
+            <AppIcon name="log-out" :size="15" class="text-red-500" />
+            <span class="font-medium">Выйти</span>
+          </button>
+        </div>
+      </Transition>
+
+      <!-- Trigger button -->
+      <button
+        @click="isProfileOpen = !isProfileOpen"
+        class="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg transition-colors text-left"
+        :class="isProfileOpen ? 'bg-blue-50' : 'hover:bg-gray-100'"
+      >
+        <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-violet-500 flex items-center justify-center flex-shrink-0 shadow-sm">
           <span class="text-xs font-semibold text-white">{{ getInitials() }}</span>
         </div>
         <div class="flex-1 min-w-0">
-          <div class="flex items-center gap-1.5 min-w-0">
-            <span class="text-[13px] font-semibold text-gray-800 truncate">{{ fullName }}</span>
-            <span v-if="user" class="text-[9px] font-mono text-gray-400 bg-gray-100 px-1 py-0.5 rounded leading-none flex-shrink-0">ID:{{ user.id }}</span>
-          </div>
+          <div class="text-[13px] font-semibold text-gray-800 truncate">{{ fullName }}</div>
           <div class="text-[11px] text-gray-400 capitalize leading-tight">{{ userRole }}</div>
         </div>
-        <button
-          @click="logout()"
-          class="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
-          title="Выйти"
-        >
-          <AppIcon name="log-out" :size="15" />
-        </button>
-      </div>
+        <AppIcon
+          name="chevron-down"
+          :size="14"
+          class="text-gray-400 transition-transform flex-shrink-0"
+          :class="isProfileOpen ? 'rotate-180' : ''"
+        />
+      </button>
     </div>
+
+    <!-- Overlay to close dropdown -->
+    <div
+      v-if="isProfileOpen"
+      class="fixed inset-0 z-40"
+      @click="isProfileOpen = false"
+    />
   </aside>
 </template>
