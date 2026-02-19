@@ -928,12 +928,6 @@ const getRowId = (params: any) => {
     <!-- FILTER PANEL -->
     <Transition name="fold">
       <div v-if="showFilters" class="cf-panel">
-        <button v-if="hasActiveFilters" class="cf-reset-btn" @click="clearServerFilters()" title="Сбросить все фильтры">
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-          Сбросить
-        </button>
         <div class="cf-inner">
           <!-- Тип клиента -->
           <div class="cf-group">
@@ -1018,6 +1012,13 @@ const getRowId = (params: any) => {
               </div>
             </div>
           </div>
+          <!-- Сброс -->
+          <button v-if="hasActiveFilters" class="cf-reset-btn" @click="clearServerFilters()" title="Сбросить все фильтры">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+            Сбросить
+          </button>
         </div>
       </div>
     </Transition>
@@ -2071,15 +2072,12 @@ const getRowId = (params: any) => {
 
 /* ── Filter panel ── */
 .cf-panel {
-  position: relative;
   background: var(--sf);
   border-bottom: 1px solid var(--bd);
   flex-shrink: 0;
 }
 .cf-reset-btn {
-  position: absolute;
-  top: 8px;
-  right: 10px;
+  align-self: flex-end;
   display: inline-flex;
   align-items: center;
   gap: 4px;
