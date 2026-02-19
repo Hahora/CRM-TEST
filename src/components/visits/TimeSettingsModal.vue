@@ -701,6 +701,12 @@ const isLoading = computed(() => isLoadingBase.value || isLoadingDate.value);
   flex-shrink: 0;
   padding: 0 24px;
   gap: 4px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.tsm-tabs::-webkit-scrollbar {
+  display: none;
 }
 .tsm-tab {
   display: flex;
@@ -716,6 +722,8 @@ const isLoading = computed(() => isLoadingBase.value || isLoadingDate.value);
   border-bottom: 2px solid transparent;
   margin-bottom: -1px;
   border-radius: 6px 6px 0 0;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .tsm-tab:hover {
   color: var(--tx, #0f172a);
