@@ -21,6 +21,11 @@ const handleLogout = async () => {
   await logout();
 };
 
+const handleSettings = () => {
+  isProfileOpen.value = false;
+  router.push('/settings');
+};
+
 interface MenuItem {
   id: string;
   title: string;
@@ -113,6 +118,12 @@ const isActiveRoute = (routePath: string) => {
   <aside
     class="hidden md:flex fixed top-0 left-0 bottom-0 w-64 bg-white border-r border-gray-200 z-40 flex-col"
   >
+    <!-- CRM Brand -->
+    <div class="px-4 py-4 border-b border-gray-200 flex-shrink-0">
+      <h1 class="text-[15px] font-semibold text-gray-900 leading-tight tracking-[-0.01em]">CRM СИСТЕМА</h1>
+      <span class="text-[10px] font-medium text-gray-400 uppercase tracking-widest leading-none">HUSBAND</span>
+    </div>
+
     <!-- Navigation -->
     <nav class="flex-1 overflow-y-auto py-4">
       <div v-for="section in menuSections" :key="section.title" class="mb-6">
@@ -202,6 +213,14 @@ const isActiveRoute = (routePath: string) => {
               </div>
             </div>
           </div>
+          <!-- Settings -->
+          <button
+            @click="handleSettings"
+            class="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            <AppIcon name="settings" :size="15" class="text-gray-500" />
+            <span class="font-medium">Настройки</span>
+          </button>
           <!-- Logout -->
           <button
             @click="handleLogout"
