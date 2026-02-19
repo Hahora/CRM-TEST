@@ -4,6 +4,7 @@ import { visitsApi, VISIT_STATUSES, VISIT_SOURCES } from "@/services/visitsApi";
 import type {
   Visit,
   VisitStatus,
+  VisitEmployee,
   ScheduleResponse,
   Branch,
   VisitStatsSummary,
@@ -211,6 +212,8 @@ watch(branchMoyskladId, () => {
   loadBranchTimeSlots();
   loadSchedule();
   if (showStats.value) loadVisitStats();
+  filterEmployeesLoaded.value = false;
+  if (showFilters.value) loadFilterEmployees();
 });
 watch(showStats, (v) => {
   if (v && !visitStats.value) loadVisitStats();
@@ -519,6 +522,61 @@ const getRecommender = (source: string | null) => {
   return source.replace("Порекомендовали: ", "");
 };
 
+// ── Filters ──
+const showFilters = ref(false);
+const filterStatuses = ref<VisitStatus[]>([]);
+const filterEmployeeId = ref("");
+const filterEmployees = ref<VisitEmployee[]>([]);
+const isLoadingFilterEmployees = ref(false);
+const filterEmployeesLoaded = ref(false);
+
+const hasActiveFilters = computed(
+  () => filterStatuses.value.length > 0 || filterEmployeeId.value !== ""
+);
+const activeFilterCount = computed(
+  () => filterStatuses.value.length + (filterEmployeeId.value ? 1 : 0)
+);
+
+const loadFilterEmployees = async () => {
+  if (!branchMoyskladId.value || filterEmployeesLoaded.value) return;
+  isLoadingFilterEmployees.value = true;
+  try {
+    filterEmployees.value = await visitsApi.getEmployeesByBranch(
+      branchMoyskladId.value
+    );
+    filterEmployeesLoaded.value = true;
+  } catch {
+    filterEmployees.value = [];
+  }
+  isLoadingFilterEmployees.value = false;
+};
+
+const toggleShowFilters = () => {
+  showFilters.value = !showFilters.value;
+  if (showFilters.value) loadFilterEmployees();
+};
+const clearFilters = () => {
+  filterStatuses.value = [];
+  filterEmployeeId.value = "";
+};
+const toggleStatusFilter = (status: VisitStatus) => {
+  const idx = filterStatuses.value.indexOf(status);
+  if (idx === -1) filterStatuses.value.push(status);
+  else filterStatuses.value.splice(idx, 1);
+};
+const matchesFilter = (v: Visit | null | undefined): boolean => {
+  if (!v) return false;
+  if (!hasActiveFilters.value) return true;
+  if (
+    filterStatuses.value.length > 0 &&
+    !filterStatuses.value.includes(v.status)
+  )
+    return false;
+  if (filterEmployeeId.value && v.employee_moysklad_id !== filterEmployeeId.value)
+    return false;
+  return true;
+};
+
 // ── Disabled room: предыдущая примерочная должна быть занята ──
 const isRoomDisabled = (slot: string, room: number): boolean => {
   const rooms = fittingRooms.value;
@@ -579,6 +637,17 @@ const toggleFitting = async (visit: Visit | null, e: Event) => {
               d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"
             />
           </svg>
+        </button>
+        <button
+          class="hbtn hbtn--ghost"
+          @click="toggleShowFilters"
+          :class="{ 'hbtn--active': showFilters || hasActiveFilters }"
+          title="Фильтры"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+          </svg>
+          <span v-if="activeFilterCount > 0" class="hbtn-badge">{{ activeFilterCount }}</span>
         </button>
         <button
           class="hbtn hbtn--ghost"
@@ -844,6 +913,41 @@ const toggleFitting = async (visit: Visit | null, e: Event) => {
       </div>
     </Transition>
 
+    <!-- FILTER PANEL -->
+    <Transition name="fold">
+      <div v-if="showFilters" class="vp-filter-panel">
+        <div class="vp-fp-group">
+          <span class="vp-fp-label">Консультант</span>
+          <select v-model="filterEmployeeId" class="vp-fp-select">
+            <option value="">{{ isLoadingFilterEmployees ? 'Загрузка...' : 'Все' }}</option>
+            <option
+              v-for="emp in filterEmployees"
+              :key="emp.moysklad_id"
+              :value="emp.moysklad_id"
+            >{{ emp.full_name }}</option>
+          </select>
+        </div>
+        <div class="vp-fp-group vp-fp-group--grow">
+          <span class="vp-fp-label">Статус</span>
+          <div class="vp-fp-statuses">
+            <button
+              v-for="s in VISIT_STATUSES"
+              :key="s.value"
+              class="vp-fp-st"
+              :class="{ 'vp-fp-st--on': filterStatuses.includes(s.value) }"
+              :style="filterStatuses.includes(s.value)
+                ? { background: statusBg(s.value), color: statusColor(s.value), borderColor: statusColor(s.value) }
+                : {}"
+              @click="toggleStatusFilter(s.value)"
+            >{{ s.label }}</button>
+          </div>
+        </div>
+        <button v-if="hasActiveFilters" class="vp-fp-clear" @click="clearFilters">
+          Сбросить
+        </button>
+      </div>
+    </Transition>
+
     <!-- DATE BAR -->
     <div class="vp-date">
       <button class="vp-date-arr" @click="prevDay">
@@ -993,7 +1097,10 @@ const toggleFitting = async (visit: Visit | null, e: Event) => {
               </div>
               <!-- Visit card -->
               <template v-else-if="grid[slot]?.[r]">
+                <!-- Визит есть но отфильтрован — заглушка -->
+                <div v-if="!matchesFilter(grid[slot]?.[r])" class="vp-card-hidden"></div>
                 <div
+                  v-else
                   class="vp-card"
                   :style="{ borderLeftColor: statusColor(grid[slot][r]?.status) }"
                 >
@@ -1627,6 +1734,115 @@ const toggleFitting = async (visit: Visit | null, e: Event) => {
 .vp-td-cell:hover {
   background: var(--sfh);
 }
+/* ── Filter panel ── */
+.vp-filter-panel {
+  background: var(--sf);
+  border-bottom: 1px solid var(--bd);
+  padding: 10px 14px;
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+.vp-fp-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.vp-fp-group--grow {
+  flex: 1;
+  min-width: 0;
+}
+.vp-fp-label {
+  font: 700 10px/1 var(--fn);
+  color: var(--tx2);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.vp-fp-select {
+  padding: 6px 10px;
+  border: 1.5px solid var(--bd);
+  border-radius: var(--rs);
+  font: 500 12px/1 var(--fn);
+  background: var(--bg);
+  color: var(--tx);
+  outline: none;
+  min-width: 180px;
+  cursor: pointer;
+  transition: border-color var(--tr);
+}
+.vp-fp-select:focus {
+  border-color: var(--pr);
+}
+.vp-fp-statuses {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.vp-fp-st {
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 1.5px solid var(--bd);
+  background: var(--sf);
+  font: 600 11px/1 var(--fn);
+  color: var(--tx2);
+  cursor: pointer;
+  transition: all 150ms;
+  white-space: nowrap;
+}
+.vp-fp-st:hover {
+  border-color: var(--bds);
+  background: var(--sfh);
+  color: var(--tx);
+}
+.vp-fp-st--on {
+  font-weight: 700;
+}
+.vp-fp-clear {
+  align-self: flex-end;
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--er);
+  background: var(--erl);
+  color: var(--er);
+  font: 600 11px/1 var(--fn);
+  cursor: pointer;
+  transition: all 150ms;
+  white-space: nowrap;
+}
+.vp-fp-clear:hover {
+  background: var(--er);
+  color: #fff;
+}
+
+/* Бейдж на кнопке фильтра */
+.hbtn-badge {
+  background: var(--pr);
+  color: #fff;
+  font: 700 9px/1 var(--fm);
+  padding: 1px 5px;
+  border-radius: 8px;
+  min-width: 14px;
+  text-align: center;
+}
+
+/* Заглушка для отфильтрованных визитов */
+.vp-card-hidden {
+  height: 100%;
+  border-radius: 7px;
+  border-left: 3px solid var(--bd);
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 4px,
+    var(--bd) 4px,
+    var(--bd) 5px
+  );
+  opacity: 0.35;
+  min-height: 40px;
+}
+
 .vp-td-cell--off {
   cursor: not-allowed;
   background: repeating-linear-gradient(
