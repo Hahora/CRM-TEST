@@ -166,7 +166,10 @@ const isActiveRoute = (routePath: string) => {
           <span class="text-xs font-semibold text-white">{{ getInitials() }}</span>
         </div>
         <div class="flex-1 min-w-0">
-          <div class="text-[13px] font-semibold text-gray-800 truncate">{{ fullName }}</div>
+          <div class="flex items-center gap-1.5 min-w-0">
+            <span class="text-[13px] font-semibold text-gray-800 truncate">{{ fullName }}</span>
+            <span v-if="user" class="text-[9px] font-mono text-gray-400 bg-gray-100 px-1 py-0.5 rounded leading-none flex-shrink-0">ID:{{ user.id }}</span>
+          </div>
           <div class="text-[11px] text-gray-400 capitalize leading-tight">{{ userRole }}</div>
         </div>
         <button
