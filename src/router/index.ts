@@ -9,6 +9,7 @@ import Mailings from "@/views/Mailings.vue";
 import Tickets from "@/views/Tickets.vue";
 import TicketChat from "@/views/TicketChat.vue";
 import LoginPage from "@/views/LoginPage.vue";
+import NotFound from "@/views/NotFound.vue";
 import { useAuth } from "@/composables/useAuth";
 
 const router = createRouter({
@@ -145,7 +146,9 @@ const router = createRouter({
     },
     {
       path: "/:pathMatch(.*)*",
-      redirect: "/dashboard",
+      name: "not-found",
+      component: NotFound,
+      meta: { title: "Страница не найдена" },
     },
   ],
 });
