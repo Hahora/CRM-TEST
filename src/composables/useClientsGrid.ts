@@ -391,6 +391,51 @@ export function useClientsGrid() {
         textAlign: "right",
       },
     },
+    {
+      headerName: "Кол-во чеков",
+      field: "receipts_count",
+      width: 130,
+      minWidth: 100,
+      editable: false,
+      filter: "agNumberColumnFilter",
+      valueFormatter: (params: ValueFormatterParams) =>
+        params.value != null ? String(params.value) : "—",
+      cellStyle: {
+        fontFamily: "'JetBrains Mono', monospace",
+        fontSize: "12px",
+        textAlign: "right",
+      },
+    },
+    {
+      headerName: "Средний чек",
+      field: "avg_receipt",
+      width: 135,
+      minWidth: 110,
+      editable: false,
+      filter: "agNumberColumnFilter",
+      valueFormatter: (params: ValueFormatterParams) =>
+        formatCurrency(params.value),
+      cellStyle: {
+        fontFamily: "'JetBrains Mono', monospace",
+        fontSize: "12px",
+        textAlign: "right",
+      },
+    },
+    {
+      headerName: "Макс. чек",
+      field: "max_receipt",
+      width: 130,
+      minWidth: 110,
+      editable: false,
+      filter: "agNumberColumnFilter",
+      valueFormatter: (params: ValueFormatterParams) =>
+        formatCurrency(params.value),
+      cellStyle: {
+        fontFamily: "'JetBrains Mono', monospace",
+        fontSize: "12px",
+        textAlign: "right",
+      },
+    },
 
     // ── Свадьба (только физ. лицо) ──
     {

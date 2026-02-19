@@ -107,6 +107,9 @@ export interface ClientDetail {
   ogrnip?: string;
   legal_address?: string;
   sales_amount: number;
+  receipts_count?: number;
+  avg_receipt?: number;
+  max_receipt?: number;
   total_spent?: number;
   total_purchases: number;
   last_purchase_date: string | null;
