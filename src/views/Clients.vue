@@ -109,13 +109,100 @@ const {
   exportToCsv,
   setQuickFilter,
   getSelectedRows,
-  clearAllFilters,
   formatCurrency,
 } = useClientsGrid();
 
 const searchText = ref("");
 const showAddForm = ref(false);
 const showStatsPanel = ref(false);
+const showFilters = ref(false);
+
+// ── Серверные фильтры ──
+const filterCompanyType = ref("");
+const filterSex = ref("");
+const filterIsWedding = ref<boolean | undefined>(undefined);
+const filterSalesMin = ref("");
+const filterSalesMax = ref("");
+const filterReceiptsMin = ref("");
+const filterReceiptsMax = ref("");
+const filterAvgMin = ref("");
+const filterAvgMax = ref("");
+const filterMaxMin = ref("");
+const filterMaxMax = ref("");
+const filterSortBy = ref("");
+const filterSortOrder = ref("asc");
+
+const hasActiveFilters = computed(
+  () =>
+    !!filterCompanyType.value ||
+    !!filterSex.value ||
+    filterIsWedding.value !== undefined ||
+    !!filterSalesMin.value ||
+    !!filterSalesMax.value ||
+    !!filterReceiptsMin.value ||
+    !!filterReceiptsMax.value ||
+    !!filterAvgMin.value ||
+    !!filterAvgMax.value ||
+    !!filterMaxMin.value ||
+    !!filterMaxMax.value ||
+    !!filterSortBy.value
+);
+
+const activeFilterCount = computed(() => {
+  let n = 0;
+  if (filterCompanyType.value) n++;
+  if (filterSex.value) n++;
+  if (filterIsWedding.value !== undefined) n++;
+  if (filterSalesMin.value || filterSalesMax.value) n++;
+  if (filterReceiptsMin.value || filterReceiptsMax.value) n++;
+  if (filterAvgMin.value || filterAvgMax.value) n++;
+  if (filterMaxMin.value || filterMaxMax.value) n++;
+  if (filterSortBy.value) n++;
+  return n;
+});
+
+const buildServerFilters = () => ({
+  search: searchText.value.trim() || "",
+  company_type: filterCompanyType.value || undefined,
+  sex: filterSex.value || undefined,
+  is_wedding: filterIsWedding.value,
+  sales_amount_min: filterSalesMin.value || undefined,
+  sales_amount_max: filterSalesMax.value || undefined,
+  receipts_count_min: filterReceiptsMin.value || undefined,
+  receipts_count_max: filterReceiptsMax.value || undefined,
+  avg_receipt_min: filterAvgMin.value || undefined,
+  avg_receipt_max: filterAvgMax.value || undefined,
+  max_receipt_min: filterMaxMin.value || undefined,
+  max_receipt_max: filterMaxMax.value || undefined,
+  sort_by: filterSortBy.value || undefined,
+  sort_order: filterSortBy.value ? filterSortOrder.value : undefined,
+});
+
+const applyFilters = () => loadClients(buildServerFilters());
+
+const clearServerFilters = () => {
+  filterCompanyType.value = "";
+  filterSex.value = "";
+  filterIsWedding.value = undefined;
+  filterSalesMin.value = "";
+  filterSalesMax.value = "";
+  filterReceiptsMin.value = "";
+  filterReceiptsMax.value = "";
+  filterAvgMin.value = "";
+  filterAvgMax.value = "";
+  filterMaxMin.value = "";
+  filterMaxMax.value = "";
+  filterSortBy.value = "";
+  filterSortOrder.value = "asc";
+  loadClients({ search: searchText.value.trim() || "" });
+};
+
+// Числовые инпуты — дебаунс 600мс
+let filterDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+const onNumberFilterInput = () => {
+  if (filterDebounceTimer) clearTimeout(filterDebounceTimer);
+  filterDebounceTimer = setTimeout(applyFilters, 600);
+};
 const selectedCount = ref(0);
 const isMobile = ref(false);
 const isFullscreen = ref(false);
@@ -158,13 +245,10 @@ onUnmounted(() => {
 let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 watch(searchText, (val) => {
-  // Локальный фильтр — мгновенный (фильтрует уже загруженные строки)
   setQuickFilter(val);
-
-  // Серверный поиск — с дебаунсом 400мс
   if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
   searchDebounceTimer = setTimeout(() => {
-    loadClients({ search: val.trim() || "" });
+    loadClients({ ...buildServerFilters(), search: val.trim() || "" });
   }, 400);
 });
 
@@ -324,7 +408,8 @@ const handleAddClient = async (c: NewClientData) => {
 };
 
 const handleRefresh = async () => {
-  await refreshData({ search: "", dateFrom: "", dateTo: "" });
+  await loadClients(buildServerFilters());
+  await loadStats();
 };
 
 const handleExport = () => {
@@ -523,8 +608,9 @@ const getRowId = (params: any) => {
       <div class="header-btns">
         <button
           class="hbtn hbtn--ghost"
-          @click="clearAllFilters"
-          title="Сброс фильтров"
+          :class="{ 'hbtn--active': showFilters }"
+          @click="showFilters = !showFilters"
+          title="Фильтры"
         >
           <svg
             width="14"
@@ -536,6 +622,7 @@ const getRowId = (params: any) => {
           >
             <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
           </svg>
+          <span v-if="activeFilterCount > 0" class="hbtn-badge">{{ activeFilterCount }}</span>
         </button>
         <button
           class="hbtn hbtn--ghost"
@@ -833,6 +920,106 @@ const getRowId = (params: any) => {
               }}</span
               ><span class="scard-lbl">Ср. чек</span>
             </div>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- FILTER PANEL -->
+    <Transition name="fold">
+      <div v-if="showFilters" class="cf-panel">
+        <div class="cf-inner">
+          <!-- Тип клиента -->
+          <div class="cf-group">
+            <div class="cf-group-label">Тип</div>
+            <div class="cf-chips">
+              <button class="cf-chip" :class="{ 'cf-chip--on': !filterCompanyType }" @click="filterCompanyType = ''; applyFilters()">Все</button>
+              <button class="cf-chip" :class="{ 'cf-chip--on': filterCompanyType === 'individual' }" @click="filterCompanyType = 'individual'; applyFilters()">Физ. лицо</button>
+              <button class="cf-chip" :class="{ 'cf-chip--on': filterCompanyType === 'legal' }" @click="filterCompanyType = 'legal'; applyFilters()">Юр. лицо</button>
+              <button class="cf-chip" :class="{ 'cf-chip--on': filterCompanyType === 'entrepreneur' }" @click="filterCompanyType = 'entrepreneur'; applyFilters()">ИП</button>
+            </div>
+          </div>
+          <!-- Пол -->
+          <div class="cf-group">
+            <div class="cf-group-label">Пол</div>
+            <div class="cf-chips">
+              <button class="cf-chip" :class="{ 'cf-chip--on': !filterSex }" @click="filterSex = ''; applyFilters()">Все</button>
+              <button class="cf-chip" :class="{ 'cf-chip--on': filterSex === 'MALE' }" @click="filterSex = 'MALE'; applyFilters()">М</button>
+              <button class="cf-chip" :class="{ 'cf-chip--on': filterSex === 'FEMALE' }" @click="filterSex = 'FEMALE'; applyFilters()">Ж</button>
+            </div>
+          </div>
+          <!-- Свадьба -->
+          <div class="cf-group">
+            <div class="cf-group-label">Свадьба</div>
+            <div class="cf-chips">
+              <button class="cf-chip" :class="{ 'cf-chip--on': filterIsWedding === undefined }" @click="filterIsWedding = undefined; applyFilters()">Все</button>
+              <button class="cf-chip" :class="{ 'cf-chip--on': filterIsWedding === true }" @click="filterIsWedding = true; applyFilters()">Да</button>
+              <button class="cf-chip" :class="{ 'cf-chip--on': filterIsWedding === false }" @click="filterIsWedding = false; applyFilters()">Нет</button>
+            </div>
+          </div>
+          <!-- Продажи -->
+          <div class="cf-group">
+            <div class="cf-group-label">Продажи, ₽</div>
+            <div class="cf-range">
+              <input type="number" v-model="filterSalesMin" placeholder="от" class="cf-input" @input="onNumberFilterInput" min="0" />
+              <span class="cf-range-sep">—</span>
+              <input type="number" v-model="filterSalesMax" placeholder="до" class="cf-input" @input="onNumberFilterInput" min="0" />
+            </div>
+          </div>
+          <!-- Количество чеков -->
+          <div class="cf-group">
+            <div class="cf-group-label">Чеков</div>
+            <div class="cf-range">
+              <input type="number" v-model="filterReceiptsMin" placeholder="от" class="cf-input" @input="onNumberFilterInput" min="0" />
+              <span class="cf-range-sep">—</span>
+              <input type="number" v-model="filterReceiptsMax" placeholder="до" class="cf-input" @input="onNumberFilterInput" min="0" />
+            </div>
+          </div>
+          <!-- Средний чек -->
+          <div class="cf-group">
+            <div class="cf-group-label">Ср. чек, ₽</div>
+            <div class="cf-range">
+              <input type="number" v-model="filterAvgMin" placeholder="от" class="cf-input" @input="onNumberFilterInput" min="0" />
+              <span class="cf-range-sep">—</span>
+              <input type="number" v-model="filterAvgMax" placeholder="до" class="cf-input" @input="onNumberFilterInput" min="0" />
+            </div>
+          </div>
+          <!-- Макс. чек -->
+          <div class="cf-group">
+            <div class="cf-group-label">Макс. чек, ₽</div>
+            <div class="cf-range">
+              <input type="number" v-model="filterMaxMin" placeholder="от" class="cf-input" @input="onNumberFilterInput" min="0" />
+              <span class="cf-range-sep">—</span>
+              <input type="number" v-model="filterMaxMax" placeholder="до" class="cf-input" @input="onNumberFilterInput" min="0" />
+            </div>
+          </div>
+          <!-- Сортировка -->
+          <div class="cf-group">
+            <div class="cf-group-label">Сортировка</div>
+            <div class="cf-sort">
+              <select v-model="filterSortBy" class="cf-select" @change="applyFilters()">
+                <option value="">— без сортировки —</option>
+                <option value="name">Имя</option>
+                <option value="sales_amount">Продажи</option>
+                <option value="receipts_count">Чеки</option>
+                <option value="avg_receipt">Ср. чек</option>
+                <option value="max_receipt">Макс. чек</option>
+                <option value="created_at">Дата создания</option>
+              </select>
+              <div v-if="filterSortBy" class="cf-chips">
+                <button class="cf-chip" :class="{ 'cf-chip--on': filterSortOrder === 'asc' }" @click="filterSortOrder = 'asc'; applyFilters()">↑ По возр.</button>
+                <button class="cf-chip" :class="{ 'cf-chip--on': filterSortOrder === 'desc' }" @click="filterSortOrder = 'desc'; applyFilters()">↓ По убыв.</button>
+              </div>
+            </div>
+          </div>
+          <!-- Сброс -->
+          <div v-if="hasActiveFilters" class="cf-reset">
+            <button class="hbtn hbtn--ghost hbtn--xs" @click="clearServerFilters()">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+              Сбросить
+            </button>
           </div>
         </div>
       </div>
@@ -1566,6 +1753,7 @@ const getRowId = (params: any) => {
 }
 .clients-page--fs .page-header,
 .clients-page--fs .stats-panel,
+.clients-page--fs .cf-panel,
 .clients-page--fs .add-panel,
 .clients-page--fs .page-footer {
   display: none !important;
@@ -1827,11 +2015,11 @@ const getRowId = (params: any) => {
 }
 .fold-enter-to {
   opacity: 1;
-  max-height: 500px;
+  max-height: 700px;
 }
 .fold-leave-from {
   opacity: 1;
-  max-height: 500px;
+  max-height: 700px;
 }
 .fold-leave-to {
   opacity: 0;
@@ -1867,6 +2055,142 @@ const getRowId = (params: any) => {
   opacity: 0;
   transform: translateY(20px);
 }
+/* ── hbtn badge ── */
+.hbtn-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--pr);
+  color: #fff;
+  font: 700 9px/1 var(--fm);
+}
+.hbtn--active .hbtn-badge {
+  background: var(--prh);
+}
+
+/* ── Filter panel ── */
+.cf-panel {
+  background: var(--sf);
+  border-bottom: 1px solid var(--bd);
+  flex-shrink: 0;
+}
+.cf-inner {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 10px 16px;
+  flex-wrap: wrap;
+}
+.cf-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.cf-group-label {
+  font: 600 10px/1 var(--fn);
+  color: var(--tx2);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.cf-chips {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.cf-chip {
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1px solid var(--bd);
+  background: var(--sf);
+  color: var(--tx2);
+  font: 600 10px/1 var(--fn);
+  cursor: pointer;
+  transition: all var(--tr);
+  white-space: nowrap;
+}
+.cf-chip:hover {
+  background: var(--sfh);
+  color: var(--tx);
+  border-color: var(--bds);
+}
+.cf-chip--on {
+  background: var(--pr);
+  color: #fff;
+  border-color: var(--pr);
+}
+.cf-chip--on:hover {
+  background: var(--prh);
+  border-color: var(--prh);
+}
+.cf-range {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.cf-range-sep {
+  color: var(--txm);
+  font-size: 11px;
+}
+.cf-input {
+  width: 80px;
+  padding: 5px 7px;
+  border: 1px solid var(--bd);
+  border-radius: var(--rs);
+  font: 400 11px var(--fn);
+  background: var(--bg);
+  color: var(--tx);
+  transition: border-color var(--tr);
+  outline: none;
+}
+.cf-input:focus {
+  border-color: var(--pr);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.08);
+  background: var(--sf);
+}
+.cf-input::placeholder {
+  color: var(--txm);
+}
+.cf-input::-webkit-inner-spin-button,
+.cf-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+.cf-input[type="number"] {
+  -moz-appearance: textfield;
+}
+.cf-sort {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.cf-select {
+  padding: 5px 8px;
+  border: 1px solid var(--bd);
+  border-radius: var(--rs);
+  font: 500 11px var(--fn);
+  background: var(--bg);
+  color: var(--tx);
+  transition: border-color var(--tr);
+  outline: none;
+  cursor: pointer;
+}
+.cf-select:focus {
+  border-color: var(--pr);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.08);
+  background: var(--sf);
+}
+.cf-reset {
+  display: flex;
+  align-items: flex-end;
+  padding-bottom: 1px;
+}
+
 @media (max-width: 768px) {
   .page-header {
     flex-wrap: wrap;

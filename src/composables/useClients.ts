@@ -49,12 +49,24 @@ export const useClients = () => {
   // Сервер: offset (с какой записи), limit (1-1000, дефолт 25)
   // search — поиск по имени/телефону/email
   // ══════════════════════════════════════════
-  const buildApiFilters = (filters: ClientsFilters, offset: number) => ({
+  const buildApiFilters = (filters: any, offset: number) => ({
     search: filters.search || undefined,
     is_wedding: filters.is_wedding ?? undefined,
     source: filters.source || undefined,
     has_local_data: filters.has_local_data ?? undefined,
     telegram_id: filters.telegram_id || undefined,
+    company_type: filters.company_type || undefined,
+    sex: filters.sex || undefined,
+    sales_amount_min: filters.sales_amount_min !== "" && filters.sales_amount_min != null ? Number(filters.sales_amount_min) : undefined,
+    sales_amount_max: filters.sales_amount_max !== "" && filters.sales_amount_max != null ? Number(filters.sales_amount_max) : undefined,
+    receipts_count_min: filters.receipts_count_min !== "" && filters.receipts_count_min != null ? Number(filters.receipts_count_min) : undefined,
+    receipts_count_max: filters.receipts_count_max !== "" && filters.receipts_count_max != null ? Number(filters.receipts_count_max) : undefined,
+    avg_receipt_min: filters.avg_receipt_min !== "" && filters.avg_receipt_min != null ? Number(filters.avg_receipt_min) : undefined,
+    avg_receipt_max: filters.avg_receipt_max !== "" && filters.avg_receipt_max != null ? Number(filters.avg_receipt_max) : undefined,
+    max_receipt_min: filters.max_receipt_min !== "" && filters.max_receipt_min != null ? Number(filters.max_receipt_min) : undefined,
+    max_receipt_max: filters.max_receipt_max !== "" && filters.max_receipt_max != null ? Number(filters.max_receipt_max) : undefined,
+    sort_by: filters.sort_by || undefined,
+    sort_order: filters.sort_order || undefined,
     offset,
     limit: PAGE_SIZE,
   });

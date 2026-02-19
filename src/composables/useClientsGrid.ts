@@ -146,7 +146,6 @@ export function useClientsGrid() {
       minWidth: 60,
       maxWidth: 90,
       sortable: false,
-      filter: false,
       editable: false,
       suppressHeaderMenuButton: true,
       cellStyle: {
@@ -163,11 +162,6 @@ export function useClientsGrid() {
       minWidth: 160,
       width: 210,
       editable: typeEditable(["legal", "entrepreneur"]),
-      filter: "agTextColumnFilter",
-      filterParams: {
-        filterOptions: ["contains", "startsWith"],
-        debounceMs: 300,
-      },
       cellStyle: (params: any) => {
         if (!isType(params, "legal", "entrepreneur")) return disabledStyle;
         return { fontWeight: "600" };
@@ -189,7 +183,6 @@ export function useClientsGrid() {
         if (!isType(params, "individual", "entrepreneur")) return disabledStyle;
         return { fontWeight: "600" };
       },
-      filter: "agTextColumnFilter",
     },
     // ── Фамилия ──
     {
@@ -199,7 +192,6 @@ export function useClientsGrid() {
       width: 140,
       editable: typeEditable(["individual", "entrepreneur"]),
       cellStyle: typeCellStyle(["individual", "entrepreneur"]),
-      filter: "agTextColumnFilter",
     },
     // ── Отчество ──
     {
@@ -209,7 +201,6 @@ export function useClientsGrid() {
       minWidth: 110,
       editable: typeEditable(["individual", "entrepreneur"]),
       cellStyle: typeCellStyle(["individual", "entrepreneur"]),
-      filter: "agTextColumnFilter",
     },
     {
       headerName: "Тип",
@@ -223,14 +214,10 @@ export function useClientsGrid() {
       },
       valueFormatter: (params: ValueFormatterParams) => {
         switch (params.value) {
-          case "legal":
-            return "Юр. лицо";
-          case "entrepreneur":
-            return "ИП";
-          case "individual":
-            return "Физ. лицо";
-          default:
-            return "—";
+          case "legal": return "Юр. лицо";
+          case "entrepreneur": return "ИП";
+          case "individual": return "Физ. лицо";
+          default: return "—";
         }
       },
       cellStyle: (params: any) => {
@@ -241,27 +228,10 @@ export function useClientsGrid() {
           letterSpacing: ".03em",
         };
         switch (params.value) {
-          case "legal":
-            return { ...base, backgroundColor: "#EFF6FF", color: "#2563EB" };
-          case "entrepreneur":
-            return { ...base, backgroundColor: "#FFFBEB", color: "#D97706" };
-          case "individual":
-            return { ...base, backgroundColor: "#F0FDF4", color: "#16A34A" };
-          default:
-            return { ...base, color: "#94A3B8" };
-        }
-      },
-      filter: "agTextColumnFilter",
-      filterValueGetter: (params: any) => {
-        switch (params.data?.company_type) {
-          case "legal":
-            return "Юр. лицо Юридическое";
-          case "entrepreneur":
-            return "ИП Предприниматель";
-          case "individual":
-            return "Физ. лицо Физическое";
-          default:
-            return "";
+          case "legal": return { ...base, backgroundColor: "#EFF6FF", color: "#2563EB" };
+          case "entrepreneur": return { ...base, backgroundColor: "#FFFBEB", color: "#D97706" };
+          case "individual": return { ...base, backgroundColor: "#F0FDF4", color: "#16A34A" };
+          default: return { ...base, color: "#94A3B8" };
         }
       },
     },
@@ -271,7 +241,6 @@ export function useClientsGrid() {
       minWidth: 140,
       width: 160,
       editable: true,
-      filter: "agTextColumnFilter",
       cellStyle: {
         fontFamily: "'JetBrains Mono', monospace",
         fontSize: "12px",
@@ -283,7 +252,6 @@ export function useClientsGrid() {
       minWidth: 160,
       width: 200,
       editable: true,
-      filter: "agTextColumnFilter",
     },
 
     // ── Физ. лицо ──
@@ -309,20 +277,7 @@ export function useClientsGrid() {
             return "—";
         }
       },
-      filterValueGetter: (params: any) => {
-        switch (params.data?.sex) {
-          case "MALE":
-          case "male":
-            return "М Мужской";
-          case "FEMALE":
-          case "female":
-            return "Ж Женский";
-          default:
-            return "";
-        }
-      },
       cellStyle: typeCellStyle(["individual"]),
-      filter: "agTextColumnFilter",
     },
     {
       headerName: "Дата рождения",
@@ -354,7 +309,6 @@ export function useClientsGrid() {
           : "Кликните и введите: ДД.ММ.ГГГГ";
       },
       cellStyle: typeCellStyle(["individual"]),
-      filter: "agDateColumnFilter",
     },
 
     // ── Общие поля ──
@@ -364,7 +318,6 @@ export function useClientsGrid() {
       width: 130,
       minWidth: 100,
       editable: true,
-      filter: "agTextColumnFilter",
     },
     {
       headerName: "МАКС ID",
@@ -372,7 +325,6 @@ export function useClientsGrid() {
       width: 110,
       minWidth: 90,
       editable: true,
-      filter: "agTextColumnFilter",
     },
 
     // ── Статистика продаж ──
@@ -382,7 +334,6 @@ export function useClientsGrid() {
       width: 135,
       minWidth: 110,
       editable: false,
-      filter: "agNumberColumnFilter",
       valueFormatter: (params: ValueFormatterParams) =>
         formatCurrency(params.value),
       cellStyle: {
@@ -397,7 +348,6 @@ export function useClientsGrid() {
       width: 130,
       minWidth: 100,
       editable: false,
-      filter: "agNumberColumnFilter",
       valueFormatter: (params: ValueFormatterParams) =>
         params.value != null ? String(params.value) : "—",
       cellStyle: {
@@ -412,7 +362,6 @@ export function useClientsGrid() {
       width: 135,
       minWidth: 110,
       editable: false,
-      filter: "agNumberColumnFilter",
       valueFormatter: (params: ValueFormatterParams) =>
         formatCurrency(params.value),
       cellStyle: {
@@ -427,7 +376,6 @@ export function useClientsGrid() {
       width: 130,
       minWidth: 110,
       editable: false,
-      filter: "agNumberColumnFilter",
       valueFormatter: (params: ValueFormatterParams) =>
         formatCurrency(params.value),
       cellStyle: {
@@ -476,13 +424,7 @@ export function useClientsGrid() {
             textAlign: "center",
           };
         }
-        return { color: "#94A3B8", textAlign: "center" };
-      },
-      filter: "agTextColumnFilter",
-      filterValueGetter: (params: any) => {
-        if (params.data?.is_wedding === true) return "Да Свадьба";
-        if (params.data?.is_wedding === false) return "Нет";
-        return "";
+        return { color: "#94A3B8", textAlign: "center", backgroundColor: "", fontWeight: "" };
       },
     },
     {
@@ -528,7 +470,6 @@ export function useClientsGrid() {
           cursor: "pointer",
         };
       },
-      filter: "agDateColumnFilter",
     },
     {
       headerName: "Имя невесты",
@@ -537,7 +478,6 @@ export function useClientsGrid() {
       minWidth: 115,
       editable: (params: any) =>
         isType(params, "individual") && params.data?.is_wedding === true,
-      filter: "agTextColumnFilter",
       tooltipValueGetter: (params: any) => {
         if (!isType(params, "individual")) return "Только для физ. лиц";
         if (params.data?.is_wedding !== true)
@@ -569,7 +509,6 @@ export function useClientsGrid() {
         values: ["", ...CLIENT_SOURCES],
       },
       valueFormatter: (params: ValueFormatterParams) => params.value || "—",
-      filter: "agTextColumnFilter",
     },
 
     // ── ИНН (юр. лицо + ИП) ──
@@ -583,7 +522,6 @@ export function useClientsGrid() {
         fontFamily: "'JetBrains Mono', monospace",
         fontSize: "11px",
       }),
-      filter: "agTextColumnFilter",
     },
 
     // ── Только юр. лицо ──
@@ -597,7 +535,6 @@ export function useClientsGrid() {
         fontFamily: "'JetBrains Mono', monospace",
         fontSize: "11px",
       }),
-      filter: "agTextColumnFilter",
     },
     {
       headerName: "ОГРН",
@@ -609,7 +546,6 @@ export function useClientsGrid() {
         fontFamily: "'JetBrains Mono', monospace",
         fontSize: "11px",
       }),
-      filter: "agTextColumnFilter",
     },
     {
       headerName: "Юр. адрес",
@@ -618,7 +554,6 @@ export function useClientsGrid() {
       minWidth: 140,
       editable: typeEditable(["legal"]),
       cellStyle: typeCellStyle(["legal"]),
-      filter: "agTextColumnFilter",
     },
 
     // ── Только ИП ──
@@ -632,7 +567,6 @@ export function useClientsGrid() {
         fontFamily: "'JetBrains Mono', monospace",
         fontSize: "11px",
       }),
-      filter: "agTextColumnFilter",
     },
 
     // ── МойСклад ID ──
@@ -642,7 +576,6 @@ export function useClientsGrid() {
       width: 120,
       minWidth: 100,
       editable: false,
-      filter: "agTextColumnFilter",
       cellStyle: {
         fontFamily: "'JetBrains Mono', monospace",
         fontSize: "10px",
@@ -653,16 +586,11 @@ export function useClientsGrid() {
 
   const defaultColDef: ColDef = {
     resizable: true,
-    sortable: true,
-    filter: true,
+    sortable: false,
+    filter: false,
     suppressMovable: false,
     wrapHeaderText: true,
     autoHeaderHeight: true,
-    filterParams: {
-      filterOptions: ["contains", "startsWith", "equals"],
-      defaultOption: "contains",
-      debounceMs: 200,
-    },
   };
 
   const onGridReady = (params: GridReadyEvent) => {

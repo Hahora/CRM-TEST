@@ -19,6 +19,21 @@ export interface ClientsFiltersApi {
   created_before?: string;
   offset?: number;
   limit?: number;
+  // МойСклад-фильтры
+  company_type?: string;
+  sex?: string;
+  sales_amount_min?: number;
+  sales_amount_max?: number;
+  // Пост-фильтры
+  receipts_count_min?: number;
+  receipts_count_max?: number;
+  avg_receipt_min?: number;
+  avg_receipt_max?: number;
+  max_receipt_min?: number;
+  max_receipt_max?: number;
+  // Сортировка
+  sort_by?: string;
+  sort_order?: string;
 }
 
 export interface UpdateClientData {
@@ -196,6 +211,18 @@ class ClientsApiService {
       params.append("created_after", filters.created_after);
     if (filters.created_before)
       params.append("created_before", filters.created_before);
+    if (filters.company_type) params.append("company_type", filters.company_type);
+    if (filters.sex) params.append("sex", filters.sex);
+    if (filters.sales_amount_min != null) params.append("sales_amount_min", String(filters.sales_amount_min));
+    if (filters.sales_amount_max != null) params.append("sales_amount_max", String(filters.sales_amount_max));
+    if (filters.receipts_count_min != null) params.append("receipts_count_min", String(filters.receipts_count_min));
+    if (filters.receipts_count_max != null) params.append("receipts_count_max", String(filters.receipts_count_max));
+    if (filters.avg_receipt_min != null) params.append("avg_receipt_min", String(filters.avg_receipt_min));
+    if (filters.avg_receipt_max != null) params.append("avg_receipt_max", String(filters.avg_receipt_max));
+    if (filters.max_receipt_min != null) params.append("max_receipt_min", String(filters.max_receipt_min));
+    if (filters.max_receipt_max != null) params.append("max_receipt_max", String(filters.max_receipt_max));
+    if (filters.sort_by) params.append("sort_by", filters.sort_by);
+    if (filters.sort_order) params.append("sort_order", filters.sort_order);
 
     // Пагинация: offset + limit
     if (filters.offset !== undefined && filters.offset > 0)
