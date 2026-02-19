@@ -212,8 +212,6 @@ watch(branchMoyskladId, () => {
   loadBranchTimeSlots();
   loadSchedule();
   if (showStats.value) loadVisitStats();
-  filterEmployeesLoaded.value = false;
-  if (showFilters.value) loadFilterEmployees();
 });
 watch(showStats, (v) => {
   if (v && !visitStats.value) loadVisitStats();
@@ -526,9 +524,19 @@ const getRecommender = (source: string | null) => {
 const showFilters = ref(false);
 const filterStatuses = ref<VisitStatus[]>([]);
 const filterEmployeeId = ref("");
-const filterEmployees = ref<VisitEmployee[]>([]);
-const isLoadingFilterEmployees = ref(false);
-const filterEmployeesLoaded = ref(false);
+
+// Сотрудники берутся из уже загруженного расписания — никакого отдельного запроса
+const filterEmployees = computed<VisitEmployee[]>(() => {
+  const seen = new Set<string>();
+  const emps: VisitEmployee[] = [];
+  for (const v of schedule.value?.visits || []) {
+    if (v.employee?.moysklad_id && !seen.has(v.employee.moysklad_id)) {
+      seen.add(v.employee.moysklad_id);
+      emps.push(v.employee as VisitEmployee);
+    }
+  }
+  return emps;
+});
 
 const hasActiveFilters = computed(
   () => filterStatuses.value.length > 0 || filterEmployeeId.value !== ""
@@ -537,23 +545,8 @@ const activeFilterCount = computed(
   () => filterStatuses.value.length + (filterEmployeeId.value ? 1 : 0)
 );
 
-const loadFilterEmployees = async () => {
-  if (!branchMoyskladId.value || filterEmployeesLoaded.value) return;
-  isLoadingFilterEmployees.value = true;
-  try {
-    filterEmployees.value = await visitsApi.getEmployeesByBranch(
-      branchMoyskladId.value
-    );
-    filterEmployeesLoaded.value = true;
-  } catch {
-    filterEmployees.value = [];
-  }
-  isLoadingFilterEmployees.value = false;
-};
-
 const toggleShowFilters = () => {
   showFilters.value = !showFilters.value;
-  if (showFilters.value) loadFilterEmployees();
 };
 const clearFilters = () => {
   filterStatuses.value = [];
@@ -919,7 +912,7 @@ const toggleFitting = async (visit: Visit | null, e: Event) => {
         <div class="vp-fp-group">
           <span class="vp-fp-label">Консультант</span>
           <select v-model="filterEmployeeId" class="vp-fp-select">
-            <option value="">{{ isLoadingFilterEmployees ? 'Загрузка...' : 'Все' }}</option>
+            <option value="">Все</option>
             <option
               v-for="emp in filterEmployees"
               :key="emp.moysklad_id"
