@@ -11,6 +11,7 @@ import {
   Save,
   RotateCcw,
   AlertCircle,
+  LayoutGrid,
 } from "lucide-vue-next";
 
 export interface TimeSettings {
@@ -35,7 +36,7 @@ const emit = defineEmits<{
 }>();
 
 // ── State ──
-const activeTab = ref<"base" | "today">("base");
+const activeTab = ref<"base" | "today" | "rooms">("base");
 const baseSlots = ref<string[]>([]);
 const todaySlots = ref<string[]>([]);
 const newBaseTime = ref("");
@@ -46,6 +47,10 @@ const isSaving = ref(false);
 const isSaved = ref(false);
 const error = ref("");
 
+// ── Fitting rooms state ──
+const fittingRoomsCount = ref(6);
+const isLoadingRooms = ref(false);
+
 // ── Load from API ──
 const loadSchedule = async () => {
   if (!props.branchId) return;
@@ -53,23 +58,16 @@ const loadSchedule = async () => {
 
   isLoadingBase.value = true;
   isLoadingDate.value = true;
+  isLoadingRooms.value = true;
+
   try {
     const res = await visitsApi.getBranchSchedule(props.branchId);
     baseSlots.value = res.base_schedule || [];
   } catch (e: any) {
     error.value = e.message || "Ошибка загрузки расписания";
     baseSlots.value = [
-      "10:00",
-      "11:00",
-      "12:00",
-      "13:00",
-      "14:00",
-      "15:00",
-      "16:00",
-      "17:00",
-      "18:00",
-      "19:00",
-      "20:00",
+      "10:00", "11:00", "12:00", "13:00", "14:00",
+      "15:00", "16:00", "17:00", "18:00", "19:00", "20:00",
     ];
   } finally {
     isLoadingBase.value = false;
@@ -85,6 +83,15 @@ const loadSchedule = async () => {
     todaySlots.value = [];
   } finally {
     isLoadingDate.value = false;
+  }
+
+  try {
+    const res = await visitsApi.getBranchFittingRooms(props.branchId);
+    fittingRoomsCount.value = res.fitting_rooms_count ?? 6;
+  } catch {
+    fittingRoomsCount.value = 6;
+  } finally {
+    isLoadingRooms.value = false;
   }
 };
 
@@ -198,7 +205,10 @@ const handleSave = async () => {
   isSaving.value = true;
   error.value = "";
   try {
-    await visitsApi.updateBranchSchedule(props.branchId, baseSlots.value);
+    await Promise.all([
+      visitsApi.updateBranchSchedule(props.branchId, baseSlots.value),
+      visitsApi.updateBranchFittingRooms(props.branchId, fittingRoomsCount.value),
+    ]);
     if (todaySlots.value.length > 0) {
       await visitsApi.updateBranchDateSlots(
         props.branchId,
@@ -207,13 +217,8 @@ const handleSave = async () => {
       );
     } else {
       try {
-        await visitsApi.deleteBranchDateSlots(
-          props.branchId,
-          props.currentDate
-        );
-      } catch {
-        /* ok */
-      }
+        await visitsApi.deleteBranchDateSlots(props.branchId, props.currentDate);
+      } catch { /* ok */ }
     }
     isSaved.value = true;
     emit("save", {
@@ -224,9 +229,7 @@ const handleSave = async () => {
       todayDate: props.currentDate,
       mergedSchedule: effectiveSlots.value,
     });
-    setTimeout(() => {
-      isSaved.value = false;
-    }, 1200);
+    setTimeout(() => { isSaved.value = false; }, 1200);
   } catch (e: any) {
     error.value = e.message || "Ошибка сохранения";
   } finally {
@@ -287,7 +290,7 @@ const isLoading = computed(() => isLoadingBase.value || isLoadingDate.value);
                 @click="activeTab = 'base'"
               >
                 <Clock :size="13" />
-                <span>Основное расписание</span>
+                <span>Расписание</span>
                 <span class="tsm-tab-count">{{ baseSlots.length }}</span>
               </button>
               <button
@@ -300,6 +303,15 @@ const isLoading = computed(() => isLoadingBase.value || isLoadingDate.value);
                 <span class="tsm-tab-count" v-if="todaySlots.length"
                   >+{{ todaySlots.length }}</span
                 >
+              </button>
+              <button
+                class="tsm-tab"
+                :class="{ 'tsm-tab--on': activeTab === 'rooms' }"
+                @click="activeTab = 'rooms'"
+              >
+                <LayoutGrid :size="13" />
+                <span>Примерочные</span>
+                <span class="tsm-tab-count">{{ fittingRoomsCount }}</span>
               </button>
             </div>
 
@@ -460,6 +472,42 @@ const isLoading = computed(() => isLoadingBase.value || isLoadingDate.value);
                   >
                     <Trash2 :size="12" /> Очистить все доп. слоты
                   </button>
+                </div>
+
+                <!-- ROOMS TAB -->
+                <div v-if="activeTab === 'rooms'" class="tsm-content">
+                  <div class="tsm-desc">
+                    <p>Количество примерочных, доступных для записи в этом филиале.</p>
+                  </div>
+                  <div v-if="isLoadingRooms" class="tsm-body-loading">
+                    <div class="tsm-spinner"></div>
+                    <span>Загрузка...</span>
+                  </div>
+                  <div v-else class="tsm-rooms-ctrl">
+                    <button
+                      class="tsm-rooms-btn"
+                      @click="fittingRoomsCount = Math.max(1, fittingRoomsCount - 1)"
+                      :disabled="fittingRoomsCount <= 1"
+                    >−</button>
+                    <div class="tsm-rooms-val">
+                      <span class="tsm-rooms-num">{{ fittingRoomsCount }}</span>
+                      <span class="tsm-rooms-label">примерочных</span>
+                    </div>
+                    <button
+                      class="tsm-rooms-btn"
+                      @click="fittingRoomsCount = Math.min(20, fittingRoomsCount + 1)"
+                      :disabled="fittingRoomsCount >= 20"
+                    >+</button>
+                  </div>
+                  <div v-if="!isLoadingRooms" class="tsm-rooms-grid">
+                    <div
+                      v-for="n in 20"
+                      :key="n"
+                      class="tsm-rooms-cell"
+                      :class="{ 'tsm-rooms-cell--on': n <= fittingRoomsCount }"
+                      @click="fittingRoomsCount = n"
+                    >{{ n }}</div>
+                  </div>
                 </div>
 
                 <!-- Preview -->
@@ -1031,6 +1079,85 @@ const isLoading = computed(() => isLoadingBase.value || isLoadingDate.value);
 .tsm-slot-leave-to {
   opacity: 0;
   transform: scale(0.8);
+}
+
+/* ── Fitting rooms tab ── */
+.tsm-rooms-ctrl {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  padding: 24px 0;
+}
+.tsm-rooms-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  border: 2px solid var(--bd, #e2e8f0);
+  background: var(--sf, #fff);
+  font: 700 22px/1 var(--fn, sans-serif);
+  color: var(--tx, #0f172a);
+  cursor: pointer;
+  transition: all 150ms;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.tsm-rooms-btn:hover:not(:disabled) {
+  border-color: var(--pr, #2563eb);
+  color: var(--pr, #2563eb);
+  background: var(--prl, #eff6ff);
+}
+.tsm-rooms-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+.tsm-rooms-val {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 80px;
+}
+.tsm-rooms-num {
+  font: 800 48px/1 var(--fm, monospace);
+  color: var(--pr, #2563eb);
+  letter-spacing: -0.04em;
+}
+.tsm-rooms-label {
+  font: 500 12px/1 var(--fn, sans-serif);
+  color: var(--tx2, #64748b);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.tsm-rooms-grid {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 6px;
+  margin-top: 8px;
+}
+.tsm-rooms-cell {
+  aspect-ratio: 1;
+  border-radius: 8px;
+  border: 1.5px solid var(--bd, #e2e8f0);
+  background: var(--sf, #fff);
+  font: 700 13px/1 var(--fm, monospace);
+  color: var(--tx2, #64748b);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 150ms;
+}
+.tsm-rooms-cell:hover {
+  border-color: var(--pr, #2563eb);
+  color: var(--pr, #2563eb);
+  background: var(--prl, #eff6ff);
+}
+.tsm-rooms-cell--on {
+  background: var(--pr, #2563eb);
+  border-color: var(--pr, #2563eb);
+  color: #fff;
 }
 
 @media (max-width: 640px) {

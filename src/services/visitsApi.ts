@@ -116,6 +116,15 @@ export interface UpdateVisitData {
   postponed_until?: string;
 }
 
+// ── Branch Fitting Rooms ──
+
+export interface BranchFittingRooms {
+  branch_id: number;
+  branch_name: string;
+  fitting_rooms_count: number;
+  fitting_rooms: number[];
+}
+
 // ── Branch Schedule ──
 
 export interface BranchScheduleBase {
@@ -368,6 +377,29 @@ class VisitsApiService {
   }
 
   // ── Branches ──
+
+  // ── Fitting Rooms ──
+
+  /** GET /api/v1/branches/{branch_id}/fitting-rooms */
+  async getBranchFittingRooms(branchId: number): Promise<BranchFittingRooms> {
+    return this.makeRequest<BranchFittingRooms>(
+      `/api/v1/branches/${branchId}/fitting-rooms`
+    );
+  }
+
+  /** PUT /api/v1/branches/{branch_id}/fitting-rooms */
+  async updateBranchFittingRooms(
+    branchId: number,
+    count: number
+  ): Promise<BranchFittingRooms> {
+    return this.makeRequest<BranchFittingRooms>(
+      `/api/v1/branches/${branchId}/fitting-rooms`,
+      {
+        method: "PUT",
+        body: JSON.stringify({ fitting_rooms_count: count }),
+      }
+    );
+  }
 
   /** GET /api/v1/branches/live */
   async getBranches(): Promise<Branch[]> {
