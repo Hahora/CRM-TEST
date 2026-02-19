@@ -380,9 +380,13 @@ const selectAcClient = (cl: any) => {
   form.value.client_name = cl.full_name || cl.name || "";
   form.value.client_phone = cl.phone || "";
   form.value.client_email = cl.email || "";
+  form.value.client_local_id = cl.id || null;
   form.value.is_phantom = false;
+  // Данные свадьбы уже есть в ответе getClients — берём сразу
+  form.value.is_wedding = cl.is_wedding || false;
+  form.value.wedding_date = cl.wedding_date || "";
+  form.value.bride_name = cl.bride_name || "";
   acClientOpen.value = false;
-  if (cl.moysklad_id) loadClientDetails(cl.moysklad_id);
 };
 const clearClient = () => {
   form.value.client_moysklad_id = "";
