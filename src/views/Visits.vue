@@ -519,6 +519,16 @@ const getRecommender = (source: string | null) => {
   return source.replace("Порекомендовали: ", "");
 };
 
+// ── Disabled room: предыдущая примерочная должна быть занята ──
+const isRoomDisabled = (slot: string, room: number): boolean => {
+  const rooms = fittingRooms.value;
+  const idx = rooms.indexOf(room);
+  if (idx <= 0) return false;
+  const prev = rooms[idx - 1] as number | undefined;
+  if (prev === undefined) return false;
+  return !grid.value[slot]?.[prev];
+};
+
 // ── Fitting toggle inline ──
 const toggleFitting = async (visit: Visit | null, e: Event) => {
   if (!visit) return;
@@ -971,7 +981,8 @@ const toggleFitting = async (visit: Visit | null, e: Event) => {
               v-for="r in fittingRooms"
               :key="r"
               class="vp-td-cell"
-              @click="!isLoading && openCell(slot, r)"
+              :class="{ 'vp-td-cell--off': isRoomDisabled(slot, r) }"
+              @click="!isLoading && !isRoomDisabled(slot, r) && openCell(slot, r)"
             >
               <!-- Loading shimmer skeleton -->
               <div v-if="isLoading" class="vp-skel">
@@ -1615,6 +1626,25 @@ const toggleFitting = async (visit: Visit | null, e: Event) => {
 }
 .vp-td-cell:hover {
   background: var(--sfh);
+}
+.vp-td-cell--off {
+  cursor: not-allowed;
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 5px,
+    rgba(0, 0, 0, 0.03) 5px,
+    rgba(0, 0, 0, 0.03) 10px
+  );
+}
+.vp-td-cell--off:hover {
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 5px,
+    rgba(0, 0, 0, 0.03) 5px,
+    rgba(0, 0, 0, 0.03) 10px
+  );
 }
 
 /* ── Visit card — нормальный поток, строка растягивается автоматически ── */
