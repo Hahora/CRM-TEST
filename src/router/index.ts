@@ -148,7 +148,7 @@ const router = createRouter({
       path: "/:pathMatch(.*)*",
       name: "not-found",
       component: NotFound,
-      meta: { title: "Страница не найдена" },
+      meta: { title: "Страница не найдена", requiresAuth: true },
     },
   ],
 });
