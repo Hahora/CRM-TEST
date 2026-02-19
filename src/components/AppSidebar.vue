@@ -1,9 +1,17 @@
 <script setup lang="ts">
 import { useRouter, useRoute } from "vue-router";
 import AppIcon from "./AppIcon.vue";
+import { useAuth } from "@/composables/useAuth";
 
 const router = useRouter();
 const route = useRoute();
+const { user, userRole, fullName, logout } = useAuth();
+
+const getInitials = () => {
+  if (!user.value) return "?";
+  if (user.value.first_name) return user.value.first_name.charAt(0).toUpperCase();
+  return user.value.login.charAt(0).toUpperCase();
+};
 
 interface MenuItem {
   id: string;
@@ -95,7 +103,7 @@ const isActiveRoute = (routePath: string) => {
 <template>
   <!-- Desktop Sidebar Only -->
   <aside
-    class="hidden md:flex fixed top-16 left-0 bottom-0 w-64 bg-white border-r border-gray-200 z-40 flex-col"
+    class="hidden md:flex fixed top-0 left-0 bottom-0 w-64 bg-white border-r border-gray-200 z-40 flex-col"
   >
     <!-- Navigation -->
     <nav class="flex-1 overflow-y-auto py-4">
@@ -149,6 +157,26 @@ const isActiveRoute = (routePath: string) => {
         />
         <span>Настройки</span>
       </button>
+    </div>
+
+    <!-- Profile -->
+    <div class="border-t border-gray-200 p-3 flex-shrink-0">
+      <div class="flex items-center gap-2.5 px-1">
+        <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-violet-500 flex items-center justify-center flex-shrink-0 shadow-sm">
+          <span class="text-xs font-semibold text-white">{{ getInitials() }}</span>
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="text-[13px] font-semibold text-gray-800 truncate">{{ fullName }}</div>
+          <div class="text-[11px] text-gray-400 capitalize leading-tight">{{ userRole }}</div>
+        </div>
+        <button
+          @click="logout()"
+          class="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
+          title="Выйти"
+        >
+          <AppIcon name="log-out" :size="15" />
+        </button>
+      </div>
     </div>
   </aside>
 </template>

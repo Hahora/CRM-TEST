@@ -57,7 +57,7 @@ onUnmounted(() => {
 
 <template>
   <header
-    class="fixed top-0 left-0 right-0 h-14 md:h-16 flex items-center justify-between px-4 md:px-6 z-50 transition-all duration-300"
+    class="md:hidden fixed top-0 left-0 right-0 h-14 flex items-center justify-between px-4 z-50 transition-all duration-300"
     :class="[
       isScrolled
         ? 'bg-white/80 backdrop-blur-xl shadow-[0_1px_3px_rgba(0,0,0,0.05),0_8px_24px_rgba(0,0,0,0.04)] border-b border-gray-200/60'
