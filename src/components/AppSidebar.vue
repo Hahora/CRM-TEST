@@ -160,24 +160,6 @@ const isActiveRoute = (routePath: string) => {
       </div>
     </nav>
 
-    <!-- Settings -->
-    <div class="border-t border-gray-200 p-2">
-      <button
-        @click="navigateTo('/settings')"
-        class="w-full flex items-center justify-start gap-3 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-        :class="isActiveRoute('/settings') ? 'bg-blue-50 text-blue-700' : ''"
-      >
-        <AppIcon
-          name="settings"
-          :size="20"
-          :class="
-            isActiveRoute('/settings') ? 'text-blue-600' : 'text-gray-500'
-          "
-        />
-        <span>Настройки</span>
-      </button>
-    </div>
-
     <!-- Profile -->
     <div class="border-t border-gray-200 p-2 flex-shrink-0 relative">
       <!-- Dropdown (opens upward) -->

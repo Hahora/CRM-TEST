@@ -20,7 +20,7 @@ export interface ClientsFiltersApi {
   offset?: number;
   limit?: number;
   // МойСклад-фильтры
-  company_type?: string;
+  company_types?: string | string[];
   sex?: string;
   sales_amount_min?: number;
   sales_amount_max?: number;
@@ -211,7 +211,10 @@ class ClientsApiService {
       params.append("created_after", filters.created_after);
     if (filters.created_before)
       params.append("created_before", filters.created_before);
-    if (filters.company_type) params.append("company_type", filters.company_type);
+    if (filters.company_types) {
+      const types = Array.isArray(filters.company_types) ? filters.company_types : [filters.company_types];
+      types.forEach((t) => params.append("company_types", t));
+    }
     if (filters.sex) params.append("sex", filters.sex);
     if (filters.sales_amount_min != null) params.append("sales_amount_min", String(filters.sales_amount_min));
     if (filters.sales_amount_max != null) params.append("sales_amount_max", String(filters.sales_amount_max));

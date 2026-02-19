@@ -163,7 +163,7 @@ const activeFilterCount = computed(() => {
 
 const buildServerFilters = () => ({
   search: searchText.value.trim() || "",
-  company_type: filterCompanyType.value || undefined,
+  company_types: filterCompanyType.value || undefined,
   sex: filterSex.value || undefined,
   is_wedding: filterIsWedding.value,
   sales_amount_min: filterSalesMin.value || undefined,
