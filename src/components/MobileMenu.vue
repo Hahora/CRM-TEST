@@ -66,6 +66,12 @@ const menuSections: MenuSection[] = [
     title: "Администрирование",
     items: [
       { id: "users", title: "Пользователи", icon: "user-cog", route: "/users" },
+      {
+        id: "consultants",
+        title: "Консультанты",
+        icon: "user-check",
+        route: "/consultants",
+      },
     ],
   },
 ];

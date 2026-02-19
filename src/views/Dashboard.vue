@@ -2,14 +2,11 @@
 import { ref, onMounted, watch } from "vue";
 import { format, subDays, startOfWeek, endOfWeek } from "date-fns";
 import { ru } from "date-fns/locale";
-import AppIcon from "@/components/AppIcon.vue";
-import StatsCard from "@/components/dashboard/StatsCard.vue";
 import SalesChart from "@/components/dashboard/SalesChart.vue";
 import VisitsChart from "@/components/dashboard/VisitsChart.vue";
 import RecentActivity from "@/components/dashboard/RecentActivity.vue";
 import TopClients from "@/components/dashboard/TopClients.vue";
 import QuickActions from "@/components/dashboard/QuickActions.vue";
-import DevelopmentBanner from "@/components/DevelopmentBanner.vue";
 
 interface Branch {
   id: string;
@@ -36,6 +33,7 @@ const branches = ref<Branch[]>([
 
 const selectedBranch = ref("all");
 const isLoading = ref(false);
+const showStatsPanel = ref(true);
 
 const stats = ref<DashboardStats>({
   totalClients: 1247,
@@ -131,176 +129,275 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-50">
-    <DevelopmentBanner />
-    <!-- Header -->
-    <div class="bg-white border-b border-gray-200 px-4 md:px-6 py-4 md:py-6">
-      <div
-        class="flex flex-col md:flex-row md:items-center md:justify-between gap-4"
-      >
-        <div>
-          <h1 class="text-2xl md:text-3xl font-bold text-gray-900">Дашборд</h1>
-          <p class="text-sm md:text-base text-gray-600 mt-1">
-            {{ format(currentDate, "EEEE, d MMMM yyyy", { locale: ru }) }}
-          </p>
+  <div class="dashboard-page">
+    <!-- HEADER -->
+    <header class="page-header">
+      <div class="header-left">
+        <h1 class="header-title">Дашборд</h1>
+        <span class="header-date">{{
+          format(currentDate, "d MMMM yyyy", { locale: ru })
+        }}</span>
+      </div>
+      <div class="header-controls">
+        <!-- Branch Selector -->
+        <div class="branch-selector">
+          <label class="branch-label">Филиал</label>
+          <select v-model="selectedBranch" class="branch-select" :disabled="isLoading">
+            <option v-for="branch in branches" :key="branch.id" :value="branch.id">
+              {{ branch.name }}
+            </option>
+          </select>
         </div>
-
-        <div
-          class="flex flex-col md:flex-row items-start md:items-center gap-3 md:gap-4"
+        <div class="week-info">
+          {{ format(weekStart, "d MMM", { locale: ru }) }} -
+          {{ format(weekEnd, "d MMM", { locale: ru }) }}
+        </div>
+      </div>
+      <div class="header-btns">
+        <button
+          class="hbtn hbtn--ghost"
+          @click="showStatsPanel = !showStatsPanel"
+          title="Статистика"
+          :class="{ 'hbtn--active': showStatsPanel }"
         >
-          <!-- Branch Selector -->
-          <div class="relative">
-            <label class="block text-xs font-medium text-gray-500 mb-1"
-              >Филиал</label
-            >
-            <select
-              v-model="selectedBranch"
-              class="appearance-none bg-white border border-gray-300 rounded-lg px-4 py-2 pr-8 text-sm font-medium text-gray-700 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-[200px]"
-              :disabled="isLoading"
-            >
-              <option
-                v-for="branch in branches"
-                :key="branch.id"
-                :value="branch.id"
-              >
-                {{ branch.name }}
-              </option>
-            </select>
-            <AppIcon
-              name="chevron-down"
-              :size="16"
-              class="absolute right-2 top-8 text-gray-400 pointer-events-none"
-            />
-          </div>
-
-          <div class="flex items-center gap-3">
-            <div class="text-sm text-gray-500">
-              Неделя: {{ format(weekStart, "d MMM", { locale: ru }) }} -
-              {{ format(weekEnd, "d MMM", { locale: ru }) }}
-            </div>
-            <button
-              @click="refreshData"
-              :disabled="isLoading"
-              class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              <AppIcon
-                name="refresh-cw"
-                :size="16"
-                :class="{
-                  'transition-transform': true,
-                  'animate-spin': isLoading,
-                }"
-              />
-              {{ isLoading ? "Загрузка..." : "Обновить" }}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Selected Branch Info -->
-      <div
-        v-if="selectedBranch !== 'all'"
-        class="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200"
-      >
-        <div class="flex items-center gap-2">
-          <AppIcon name="map-pin" :size="16" class="text-blue-600" />
-          <span class="text-sm font-medium text-blue-900">{{
-            getSelectedBranchName()
-          }}</span>
-          <span class="text-sm text-blue-700">
-            {{ branches.find((b) => b.id === selectedBranch)?.address }}
-          </span>
-        </div>
-      </div>
-    </div>
-
-    <div class="p-4 md:p-6 space-y-6">
-      <!-- Loading Overlay -->
-      <div
-        v-if="isLoading"
-        class="fixed inset-0 bg-black bg-opacity-20 z-50 flex items-center justify-center"
-      >
-        <div class="bg-white rounded-lg p-6 flex items-center gap-3 shadow-lg">
-          <AppIcon
-            name="refresh-cw"
-            :size="20"
-            class="animate-spin text-blue-600"
-          />
-          <span class="text-gray-700 font-medium"
-            >Загрузка данных филиала...</span
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
           >
+            <line x1="18" y1="20" x2="18" y2="10" />
+            <line x1="12" y1="20" x2="12" y2="4" />
+            <line x1="6" y1="20" x2="6" y2="14" />
+          </svg>
+        </button>
+        <button
+          class="hbtn hbtn--ghost"
+          @click="refreshData"
+          :disabled="isLoading"
+          title="Обновить"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            :class="{ spinning: isLoading }"
+          >
+            <polyline points="23 4 23 10 17 10" />
+            <polyline points="1 20 1 14 7 14" />
+            <path
+              d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"
+            />
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Selected Branch Info -->
+    <Transition name="fold">
+      <div v-if="selectedBranch !== 'all'" class="branch-info">
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+          <circle cx="12" cy="10" r="3" />
+        </svg>
+        <span class="branch-info-name">{{ getSelectedBranchName() }}</span>
+        <span class="branch-info-address">
+          {{ branches.find((b) => b.id === selectedBranch)?.address }}
+        </span>
+      </div>
+    </Transition>
+
+    <!-- STATS PANEL -->
+    <Transition name="fold">
+      <div v-if="showStatsPanel" class="stats-panel">
+        <div class="stats-row">
+          <div class="scard">
+            <div class="scard-ico scard-ico--blue">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+              </svg>
+            </div>
+            <div class="scard-body">
+              <span class="scard-val">{{
+                stats.totalClients.toLocaleString("ru-RU")
+              }}</span
+              ><span class="scard-lbl">Клиентов</span>
+            </div>
+          </div>
+          <div class="scard">
+            <div class="scard-ico scard-ico--green">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+              </svg>
+            </div>
+            <div class="scard-body">
+              <span class="scard-val">{{
+                stats.activeDeals.toLocaleString("ru-RU")
+              }}</span
+              ><span class="scard-lbl">Активные сделки</span>
+            </div>
+          </div>
+          <div class="scard">
+            <div class="scard-ico scard-ico--purple">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M6 3v18" />
+                <path d="M6 12h8a4 4 0 0 0 0-8H6" />
+                <path d="M4 16h10" />
+              </svg>
+            </div>
+            <div class="scard-body">
+              <span class="scard-val">{{
+                new Intl.NumberFormat("ru-RU", {
+                  style: "currency",
+                  currency: "RUB",
+                  minimumFractionDigits: 0,
+                }).format(stats.monthlyRevenue)
+              }}</span
+              ><span class="scard-lbl">Выручка за месяц</span>
+            </div>
+          </div>
+          <div class="scard">
+            <div class="scard-ico scard-ico--amber">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                <circle cx="12" cy="10" r="3" />
+              </svg>
+            </div>
+            <div class="scard-body">
+              <span class="scard-val">{{
+                stats.todayVisits.toLocaleString("ru-RU")
+              }}</span
+              ><span class="scard-lbl">Посещений сегодня</span>
+            </div>
+          </div>
+          <div class="scard">
+            <div class="scard-ico scard-ico--teal">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <line x1="18" y1="20" x2="18" y2="10" />
+                <line x1="12" y1="20" x2="12" y2="4" />
+                <line x1="6" y1="20" x2="6" y2="14" />
+              </svg>
+            </div>
+            <div class="scard-body">
+              <span class="scard-val">{{ stats.conversionRate }}%</span
+              ><span class="scard-lbl">Конверсия</span>
+            </div>
+          </div>
+          <div class="scard">
+            <div class="scard-ico scard-ico--green">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
+                <polyline points="17 6 23 6 23 12" />
+              </svg>
+            </div>
+            <div class="scard-body">
+              <span class="scard-val">{{
+                new Intl.NumberFormat("ru-RU", {
+                  style: "currency",
+                  currency: "RUB",
+                  minimumFractionDigits: 0,
+                }).format(stats.avgDealValue)
+              }}</span
+              ><span class="scard-lbl">Средний чек</span>
+            </div>
+          </div>
         </div>
       </div>
+    </Transition>
 
-      <!-- Stats Grid -->
-      <div
-        class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 md:gap-6"
-      >
-        <StatsCard
-          title="Всего клиентов"
-          :value="stats.totalClients"
-          icon="users"
-          color="blue"
-          :change="12"
-          change-period="за месяц"
-        />
-        <StatsCard
-          title="Активные сделки"
-          :value="stats.activeDeals"
-          icon="trending-up"
-          color="green"
-          :change="5"
-          change-period="за неделю"
-        />
-        <StatsCard
-          title="Выручка за месяц"
-          :value="stats.monthlyRevenue"
-          format="currency"
-          icon="package"
-          color="purple"
-          :change="18"
-          change-period="к прошлому месяцу"
-        />
-        <StatsCard
-          title="Посещения сегодня"
-          :value="stats.todayVisits"
-          icon="map-pin"
-          color="orange"
-          :change="-3"
-          change-period="к вчера"
-        />
-        <StatsCard
-          title="Конверсия"
-          :value="stats.conversionRate"
-          format="percent"
-          icon="bar-chart-3"
-          color="indigo"
-          :change="2.1"
-          change-period="за месяц"
-        />
-        <StatsCard
-          title="Средний чек"
-          :value="stats.avgDealValue"
-          format="currency"
-          icon="trending-up"
-          color="emerald"
-          :change="8"
-          change-period="за месяц"
-        />
-      </div>
+    <!-- CONTENT -->
+    <div class="dashboard-content">
+      <!-- Loading Overlay -->
+      <Transition name="fade">
+        <div v-if="isLoading" class="loading-overlay">
+          <div class="loading-box">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              class="spinning"
+            >
+              <polyline points="23 4 23 10 17 10" />
+              <polyline points="1 20 1 14 7 14" />
+              <path
+                d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"
+              />
+            </svg>
+            <span>Загрузка данных филиала...</span>
+          </div>
+        </div>
+      </Transition>
 
       <!-- Charts Row -->
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div class="charts-row">
         <SalesChart :branch-id="selectedBranch" />
         <VisitsChart :branch-id="selectedBranch" />
       </div>
 
       <!-- Bottom Row -->
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div class="lg:col-span-2">
+      <div class="bottom-row">
+        <div class="bottom-left">
           <RecentActivity :branch-id="selectedBranch" />
         </div>
-        <div class="space-y-6">
+        <div class="bottom-right">
           <TopClients :branch-id="selectedBranch" />
           <QuickActions />
         </div>
@@ -308,3 +405,385 @@ onMounted(() => {
     </div>
   </div>
 </template>
+
+<style scoped>
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap");
+:root {
+  --bg: #f8fafc;
+  --sf: #fff;
+  --sfh: #f1f5f9;
+  --bd: #e2e8f0;
+  --bds: #cbd5e1;
+  --tx: #0f172a;
+  --tx2: #64748b;
+  --txm: #94a3b8;
+  --pr: #2563eb;
+  --prh: #1d4ed8;
+  --prl: #eff6ff;
+  --ok: #059669;
+  --okl: #ecfdf5;
+  --er: #dc2626;
+  --erl: #fef2f2;
+  --pu: #7c3aed;
+  --pul: #f5f3ff;
+  --te: #0d9488;
+  --tel: #f0fdfa;
+  --am: #d97706;
+  --aml: #fffbeb;
+  --r: 8px;
+  --rs: 6px;
+  --fn: "Manrope", -apple-system, BlinkMacSystemFont, sans-serif;
+  --fm: "JetBrains Mono", monospace;
+  --tr: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.dashboard-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg);
+  font-family: var(--fn);
+  color: var(--tx);
+  overflow: hidden;
+}
+.page-header {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  background: var(--sf);
+  border-bottom: 1px solid var(--bd);
+  flex-shrink: 0;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.header-title {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+.header-date {
+  font-size: 11px;
+  color: var(--tx2);
+  font-weight: 500;
+}
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+.branch-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.branch-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--tx2);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.branch-select {
+  padding: 5px 8px;
+  border: 1px solid var(--bd);
+  border-radius: var(--rs);
+  font: 500 11px var(--fn);
+  background: var(--sf);
+  color: var(--tx);
+  outline: none;
+  transition: all var(--tr);
+  min-width: 180px;
+  cursor: pointer;
+}
+.branch-select:focus {
+  border-color: var(--pr);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+}
+.branch-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.week-info {
+  font-size: 11px;
+  color: var(--tx2);
+  font-weight: 500;
+  padding: 4px 8px;
+  background: var(--sfh);
+  border-radius: var(--rs);
+}
+.header-btns {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+  align-items: center;
+  margin-left: auto;
+}
+.hbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  border-radius: var(--rs);
+  font: 600 11px/1 var(--fn);
+  border: none;
+  cursor: pointer;
+  transition: all var(--tr);
+  white-space: nowrap;
+}
+.hbtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.hbtn--ghost {
+  background: none;
+  color: var(--tx2);
+  border: 1px solid var(--bd);
+}
+.hbtn--ghost:hover:not(:disabled) {
+  background: var(--sfh);
+  color: var(--tx);
+  border-color: var(--bds);
+}
+.hbtn--active {
+  background: var(--prl);
+  color: var(--pr);
+  border-color: var(--pr);
+}
+.branch-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: var(--prl);
+  border-bottom: 1px solid var(--bd);
+  flex-shrink: 0;
+}
+.branch-info svg {
+  color: var(--pr);
+  flex-shrink: 0;
+}
+.branch-info-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--pr);
+}
+.branch-info-address {
+  font-size: 11px;
+  color: var(--tx2);
+}
+.stats-panel {
+  background: var(--sf);
+  border-bottom: 1px solid var(--bd);
+  flex-shrink: 0;
+}
+.stats-row {
+  display: flex;
+  gap: 8px;
+  padding: 10px 16px;
+  overflow-x: auto;
+  flex-shrink: 0;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.stats-row::-webkit-scrollbar {
+  display: none;
+}
+.scard {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--bg);
+  border: 1px solid var(--bd);
+  border-radius: var(--r);
+  min-width: 140px;
+  flex-shrink: 0;
+}
+.scard-ico {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--rs);
+  flex-shrink: 0;
+}
+.scard-ico--blue {
+  background: var(--prl);
+  color: var(--pr);
+}
+.scard-ico--green {
+  background: var(--okl);
+  color: var(--ok);
+}
+.scard-ico--purple {
+  background: var(--pul);
+  color: var(--pu);
+}
+.scard-ico--amber {
+  background: var(--aml);
+  color: var(--am);
+}
+.scard-ico--teal {
+  background: var(--tel);
+  color: var(--te);
+}
+.scard-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.scard-val {
+  font: 800 15px/1.1 var(--fm);
+  letter-spacing: -0.02em;
+}
+.scard-lbl {
+  font-size: 10px;
+  color: var(--txm);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.dashboard-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  position: relative;
+}
+.loading-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.2);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.loading-box {
+  background: var(--sf);
+  border-radius: var(--r);
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+.loading-box svg {
+  color: var(--pr);
+}
+.loading-box span {
+  color: var(--tx);
+  font-weight: 600;
+  font-size: 13px;
+}
+.charts-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.bottom-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 12px;
+}
+.bottom-left {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.bottom-right {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.spinning {
+  animation: spin 1s linear infinite;
+}
+.fold-enter-active {
+  transition: all 200ms ease-out;
+  overflow: hidden;
+}
+.fold-leave-active {
+  transition: all 150ms ease-in;
+  overflow: hidden;
+}
+.fold-enter-from {
+  opacity: 0;
+  max-height: 0;
+}
+.fold-enter-to {
+  opacity: 1;
+  max-height: 500px;
+}
+.fold-leave-from {
+  opacity: 1;
+  max-height: 500px;
+}
+.fold-leave-to {
+  opacity: 0;
+  max-height: 0;
+}
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 150ms;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+@media (max-width: 1024px) {
+  .charts-row {
+    grid-template-columns: 1fr;
+  }
+  .bottom-row {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 768px) {
+  .page-header {
+    padding: 8px 10px;
+    gap: 6px;
+  }
+  .header-title {
+    font-size: 15px;
+  }
+  .branch-select {
+    min-width: 140px;
+    font-size: 10px;
+  }
+  .week-info {
+    font-size: 10px;
+  }
+  .stats-row {
+    padding: 8px 12px;
+    gap: 6px;
+  }
+  .scard {
+    min-width: 120px;
+    padding: 6px 8px;
+  }
+  .scard-val {
+    font-size: 13px;
+  }
+  .dashboard-content {
+    padding: 10px;
+  }
+}
+</style>
