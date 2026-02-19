@@ -14,6 +14,7 @@ import TimeSettingsModal from "@/components/visits/TimeSettingsModal.vue";
 import type { TimeSettings } from "@/components/visits/TimeSettingsModal.vue";
 import ClientCreateModal from "@/components/clients/ClientCreateModal.vue";
 import ClientDetailModal from "@/components/clients/ClientDetailModal.vue";
+import { clientsApi } from "@/services/clientsApi";
 import {
   Phone,
   Mail,
@@ -21,7 +22,6 @@ import {
   Ruler,
   Palette,
   UserCheck,
-  MessageSquare,
   CheckCircle,
   XCircle,
   CircleDot,
@@ -128,7 +128,7 @@ const weekDates = computed(() => {
   const dow = cur.getDay();
   const mon = new Date(cur);
   mon.setDate(cur.getDate() - ((dow + 6) % 7));
-  return Array.from({ length: 7 }, (_, i) => {
+  return Array.from({ length: 14 }, (_, i) => {
     const d = new Date(mon);
     d.setDate(mon.getDate() + i);
     return d;
@@ -345,10 +345,39 @@ const onTimeSettingsSave = (_settings: TimeSettings) => {
 const onOpenNewClient = () => {
   showNewClientModal.value = true;
 };
-const onNewClientCreated = (data: any) => {
+const onNewClientCreated = async (data: any) => {
   showNewClientModal.value = false;
-  if (data && visitEditRef.value) {
-    // Map NewClientData to client-like object for the visit modal
+  if (!data || !visitEditRef.value) return;
+  try {
+    // Build `name` для individual — оно пустое, имя в legal_first_name
+    const fullName =
+      data.name?.trim() ||
+      `${data.legal_first_name || ""} ${data.legal_last_name || ""} ${data.legal_middle_name || ""}`.trim();
+
+    // Убираем пустые строки для полей с форматной валидацией
+    const payload: Record<string, any> = { ...data, name: fullName };
+    const stripIfEmpty = ["wedding_date", "birth_date", "email", "inn", "kpp", "ogrn", "ogrnip", "source", "bride_name"];
+    for (const f of stripIfEmpty) {
+      if (!payload[f]) delete payload[f];
+    }
+
+    const created = await clientsApi.createClient(payload as any);
+    const client = {
+      moysklad_id: (created as any).moysklad_id || "",
+      name:
+        (created as any).full_name ||
+        (created as any).name ||
+        data.name ||
+        `${data.legal_last_name || ""} ${data.legal_first_name || ""} ${
+          data.legal_middle_name || ""
+        }`.trim(),
+      phone: (created as any).phone || data.phone || "",
+      email: (created as any).email || data.email || "",
+    };
+    visitEditRef.value.onNewClientCreated(client);
+  } catch (e) {
+    console.error("Ошибка создания клиента:", e);
+    // Fallback: use form data without moysklad_id
     const client = {
       moysklad_id: "",
       name:
@@ -418,7 +447,6 @@ const checkMobile = () => {
 };
 
 const russianStatusMap: Record<string, VisitStatus> = {
-  запланировано: "zaplanirovano",
   записался: "zapisalsya",
   пришел: "prishel",
   пришёл: "prishel",
@@ -426,14 +454,14 @@ const russianStatusMap: Record<string, VisitStatus> = {
   "не пришёл": "ne_prishel",
   "отложил без депозита": "otlozhil_bez_depozita",
   "отложил с депозитом": "otlozhil_s_depozitom",
-  "отложил до вечера": "otlozhil_do_vechera",
   купил: "kupil",
   "сделка провалена": "sdelka_provalena",
+  "выкупил депозит": "vykupil_depozit",
 };
 const norm = (s: string): VisitStatus =>
-  (VISIT_STATUSES.some((x) => x.value === s)
+  (VISIT_STATUSES.some((x: { value: VisitStatus }) => x.value === s)
     ? s
-    : russianStatusMap[s.toLowerCase()] || "zaplanirovano") as VisitStatus;
+    : russianStatusMap[s.toLowerCase()] || "zapisalsya") as VisitStatus;
 
 const statusLabel = (s: string) => {
   const n = norm(s);
@@ -442,6 +470,7 @@ const statusLabel = (s: string) => {
 const statusColor = (s: string): string => {
   switch (norm(s)) {
     case "kupil":
+    case "vykupil_depozit":
       return "var(--ok)";
     case "ne_prishel":
     case "sdelka_provalena":
@@ -462,6 +491,7 @@ const statusColor = (s: string): string => {
 const statusBg = (s: string): string => {
   switch (norm(s)) {
     case "kupil":
+    case "vykupil_depozit":
       return "#dcfce7";
     case "ne_prishel":
     case "sdelka_provalena":
@@ -477,6 +507,28 @@ const statusBg = (s: string): string => {
       return "#ede9fe";
     default:
       return "var(--sfh)";
+  }
+};
+
+// ── Card helpers ──
+const isPhantomVisit = (v: Visit) =>
+  v.is_phantom_client || v.client?.is_phantom || false;
+
+const getRecommender = (source: string | null) => {
+  if (!source?.startsWith("Порекомендовали: ")) return null;
+  return source.replace("Порекомендовали: ", "");
+};
+
+// ── Fitting toggle inline ──
+const toggleFitting = async (visit: Visit | null, e: Event) => {
+  if (!visit) return;
+  const checked = (e.target as HTMLInputElement).checked;
+  try {
+    await visitsApi.updateVisit(visit.id, { fitting: checked });
+    visit.fitting = checked;
+  } catch (err) {
+    console.error("Ошибка обновления примерки:", err);
+    (e.target as HTMLInputElement).checked = !checked;
   }
 };
 </script>
@@ -932,71 +984,74 @@ const statusBg = (s: string): string => {
               <template v-else-if="grid[slot]?.[r]">
                 <div
                   class="vp-card"
-                  :style="{ borderLeftColor: statusColor(grid[slot][r]!.status) }"
+                  :style="{ borderLeftColor: statusColor(grid[slot][r]?.status) }"
                 >
                   <div class="vp-card-top">
                     <span
-                      class="vp-card-name vp-card-name--link"
+                      class="vp-card-name"
+                      :class="{ 'vp-card-name--link': !isPhantomVisit(grid[slot][r]) }"
                       @click.stop="
-                        openClientDetail(
-                          grid[slot][r]!.client_moysklad_id,
-                          $event
-                        )
+                        !isPhantomVisit(grid[slot][r]) &&
+                          openClientDetail(grid[slot][r]?.client_moysklad_id, $event)
                       "
-                      >{{
-                        grid[slot][r]!.client?.name ||
-                        grid[slot][r]!.client?.full_name ||
-                        "—"
-                      }}</span
                     >
+                      <span v-if="isPhantomVisit(grid[slot][r])" class="vp-card-phantom-ico" title="Анонимный гость">👤</span>
+                      {{ grid[slot][r]?.client?.name || grid[slot][r]?.client?.full_name || (isPhantomVisit(grid[slot][r]) ? "Гость" : "—") }}
+                    </span>
                     <span
                       class="vp-card-badge"
-                      :style="{ background: statusBg(grid[slot][r]!.status), color: statusColor(grid[slot][r]!.status) }"
-                      >{{ statusLabel(grid[slot][r]!.status) }}</span
+                      :style="{ background: statusBg(grid[slot][r]?.status), color: statusColor(grid[slot][r]?.status) }"
+                      >{{ statusLabel(grid[slot][r]?.status) }}</span
                     >
                   </div>
                   <div class="vp-card-contacts">
                     <a
-                      v-if="grid[slot][r]!.client?.phone"
+                      v-if="grid[slot][r]?.client?.phone"
                       class="vp-card-phone"
-                      :href="'tel:' + grid[slot][r]!.client!.phone"
+                      :href="'tel:' + grid[slot][r]?.client?.phone"
                       @click.stop
                     >
-                      <Phone :size="11" /> {{ grid[slot][r]!.client!.phone }}
+                      <Phone :size="11" /> {{ grid[slot][r]?.client?.phone }}
                     </a>
-                    <a
-                      v-if="grid[slot][r]!.client?.email"
-                      class="vp-card-email"
-                      :href="'mailto:' + grid[slot][r]!.client!.email"
-                      @click.stop
-                    >
-                      <Mail :size="11" /> {{ grid[slot][r]!.client!.email }}
-                    </a>
+                  </div>
+                  <!-- Postponed info -->
+                  <div v-if="grid[slot][r]?.postponed_until" class="vp-card-postponed">
+                    <Clock :size="10" /> до {{ grid[slot][r]?.postponed_until }}
+                    <template v-if="grid[slot][r]?.deposit_amount">
+                      · {{ grid[slot][r]?.deposit_amount?.toLocaleString('ru-RU') }} ₽
+                    </template>
                   </div>
                   <div class="vp-card-meta">
-                    <span v-if="grid[slot][r]!.size"
-                      ><Ruler :size="10" /> {{ grid[slot][r]!.size }}</span
+                    <span v-if="grid[slot][r]?.size"
+                      ><Ruler :size="10" /> {{ grid[slot][r]?.size }}</span
                     >
-                    <span v-if="grid[slot][r]!.color"
-                      ><Palette :size="10" /> {{ grid[slot][r]!.color }}</span
+                    <span v-if="grid[slot][r]?.color"
+                      ><Palette :size="10" /> {{ grid[slot][r]?.color }}</span
                     >
-                    <span v-if="grid[slot][r]!.fitting" class="vp-card-fitting"
-                      ><Shirt :size="10" /> Примерка</span
-                    >
-                    <span v-if="grid[slot][r]!.source" class="vp-card-src">{{
-                      grid[slot][r]!.source
-                    }}</span>
+                    <label class="vp-card-fitting-cb" @click.stop>
+                      <input
+                        type="checkbox"
+                        :checked="grid[slot][r]?.fitting"
+                        @change="toggleFitting(grid[slot][r], $event)"
+                      />
+                      <Shirt :size="10" /> Примерка
+                    </label>
+                    <span
+                      v-if="grid[slot][r]?.source && !getRecommender(grid[slot][r]?.source)"
+                      class="vp-card-src"
+                    >{{ grid[slot][r]?.source }}</span>
+                    <span
+                      v-if="getRecommender(grid[slot][r]?.source)"
+                      class="vp-card-rec"
+                    >Рек: {{ getRecommender(grid[slot][r]?.source) }}</span>
                   </div>
-                  <div v-if="grid[slot][r]!.employee" class="vp-card-emp-row">
+                  <div v-if="grid[slot][r]?.employee" class="vp-card-emp-row">
                     <span class="vp-card-emp"
                       ><UserCheck :size="10" />
-                      {{ grid[slot][r]!.employee!.full_name }}</span
+                      {{ grid[slot][r]?.employee?.full_name }}</span
                     >
                   </div>
-                  <div v-if="grid[slot][r]!.notes" class="vp-card-notes">
-                    <MessageSquare :size="10" class="vp-card-notes-ico" />
-                    {{ grid[slot][r]!.notes }}
-                  </div>
+                  <div v-if="grid[slot][r]?.notes" class="vp-card-notes">{{ grid[slot][r]?.notes }}</div>
                 </div>
               </template>
               <!-- Empty -->
@@ -1360,14 +1415,14 @@ const statusBg = (s: string): string => {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 6px 14px;
+  padding: 6px 10px;
   background: var(--sf);
   border-bottom: 1px solid var(--bd);
   flex-shrink: 0;
 }
 .vp-date-arr {
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1385,7 +1440,8 @@ const statusBg = (s: string): string => {
 }
 .vp-week {
   display: flex;
-  gap: 2px;
+  gap: 3px;
+  flex: 1;
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -1396,24 +1452,24 @@ const statusBg = (s: string): string => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 4px 8px;
+  padding: 6px 4px;
   border-radius: var(--rs);
   border: 1px solid transparent;
   background: none;
   cursor: pointer;
   transition: all var(--tr);
-  flex-shrink: 0;
-  min-width: 44px;
+  flex: 1;
+  min-width: 48px;
 }
 .vp-dc-d {
-  font: 700 11px/1 var(--fm);
+  font: 700 14px/1 var(--fm);
   color: var(--tx);
 }
 .vp-dc-w {
-  font: 500 8px/1 var(--fn);
+  font: 500 11px/1 var(--fn);
   color: var(--txm);
   text-transform: uppercase;
-  margin-top: 2px;
+  margin-top: 3px;
 }
 .vp-dc:hover {
   background: var(--sfh);
@@ -1528,7 +1584,8 @@ const statusBg = (s: string): string => {
   min-width: 64px;
 }
 .vp-th-room {
-  min-width: 170px;
+  min-width: 220px;
+  width: 260px;
 }
 .vp-td-time {
   width: 64px;
@@ -1547,44 +1604,50 @@ const statusBg = (s: string): string => {
   padding: 5px 10px;
   border-radius: 6px;
 }
+/* ── Table cell ── */
 .vp-td-cell {
   border: 1px solid var(--bd);
-  padding: 5px;
+  padding: 4px;
   vertical-align: top;
   cursor: pointer;
   transition: background var(--tr);
-  height: 130px;
+  height: 160px; /* min-height в контексте таблицы — строка растянется если контент больше */
 }
 .vp-td-cell:hover {
   background: var(--sfh);
 }
 
+/* ── Visit card — нормальный поток, строка растягивается автоматически ── */
 .vp-card {
   background: var(--sf);
-  border-radius: 8px;
-  border-left: 3.5px solid var(--txm);
+  border-radius: 7px;
+  border-left: 4px solid var(--txm);
   padding: 8px 10px;
-  height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
-  transition: all var(--tr);
+  gap: 5px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  transition: box-shadow var(--tr);
+  height: 100%;
+  box-sizing: border-box;
 }
 .vp-card:hover {
-  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.13);
 }
+
+/* Имя + бейдж */
 .vp-card-top {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 6px;
+  flex-shrink: 0;
 }
 .vp-card-name {
-  font: 700 14px/1.2 var(--fn);
+  font: 700 14px/1.3 var(--fn);
   color: var(--tx);
-  white-space: nowrap;
   overflow: hidden;
+  white-space: nowrap;
   text-overflow: ellipsis;
   min-width: 0;
 }
@@ -1597,44 +1660,61 @@ const statusBg = (s: string): string => {
   text-decoration: underline;
 }
 .vp-card-badge {
-  font: 700 9px/1 var(--fn);
+  font: 600 10px/1 var(--fn);
   padding: 3px 7px;
   border-radius: 4px;
   white-space: nowrap;
   flex-shrink: 0;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.02em;
+  margin-top: 1px;
 }
+
+/* Телефон */
 .vp-card-contacts {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex-shrink: 0;
+  overflow: hidden;
 }
 .vp-card-phone,
 .vp-card-email {
   font: 500 12px/1.3 var(--fm);
   color: var(--tx2);
   text-decoration: none;
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 4px;
   transition: color 150ms;
-  cursor: pointer;
-  width: fit-content;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
-.vp-card-phone:hover,
-.vp-card-email:hover {
+.vp-card-phone:hover {
   color: var(--pr);
 }
-.vp-card-email {
-  font-family: var(--fn);
+
+/* Отложено */
+.vp-card-postponed {
+  font: 500 11px/1 var(--fn);
+  color: #2563eb;
+  background: #eff6ff;
+  border-radius: 4px;
+  padding: 3px 7px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
+
+/* Чипы (размер, цвет, примерка, источник) */
 .vp-card-meta {
   display: flex;
   gap: 4px;
   flex-wrap: wrap;
 }
-.vp-card-meta span {
+.vp-card-meta > * {
   font: 500 11px/1 var(--fn);
   color: var(--tx2);
   background: var(--sfh);
@@ -1643,13 +1723,55 @@ const statusBg = (s: string): string => {
   display: inline-flex;
   align-items: center;
   gap: 3px;
+  white-space: nowrap;
 }
 .vp-card-fitting {
   color: var(--am) !important;
   background: var(--aml) !important;
 }
+.vp-card-src {
+  color: var(--pu) !important;
+  background: var(--pul) !important;
+}
+.vp-card-rec {
+  color: #b45309 !important;
+  background: #fef3c7 !important;
+}
+.vp-card-fitting-cb {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font: 500 11px/1 var(--fn);
+  color: var(--tx2);
+  cursor: pointer;
+  padding: 3px 7px;
+  background: var(--sfh);
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.vp-card-fitting-cb input[type="checkbox"] {
+  width: 13px;
+  height: 13px;
+  accent-color: #059669;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.vp-card-fitting-cb:has(input:checked) {
+  color: #059669;
+  background: var(--aml);
+}
+
+/* Призрак */
+.vp-card-phantom-ico {
+  font-size: 12px;
+  margin-right: 2px;
+  opacity: 0.65;
+}
+
+/* Сотрудник */
 .vp-card-emp-row {
-  margin-top: auto;
+  flex-shrink: 0;
+  overflow: hidden;
 }
 .vp-card-emp {
   font: 500 11px/1 var(--fn);
@@ -1660,28 +1782,25 @@ const statusBg = (s: string): string => {
   display: inline-flex;
   align-items: center;
   gap: 3px;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
-.vp-card-src {
-  color: var(--pu) !important;
-  background: var(--pul) !important;
-}
+
+/* Заметки */
 .vp-card-notes {
   font: 400 11px/1.4 var(--fn);
   color: var(--txm);
   border-top: 1px dashed var(--bd);
-  padding-top: 3px;
+  padding-top: 4px;
   margin-top: 2px;
+  display: block;
   overflow: hidden;
-  display: flex;
-  align-items: flex-start;
-  gap: 4px;
-  -webkit-line-clamp: 2;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
   -webkit-box-orient: vertical;
-}
-.vp-card-notes-ico {
-  flex-shrink: 0;
-  margin-top: 2px;
-  opacity: 0.5;
 }
 
 .vp-empty {
@@ -1901,7 +2020,12 @@ const statusBg = (s: string): string => {
     min-width: 700px;
   }
   .vp-td-cell {
-    height: 56px;
+    height: 140px;
+    padding: 3px;
+  }
+  .vp-card {
+    padding: 6px 8px;
+    gap: 4px;
   }
   .vp-footer {
     flex-direction: column;
