@@ -9,7 +9,6 @@ import type {
   CreateVisitData,
   UpdateVisitData,
 } from "@/services/visitsApi";
-import type { Client } from "@/types/clients";
 import {
   X,
   UserPlus,
@@ -21,6 +20,7 @@ import {
   Ruler,
   MessageSquare,
   Calendar,
+  Ghost,
 } from "lucide-vue-next";
 
 export interface VisitEditPayload {
@@ -42,6 +42,16 @@ const emit = defineEmits<{
   (e: "open-new-client"): void;
 }>();
 
+// ── Size options ──
+const sizeOptions182 = Array.from(
+  { length: 14 },
+  (_, i) => `${44 + i * 2}/182`
+);
+const sizeOptions194 = Array.from(
+  { length: 10 },
+  (_, i) => `${48 + i * 2}/194`
+);
+
 // ── New client callback ──
 const onNewClientCreated = (client: any) => {
   if (client) {
@@ -49,6 +59,7 @@ const onNewClientCreated = (client: any) => {
     form.value.client_name = client.full_name || client.name || "";
     form.value.client_phone = client.phone || "";
     form.value.client_email = client.email || "";
+    form.value.is_phantom = false;
   }
 };
 
@@ -58,21 +69,27 @@ const form = ref({
   client_name: "",
   client_phone: "",
   client_email: "",
+  is_phantom: false,
+  phantom_name: "",
+  phantom_phone: "",
+  phantom_email: "",
   size: "",
   color: "",
   source: "",
+  recommended_by: "",
   notes: "",
-  status: "zaplanirovano" as VisitStatus,
+  status: "zapisalsya" as VisitStatus,
   fitting: false,
   employee_moysklad_id: "",
   employee_name: "",
+  postponed_until: "",
+  deposit_amount: "" as string | number,
 });
 const visitId = ref<number | null>(null);
 const isSaving = ref(false);
 
 // ── Russian status → enum mapping ──
 const russianStatusMap: Record<string, VisitStatus> = {
-  запланировано: "zaplanirovano",
   записался: "zapisalsya",
   пришел: "prishel",
   пришёл: "prishel",
@@ -80,13 +97,36 @@ const russianStatusMap: Record<string, VisitStatus> = {
   "не пришёл": "ne_prishel",
   "отложил без депозита": "otlozhil_bez_depozita",
   "отложил с депозитом": "otlozhil_s_depozitom",
-  "отложил до вечера": "otlozhil_do_vechera",
   купил: "kupil",
   "сделка провалена": "sdelka_provalena",
+  "выкупил депозит": "vykupil_depozit",
 };
 const normalizeStatus = (s: string): VisitStatus => {
   if (VISIT_STATUSES.some((st) => st.value === s)) return s as VisitStatus;
-  return russianStatusMap[s.toLowerCase()] || "zaplanirovano";
+  return russianStatusMap[s.toLowerCase()] || "zapisalsya";
+};
+
+// ── Employees (dropdown) ──
+const loadedEmployees = ref<VisitEmployee[]>([]);
+const isLoadingEmployees = ref(false);
+
+const loadEmployees = async () => {
+  const branchMsId = props.payload?.branchMoyskladId;
+  if (!branchMsId) return;
+  isLoadingEmployees.value = true;
+  try {
+    loadedEmployees.value = await visitsApi.getEmployeesByBranch(branchMsId);
+  } catch {
+    loadedEmployees.value = [];
+  }
+  isLoadingEmployees.value = false;
+};
+
+const onEmployeeSelect = () => {
+  const emp = loadedEmployees.value.find(
+    (e) => e.moysklad_id === form.value.employee_moysklad_id
+  );
+  form.value.employee_name = emp?.full_name || "";
 };
 
 watch(
@@ -96,19 +136,34 @@ watch(
     const vis = props.payload.visit;
     if (vis) {
       visitId.value = vis.id;
+      const isPhantom =
+        vis.is_phantom_client || vis.client?.is_phantom || false;
       form.value = {
         client_moysklad_id: vis.client_moysklad_id || "",
         client_name: vis.client?.name || vis.client?.full_name || "",
         client_phone: vis.client?.phone || "",
         client_email: vis.client?.email || "",
+        is_phantom: isPhantom,
+        phantom_name: isPhantom
+          ? vis.client?.name || vis.client?.full_name || ""
+          : "",
+        phantom_phone: isPhantom ? vis.client?.phone || "" : "",
+        phantom_email: isPhantom ? vis.client?.email || "" : "",
         size: vis.size || "",
         color: vis.color || "",
-        source: vis.source || "",
+        source: vis.source?.startsWith("Порекомендовали: ")
+          ? "Порекомендовали"
+          : vis.source || "",
+        recommended_by: vis.source?.startsWith("Порекомендовали: ")
+          ? vis.source.replace("Порекомендовали: ", "")
+          : "",
         notes: vis.notes || "",
         status: normalizeStatus(vis.status),
         fitting: vis.fitting,
         employee_moysklad_id: vis.employee_moysklad_id || "",
         employee_name: vis.employee?.full_name || "",
+        postponed_until: vis.postponed_until || "",
+        deposit_amount: vis.deposit_amount ?? "",
       };
     } else {
       visitId.value = null;
@@ -117,22 +172,42 @@ watch(
         client_name: "",
         client_phone: "",
         client_email: "",
+        is_phantom: false,
+        phantom_name: "",
+        phantom_phone: "",
+        phantom_email: "",
         size: "",
         color: "",
         source: "",
+        recommended_by: "",
         notes: "",
-        status: "zaplanirovano",
+        status: "zapisalsya",
         fitting: false,
         employee_moysklad_id: "",
         employee_name: "",
+        postponed_until: "",
+        deposit_amount: "",
       };
     }
     acClientOpen.value = false;
-    acEmpOpen.value = false;
+    loadEmployees();
   }
 );
 
 const isEdit = computed(() => !!visitId.value);
+
+// ── Computed: show extra fields based on status / source ──
+const showPostponedDate = computed(
+  () =>
+    form.value.status === "otlozhil_bez_depozita" ||
+    form.value.status === "otlozhil_s_depozitom"
+);
+const showDepositAmount = computed(
+  () => form.value.status === "otlozhil_s_depozitom"
+);
+const showRecommendedBy = computed(
+  () => form.value.source === "Порекомендовали"
+);
 
 // ── Save ──
 const handleSave = async () => {
@@ -140,6 +215,12 @@ const handleSave = async () => {
   isSaving.value = true;
   try {
     const p = props.payload;
+    // Build source field: combine source + recommended_by if needed
+    const sourceValue =
+      showRecommendedBy.value && form.value.recommended_by
+        ? `Порекомендовали: ${form.value.recommended_by}`
+        : form.value.source || undefined;
+
     if (visitId.value) {
       const upd: UpdateVisitData = {
         status: form.value.status,
@@ -147,14 +228,32 @@ const handleSave = async () => {
         fitting_room: p.room,
         size: form.value.size || undefined,
         color: form.value.color || undefined,
-        source: form.value.source || undefined,
+        source: sourceValue,
         notes: form.value.notes || undefined,
         employee_moysklad_id: form.value.employee_moysklad_id || undefined,
         client_moysklad_id: form.value.client_moysklad_id || undefined,
+        postponed_until: showPostponedDate.value
+          ? form.value.postponed_until || undefined
+          : undefined,
+        deposit_amount:
+          showDepositAmount.value && form.value.deposit_amount !== ""
+            ? Number(form.value.deposit_amount)
+            : undefined,
       };
+      if (form.value.is_phantom) {
+        upd.is_phantom_client = true;
+        upd.phantom_client_name = form.value.phantom_name || undefined;
+        upd.phantom_client_phone = form.value.phantom_phone || undefined;
+        upd.phantom_client_email = form.value.phantom_email || undefined;
+        upd.client_moysklad_id = undefined;
+      }
       await visitsApi.updateVisit(visitId.value, upd);
     } else {
-      if (!form.value.client_name.trim() && !form.value.client_moysklad_id) {
+      // New visit: validate client
+      const hasClient =
+        form.value.client_moysklad_id || form.value.client_name.trim();
+      const hasPhantom = form.value.is_phantom;
+      if (!hasClient && !hasPhantom) {
         isSaving.value = false;
         return;
       }
@@ -162,14 +261,29 @@ const handleSave = async () => {
         visit_datetime: `${p.dateStr}T${p.slot}:00+03:00`,
         fitting_room: p.room,
         branch_moysklad_id: p.branchMoyskladId,
+        status: form.value.status,
         fitting: form.value.fitting,
         size: form.value.size || undefined,
         color: form.value.color || undefined,
-        source: form.value.source || undefined,
+        source: sourceValue,
         notes: form.value.notes || undefined,
         employee_moysklad_id: form.value.employee_moysklad_id || undefined,
-        client_moysklad_id: form.value.client_moysklad_id || undefined,
+        postponed_until: showPostponedDate.value
+          ? form.value.postponed_until || undefined
+          : undefined,
+        deposit_amount:
+          showDepositAmount.value && form.value.deposit_amount !== ""
+            ? Number(form.value.deposit_amount)
+            : undefined,
       };
+      if (form.value.is_phantom) {
+        data.is_phantom_client = true;
+        data.phantom_client_name = form.value.phantom_name || undefined;
+        data.phantom_client_phone = form.value.phantom_phone || undefined;
+        data.phantom_client_email = form.value.phantom_email || undefined;
+      } else {
+        data.client_moysklad_id = form.value.client_moysklad_id || undefined;
+      }
       await visitsApi.createVisit(data);
     }
     emit("saved");
@@ -182,7 +296,7 @@ const handleSave = async () => {
 };
 
 // ── Client autocomplete ──
-const acClients = ref<Client[]>([]);
+const acClients = ref<any[]>([]);
 const acClientLoading = ref(false);
 const acClientOpen = ref(false);
 let acTimer: ReturnType<typeof setTimeout> | null = null;
@@ -211,7 +325,24 @@ const selectAcClient = (cl: any) => {
   form.value.client_name = cl.full_name || cl.name || "";
   form.value.client_phone = cl.phone || "";
   form.value.client_email = cl.email || "";
+  form.value.is_phantom = false;
   acClientOpen.value = false;
+};
+const clearClient = () => {
+  form.value.client_moysklad_id = "";
+  form.value.client_name = "";
+  form.value.client_phone = "";
+  form.value.client_email = "";
+};
+const enablePhantom = () => {
+  clearClient();
+  form.value.is_phantom = true;
+};
+const disablePhantom = () => {
+  form.value.is_phantom = false;
+  form.value.phantom_name = "";
+  form.value.phantom_phone = "";
+  form.value.phantom_email = "";
 };
 const getClientName = (cl: any) =>
   cl.full_name ||
@@ -221,46 +352,11 @@ const getClientName = (cl: any) =>
 const getClientPhone = (cl: any) => cl.phone || "";
 const getClientEmail = (cl: any) => cl.email || "";
 
-// ── Employee autocomplete ──
-const acEmployees = ref<VisitEmployee[]>([]);
-const acEmpLoading = ref(false);
-const acEmpOpen = ref(false);
-let empTimer: ReturnType<typeof setTimeout> | null = null;
-
-const searchEmployee = (query: string) => {
-  if (query.length < 1) {
-    acEmployees.value = [];
-    acEmpOpen.value = false;
-    return;
-  }
-  acEmpLoading.value = true;
-  acEmpOpen.value = true;
-  if (empTimer) clearTimeout(empTimer);
-  empTimer = setTimeout(async () => {
-    try {
-      const branchMsId = props.payload?.branchMoyskladId;
-      if (branchMsId) {
-        acEmployees.value = await visitsApi.getEmployeesByBranch(
-          branchMsId,
-          query
-        );
-      }
-    } catch {
-      acEmployees.value = [];
-    }
-    acEmpLoading.value = false;
-  }, 200);
-};
-const selectAcEmployee = (emp: VisitEmployee) => {
-  form.value.employee_moysklad_id = emp.moysklad_id;
-  form.value.employee_name = emp.full_name;
-  acEmpOpen.value = false;
-};
-
 // ── Status helpers ──
 const statusColor = (s: VisitStatus): string => {
   switch (s) {
     case "kupil":
+    case "vykupil_depozit":
       return "#059669";
     case "ne_prishel":
     case "sdelka_provalena":
@@ -281,6 +377,7 @@ const statusColor = (s: VisitStatus): string => {
 const statusBg = (s: VisitStatus): string => {
   switch (s) {
     case "kupil":
+    case "vykupil_depozit":
       return "#dcfce7";
     case "ne_prishel":
     case "sdelka_provalena":
@@ -302,6 +399,8 @@ const statusIcon = (s: VisitStatus): string => {
   switch (s) {
     case "kupil":
       return "✓";
+    case "vykupil_depozit":
+      return "✦";
     case "ne_prishel":
       return "✗";
     case "sdelka_provalena":
@@ -357,8 +456,52 @@ defineExpose({ onNewClientCreated });
           <div class="vem-body">
             <!-- Client -->
             <div class="vem-section">
-              <h3 class="vem-sec-title"><User :size="13" /> Клиент</h3>
-              <div class="vem-fields">
+              <div class="vem-sec-row">
+                <h3 class="vem-sec-title"><User :size="13" /> Клиент</h3>
+                <div class="vem-sec-actions">
+                  <button
+                    v-if="!form.is_phantom"
+                    class="vem-ghost-btn"
+                    @click="enablePhantom"
+                    title="Гость без регистрации"
+                  >
+                    <Ghost :size="12" /> Гость
+                  </button>
+                  <button
+                    v-else
+                    class="vem-ghost-btn vem-ghost-btn--on"
+                    @click="disablePhantom"
+                  >
+                    <Ghost :size="12" /> Анонимный гость
+                  </button>
+                </div>
+              </div>
+
+              <!-- Phantom client fields -->
+              <div v-if="form.is_phantom" class="vem-fields">
+                <div class="vem-phantom-badge">
+                  <Ghost :size="14" /> Гость без регистрации в базе
+                </div>
+                <div class="vem-field">
+                  <label><User :size="11" /> Имя (необязательно)</label>
+                  <input
+                    v-model="form.phantom_name"
+                    type="text"
+                    placeholder="Иван Иванов..."
+                  />
+                </div>
+                <div class="vem-field">
+                  <label><Phone :size="11" /> Телефон (необязательно)</label>
+                  <input
+                    v-model="form.phantom_phone"
+                    type="text"
+                    placeholder="+7..."
+                  />
+                </div>
+              </div>
+
+              <!-- Regular client search -->
+              <div v-else class="vem-fields">
                 <div class="vem-field vem-field--full vem-field--ac">
                   <label
                     ><Search :size="11" /> Поиск (имя, телефон, email)</label
@@ -377,7 +520,7 @@ defineExpose({ onNewClientCreated });
                     <template v-else-if="acClients.length">
                       <div
                         v-for="cl in acClients"
-                        :key="(cl as any).moysklad_id || cl.id"
+                        :key="cl.moysklad_id || cl.id"
                         class="vem-ac-item"
                         @mousedown.prevent="selectAcClient(cl)"
                       >
@@ -449,14 +592,28 @@ defineExpose({ onNewClientCreated });
             <div class="vem-section">
               <h3 class="vem-sec-title"><Palette :size="13" /> Детали</h3>
               <div class="vem-fields">
+                <!-- Size select -->
                 <div class="vem-field">
-                  <label><Ruler :size="11" /> Размер</label
-                  ><input v-model="form.size" placeholder="M, L, 42..." />
+                  <label><Ruler :size="11" /> Размер</label>
+                  <select v-model="form.size">
+                    <option value="">— Выбрать —</option>
+                    <optgroup label="182">
+                      <option v-for="s in sizeOptions182" :key="s" :value="s">
+                        {{ s }}
+                      </option>
+                    </optgroup>
+                    <optgroup label="194">
+                      <option v-for="s in sizeOptions194" :key="s" :value="s">
+                        {{ s }}
+                      </option>
+                    </optgroup>
+                  </select>
                 </div>
                 <div class="vem-field">
                   <label><Palette :size="11" /> Цвет</label
                   ><input v-model="form.color" placeholder="Красный..." />
                 </div>
+                <!-- Source -->
                 <div class="vem-field">
                   <label>Откуда узнал</label>
                   <select v-model="form.source">
@@ -466,39 +623,35 @@ defineExpose({ onNewClientCreated });
                     </option>
                   </select>
                 </div>
-                <div class="vem-field vem-field--ac">
-                  <label>Консультант</label>
+                <!-- Рекомендован: кто -->
+                <div class="vem-field" v-if="showRecommendedBy">
+                  <label><User :size="11" /> Кто порекомендовал</label>
                   <input
-                    v-model="form.employee_name"
+                    v-model="form.recommended_by"
                     type="text"
-                    placeholder="Поиск сотрудника..."
-                    @input="searchEmployee(form.employee_name)"
-                    @focus="searchEmployee(form.employee_name)"
+                    placeholder="Имя или контакт..."
                   />
-                  <div v-if="acEmpOpen" class="vem-ac">
-                    <div v-if="acEmpLoading" class="vem-ac-empty">
-                      <span class="vem-spinner"></span> Поиск...
-                    </div>
-                    <template v-else-if="acEmployees.length">
-                      <div
-                        v-for="emp in acEmployees"
-                        :key="emp.moysklad_id"
-                        class="vem-ac-item"
-                        @mousedown.prevent="selectAcEmployee(emp)"
-                      >
-                        <div class="vem-ac-main">
-                          <span class="vem-ac-name">{{ emp.full_name }}</span>
-                          <span class="vem-ac-pos" v-if="emp.position">{{
-                            emp.position
-                          }}</span>
-                        </div>
-                        <span class="vem-ac-phone" v-if="emp.phone"
-                          ><Phone :size="9" /> {{ emp.phone }}</span
-                        >
-                      </div>
-                    </template>
-                    <div v-else class="vem-ac-empty">Сотрудники не найдены</div>
-                  </div>
+                </div>
+                <!-- Consultant dropdown -->
+                <div class="vem-field">
+                  <label>Консультант</label>
+                  <select
+                    v-model="form.employee_moysklad_id"
+                    @change="onEmployeeSelect"
+                    :disabled="isLoadingEmployees"
+                  >
+                    <option value="">
+                      {{ isLoadingEmployees ? "Загрузка..." : "— Выбрать —" }}
+                    </option>
+                    <option
+                      v-for="emp in loadedEmployees"
+                      :key="emp.moysklad_id"
+                      :value="emp.moysklad_id"
+                    >
+                      {{ emp.full_name
+                      }}{{ emp.position ? ` · ${emp.position}` : "" }}
+                    </option>
+                  </select>
                 </div>
                 <div class="vem-field vem-field--full">
                   <label><MessageSquare :size="11" /> Комментарий</label>
@@ -535,9 +688,36 @@ defineExpose({ onNewClientCreated });
                   <span>{{ s.label }}</span>
                 </button>
               </div>
+
+              <!-- Extra fields for postponed statuses -->
+              <div
+                v-if="showPostponedDate || showDepositAmount"
+                class="vem-deposit-fields"
+              >
+                <div class="vem-field vem-field--big" v-if="showPostponedDate">
+                  <label><Calendar :size="11" /> Отложен до</label>
+                  <input
+                    v-model="form.postponed_until"
+                    type="text"
+                    placeholder="Например: 25 февраля, 1 марта..."
+                    class="vem-inp--big"
+                  />
+                </div>
+                <div class="vem-field vem-field--big" v-if="showDepositAmount">
+                  <label>Сумма депозита (₽)</label>
+                  <input
+                    v-model="form.deposit_amount"
+                    type="number"
+                    placeholder="0"
+                    min="0"
+                    class="vem-inp--big"
+                  />
+                </div>
+              </div>
+
               <label class="vem-check">
                 <input type="checkbox" v-model="form.fitting" />
-                <span>Примерка состоялась</span>
+                <span>Примерка костюма</span>
               </label>
             </div>
           </div>
@@ -656,6 +836,11 @@ defineExpose({ onNewClientCreated });
 .vem-section:last-child {
   border-bottom: none;
 }
+.vem-sec-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
 .vem-sec-title {
   font: 700 12px/1 var(--fn, sans-serif);
   color: var(--tx, #0f172a);
@@ -665,6 +850,45 @@ defineExpose({ onNewClientCreated });
   display: flex;
   align-items: center;
   gap: 6px;
+}
+.vem-sec-actions {
+  display: flex;
+  gap: 6px;
+}
+.vem-ghost-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border: 1.5px solid var(--bd, #e2e8f0);
+  border-radius: 6px;
+  background: none;
+  font: 600 11px/1 var(--fn, sans-serif);
+  color: var(--tx2, #64748b);
+  cursor: pointer;
+  transition: all 150ms;
+}
+.vem-ghost-btn:hover {
+  border-color: var(--pr, #2563eb);
+  color: var(--pr, #2563eb);
+}
+.vem-ghost-btn--on {
+  background: #f0fdf4;
+  border-color: #16a34a;
+  color: #16a34a;
+}
+.vem-phantom-badge {
+  grid-column: 1/-1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  background: #f0fdf4;
+  border: 1.5px solid #bbf7d0;
+  border-radius: 8px;
+  font: 600 12px/1 var(--fn, sans-serif);
+  color: #16a34a;
+  margin-bottom: 4px;
 }
 
 .vem-fields {
@@ -679,6 +903,9 @@ defineExpose({ onNewClientCreated });
   position: relative;
 }
 .vem-field--full {
+  grid-column: 1/-1;
+}
+.vem-field--big {
   grid-column: 1/-1;
 }
 .vem-field--ac {
@@ -723,6 +950,23 @@ defineExpose({ onNewClientCreated });
   background: var(--sfh, #f1f5f9) !important;
   color: var(--tx2, #64748b) !important;
   cursor: default;
+}
+.vem-inp--big {
+  padding: 13px 14px !important;
+  font-size: 14px !important;
+  border-width: 2px !important;
+}
+
+/* Deposit fields section */
+.vem-deposit-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 16px 0;
+  padding: 16px;
+  background: var(--sfh, #f8fafc);
+  border-radius: 10px;
+  border: 1.5px solid var(--bd, #e2e8f0);
 }
 
 /* Autocomplete */
@@ -777,13 +1021,6 @@ defineExpose({ onNewClientCreated });
   display: flex;
   align-items: center;
   gap: 3px;
-}
-.vem-ac-pos {
-  font: 500 10px/1 var(--fn, sans-serif);
-  color: var(--txm, #94a3b8);
-  background: var(--sfh, #f1f5f9);
-  padding: 1px 5px;
-  border-radius: 3px;
 }
 .vem-ac-empty {
   padding: 14px;
@@ -841,10 +1078,10 @@ defineExpose({ onNewClientCreated });
   display: inline-block;
 }
 
-/* ── Status grid — 3 columns, big buttons with icons ── */
+/* ── Status grid — 4 columns ── */
 .vem-statuses {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 8px;
   margin-bottom: 16px;
 }
@@ -969,6 +1206,9 @@ defineExpose({ onNewClientCreated });
   }
   .vem-statuses {
     grid-template-columns: repeat(2, 1fr);
+  }
+  .vem-deposit-fields {
+    grid-template-columns: 1fr;
   }
 }
 </style>

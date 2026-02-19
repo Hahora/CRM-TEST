@@ -3,23 +3,23 @@ import { authService } from "./auth";
 // ── Типы ──
 
 export type VisitStatus =
-  | "zaplanirovano"
   | "zapisalsya"
   | "prishel"
   | "ne_prishel"
   | "otlozhil_bez_depozita"
   | "otlozhil_s_depozitom"
-  | "otlozhil_do_vechera"
   | "kupil"
-  | "sdelka_provalena";
+  | "sdelka_provalena"
+  | "vykupil_depozit";
 
 /** Клиент внутри визита (nested) */
 export interface VisitClient {
-  moysklad_id: string;
+  moysklad_id: string | null;
   name?: string;
   full_name?: string;
   phone?: string;
   email?: string;
+  is_phantom?: boolean;
 }
 
 /** Сотрудник внутри визита (nested) */
@@ -57,6 +57,9 @@ export interface Visit {
   color: string | null;
   source: string | null;
   notes: string | null;
+  is_phantom_client?: boolean;
+  deposit_amount?: number | null;
+  postponed_until?: string | null;
   visit_datetime?: string;
   client: VisitClient | null;
   employee: VisitEmployee | null;
@@ -84,6 +87,13 @@ export interface CreateVisitData {
   color?: string;
   source?: string;
   notes?: string;
+  status?: VisitStatus;
+  is_phantom_client?: boolean;
+  phantom_client_name?: string;
+  phantom_client_phone?: string;
+  phantom_client_email?: string;
+  deposit_amount?: number;
+  postponed_until?: string;
 }
 
 /** Обновление визита PUT /api/v1/visits/schedule/{id} */
@@ -98,6 +108,12 @@ export interface UpdateVisitData {
   color?: string;
   source?: string;
   notes?: string;
+  is_phantom_client?: boolean;
+  phantom_client_name?: string;
+  phantom_client_phone?: string;
+  phantom_client_email?: string;
+  deposit_amount?: number;
+  postponed_until?: string;
 }
 
 // ── Branch Schedule ──
@@ -159,13 +175,12 @@ export interface VisitStatsSummary {
 // ── Статусы ──
 
 export const VISIT_STATUSES: { value: VisitStatus; label: string }[] = [
-  { value: "zaplanirovano", label: "Запланировано" },
   { value: "zapisalsya", label: "Записался" },
   { value: "prishel", label: "Пришёл" },
   { value: "ne_prishel", label: "Не пришёл" },
   { value: "otlozhil_bez_depozita", label: "Отложил без деп." },
   { value: "otlozhil_s_depozitom", label: "Отложил с деп." },
-  { value: "otlozhil_do_vechera", label: "Отложил до вечера" },
+  { value: "vykupil_depozit", label: "Выкупил депозит" },
   { value: "kupil", label: "Купил" },
   { value: "sdelka_provalena", label: "Сделка провалена" },
 ];
@@ -176,7 +191,7 @@ export const VISIT_SOURCES = [
   "Telegram",
   "Звонок",
   "Сайт",
-  "Рекомендация",
+  "Порекомендовали",
   "Проходил мимо",
   "Повторный визит",
   "Другое",
