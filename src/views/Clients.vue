@@ -120,6 +120,8 @@ const showFilters = ref(false);
 // ── Серверные фильтры ──
 const filterCompanyType = ref("");
 const filterIsWedding = ref<boolean | undefined>(undefined);
+const filterSource = ref("");
+const filterHasLocalData = ref<boolean | undefined>(undefined);
 const filterDemandsMin = ref("");
 const filterDemandsMax = ref("");
 const filterDemandsCountMin = ref("");
@@ -133,6 +135,8 @@ const hasActiveFilters = computed(
   () =>
     !!filterCompanyType.value ||
     filterIsWedding.value !== undefined ||
+    !!filterSource.value ||
+    filterHasLocalData.value !== undefined ||
     !!filterDemandsMin.value ||
     !!filterDemandsMax.value ||
     !!filterDemandsCountMin.value ||
@@ -146,6 +150,8 @@ const activeFilterCount = computed(() => {
   let n = 0;
   if (filterCompanyType.value) n++;
   if (filterIsWedding.value !== undefined) n++;
+  if (filterSource.value) n++;
+  if (filterHasLocalData.value !== undefined) n++;
   if (filterDemandsMin.value || filterDemandsMax.value) n++;
   if (filterDemandsCountMin.value || filterDemandsCountMax.value) n++;
   if (filterAvgMin.value || filterAvgMax.value) n++;
@@ -157,6 +163,8 @@ const buildServerFilters = () => ({
   search: searchText.value.trim() || "",
   company_types: filterCompanyType.value || undefined,
   is_wedding: filterIsWedding.value,
+  source: filterSource.value || undefined,
+  has_local_data: filterHasLocalData.value,
   demands_sum_min:   filterDemandsMin.value      ? Number(filterDemandsMin.value)      : undefined,
   demands_sum_max:   filterDemandsMax.value      ? Number(filterDemandsMax.value)      : undefined,
   demands_count_min: filterDemandsCountMin.value ? Number(filterDemandsCountMin.value) : undefined,
@@ -172,6 +180,8 @@ const applyFilters = () => loadClients(buildServerFilters());
 const clearServerFilters = () => {
   filterCompanyType.value = "";
   filterIsWedding.value = undefined;
+  filterSource.value = "";
+  filterHasLocalData.value = undefined;
   filterDemandsMin.value = "";
   filterDemandsMax.value = "";
   filterDemandsCountMin.value = "";
@@ -934,6 +944,23 @@ const getRowId = (params: any) => {
               <button class="cf-chip" :class="{ 'cf-chip--on': filterIsWedding === false }" @click="filterIsWedding = false">Нет</button>
             </div>
           </div>
+          <!-- Источник -->
+          <div class="cf-group">
+            <div class="cf-group-label">Источник</div>
+            <select v-model="filterSource" class="cf-select">
+              <option value="">Все</option>
+              <option v-for="s in CLIENT_SOURCES" :key="s" :value="s">{{ s }}</option>
+            </select>
+          </div>
+          <!-- Наличие данных -->
+          <div class="cf-group">
+            <div class="cf-group-label">Наши данные</div>
+            <div class="cf-chips">
+              <button class="cf-chip" :class="{ 'cf-chip--on': filterHasLocalData === undefined }" @click="filterHasLocalData = undefined">Все</button>
+              <button class="cf-chip" :class="{ 'cf-chip--on': filterHasLocalData === true }" @click="filterHasLocalData = true">Есть</button>
+              <button class="cf-chip" :class="{ 'cf-chip--on': filterHasLocalData === false }" @click="filterHasLocalData = false">Нет</button>
+            </div>
+          </div>
           <!-- Сумма продаж -->
           <div class="cf-group">
             <div class="cf-group-label">Сумма продаж, ₽</div>
@@ -967,11 +994,16 @@ const getRowId = (params: any) => {
             <div class="cf-sort">
               <select v-model="filterSortBy" class="cf-select">
                 <option value="">— без сортировки —</option>
-                <option value="name">Имя</option>
+                <option value="name">Имя (глобальная)</option>
+                <option value="phone">Телефон (глобальная)</option>
+                <option value="email">Email (глобальная)</option>
+                <option value="created">Дата создания (глобальная)</option>
+                <option value="updated">Дата изменения (глобальная)</option>
                 <option value="sales_amount">Сумма продаж</option>
                 <option value="receipts_count">Покупок</option>
                 <option value="avg_receipt">Ср. чек</option>
-                <option value="created_at">Дата создания</option>
+                <option value="max_receipt">Макс. чек</option>
+                <option value="is_wedding">Свадьба</option>
               </select>
               <div v-if="filterSortBy" class="cf-chips">
                 <button class="cf-chip" :class="{ 'cf-chip--on': filterSortOrder === 'asc' }" @click="filterSortOrder = 'asc'">↑ По возр.</button>
