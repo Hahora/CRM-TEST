@@ -19,18 +19,20 @@ export interface ClientsFiltersApi {
   created_before?: string;
   offset?: number;
   limit?: number;
-  // МойСклад-фильтры
+  // МойСклад-нативные фильтры
   company_types?: string | string[];
-  sex?: string;
-  sales_amount_min?: number;
-  sales_amount_max?: number;
-  // Пост-фильтры
-  receipts_count_min?: number;
-  receipts_count_max?: number;
+  name?: string;
+  phone?: string;
+  email?: string;
+  inn?: string;
+  demands_sum_min?: number;
+  demands_sum_max?: number;
+  demands_count_min?: number;
+  demands_count_max?: number;
   avg_receipt_min?: number;
   avg_receipt_max?: number;
-  max_receipt_min?: number;
-  max_receipt_max?: number;
+  // Локальные фильтры
+  branch_id?: number;
   // Сортировка
   sort_by?: string;
   sort_order?: string;
@@ -200,32 +202,34 @@ class ClientsApiService {
   ): Promise<ClientsListResponse> {
     const params = new URLSearchParams();
 
-    if (filters.search) params.append("search", filters.search);
-    if (filters.telegram_id) params.append("telegram_id", filters.telegram_id);
-    if (filters.source) params.append("source", filters.source);
-    if (filters.is_wedding !== undefined)
-      params.append("is_wedding", String(filters.is_wedding));
-    if (filters.has_local_data !== undefined)
-      params.append("has_local_data", String(filters.has_local_data));
-    if (filters.created_after)
-      params.append("created_after", filters.created_after);
-    if (filters.created_before)
-      params.append("created_before", filters.created_before);
+    // МойСклад-нативные фильтры
     if (filters.company_types) {
       const types = Array.isArray(filters.company_types) ? filters.company_types : [filters.company_types];
       types.forEach((t) => params.append("company_types", t));
     }
-    if (filters.sex) params.append("sex", filters.sex);
-    if (filters.sales_amount_min != null) params.append("sales_amount_min", String(filters.sales_amount_min));
-    if (filters.sales_amount_max != null) params.append("sales_amount_max", String(filters.sales_amount_max));
-    if (filters.receipts_count_min != null) params.append("receipts_count_min", String(filters.receipts_count_min));
-    if (filters.receipts_count_max != null) params.append("receipts_count_max", String(filters.receipts_count_max));
-    if (filters.avg_receipt_min != null) params.append("avg_receipt_min", String(filters.avg_receipt_min));
-    if (filters.avg_receipt_max != null) params.append("avg_receipt_max", String(filters.avg_receipt_max));
-    if (filters.max_receipt_min != null) params.append("max_receipt_min", String(filters.max_receipt_min));
-    if (filters.max_receipt_max != null) params.append("max_receipt_max", String(filters.max_receipt_max));
-    if (filters.sort_by) params.append("sort_by", filters.sort_by);
+    if (filters.name)  params.append("name",  filters.name);
+    if (filters.phone) params.append("phone", filters.phone);
+    if (filters.email) params.append("email", filters.email);
+    if (filters.inn)   params.append("inn",   filters.inn);
+    if (filters.demands_sum_min   != null) params.append("demands_sum_min",   String(filters.demands_sum_min));
+    if (filters.demands_sum_max   != null) params.append("demands_sum_max",   String(filters.demands_sum_max));
+    if (filters.demands_count_min != null) params.append("demands_count_min", String(filters.demands_count_min));
+    if (filters.demands_count_max != null) params.append("demands_count_max", String(filters.demands_count_max));
+    if (filters.avg_receipt_min   != null) params.append("avg_receipt_min",   String(filters.avg_receipt_min));
+    if (filters.avg_receipt_max   != null) params.append("avg_receipt_max",   String(filters.avg_receipt_max));
+    // Сортировка
+    if (filters.sort_by)    params.append("sort_by",    filters.sort_by);
     if (filters.sort_order) params.append("sort_order", filters.sort_order);
+    // Локальные фильтры
+    if (filters.search)     params.append("search",     filters.search);
+    if (filters.telegram_id) params.append("telegram_id", filters.telegram_id);
+    if (filters.source)     params.append("source",     filters.source);
+    if (filters.branch_id  != null) params.append("branch_id", String(filters.branch_id));
+    if (filters.is_wedding !== undefined) params.append("is_wedding",   String(filters.is_wedding));
+    if (filters.has_local_data !== undefined) params.append("has_local_data", String(filters.has_local_data));
+    if (filters.archived !== undefined) params.append("archived", String(filters.archived));
+    if (filters.created_after)  params.append("created_after",  filters.created_after);
+    if (filters.created_before) params.append("created_before", filters.created_before);
 
     // Пагинация: offset + limit
     if (filters.offset !== undefined && filters.offset > 0)

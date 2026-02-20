@@ -119,44 +119,36 @@ const showFilters = ref(false);
 
 // ── Серверные фильтры ──
 const filterCompanyType = ref("");
-const filterSex = ref("");
 const filterIsWedding = ref<boolean | undefined>(undefined);
-const filterSalesMin = ref("");
-const filterSalesMax = ref("");
-const filterReceiptsMin = ref("");
-const filterReceiptsMax = ref("");
+const filterDemandsMin = ref("");
+const filterDemandsMax = ref("");
+const filterDemandsCountMin = ref("");
+const filterDemandsCountMax = ref("");
 const filterAvgMin = ref("");
 const filterAvgMax = ref("");
-const filterMaxMin = ref("");
-const filterMaxMax = ref("");
 const filterSortBy = ref("");
 const filterSortOrder = ref("asc");
 
 const hasActiveFilters = computed(
   () =>
     !!filterCompanyType.value ||
-    !!filterSex.value ||
     filterIsWedding.value !== undefined ||
-    !!filterSalesMin.value ||
-    !!filterSalesMax.value ||
-    !!filterReceiptsMin.value ||
-    !!filterReceiptsMax.value ||
+    !!filterDemandsMin.value ||
+    !!filterDemandsMax.value ||
+    !!filterDemandsCountMin.value ||
+    !!filterDemandsCountMax.value ||
     !!filterAvgMin.value ||
     !!filterAvgMax.value ||
-    !!filterMaxMin.value ||
-    !!filterMaxMax.value ||
     !!filterSortBy.value
 );
 
 const activeFilterCount = computed(() => {
   let n = 0;
   if (filterCompanyType.value) n++;
-  if (filterSex.value) n++;
   if (filterIsWedding.value !== undefined) n++;
-  if (filterSalesMin.value || filterSalesMax.value) n++;
-  if (filterReceiptsMin.value || filterReceiptsMax.value) n++;
+  if (filterDemandsMin.value || filterDemandsMax.value) n++;
+  if (filterDemandsCountMin.value || filterDemandsCountMax.value) n++;
   if (filterAvgMin.value || filterAvgMax.value) n++;
-  if (filterMaxMin.value || filterMaxMax.value) n++;
   if (filterSortBy.value) n++;
   return n;
 });
@@ -164,17 +156,14 @@ const activeFilterCount = computed(() => {
 const buildServerFilters = () => ({
   search: searchText.value.trim() || "",
   company_types: filterCompanyType.value || undefined,
-  sex: filterSex.value || undefined,
   is_wedding: filterIsWedding.value,
-  sales_amount_min: filterSalesMin.value || undefined,
-  sales_amount_max: filterSalesMax.value || undefined,
-  receipts_count_min: filterReceiptsMin.value || undefined,
-  receipts_count_max: filterReceiptsMax.value || undefined,
-  avg_receipt_min: filterAvgMin.value || undefined,
-  avg_receipt_max: filterAvgMax.value || undefined,
-  max_receipt_min: filterMaxMin.value || undefined,
-  max_receipt_max: filterMaxMax.value || undefined,
-  sort_by: filterSortBy.value || undefined,
+  demands_sum_min:   filterDemandsMin.value      ? Number(filterDemandsMin.value)      : undefined,
+  demands_sum_max:   filterDemandsMax.value      ? Number(filterDemandsMax.value)      : undefined,
+  demands_count_min: filterDemandsCountMin.value ? Number(filterDemandsCountMin.value) : undefined,
+  demands_count_max: filterDemandsCountMax.value ? Number(filterDemandsCountMax.value) : undefined,
+  avg_receipt_min:   filterAvgMin.value          ? Number(filterAvgMin.value)          : undefined,
+  avg_receipt_max:   filterAvgMax.value          ? Number(filterAvgMax.value)          : undefined,
+  sort_by:    filterSortBy.value || undefined,
   sort_order: filterSortBy.value ? filterSortOrder.value : undefined,
 });
 
@@ -182,16 +171,13 @@ const applyFilters = () => loadClients(buildServerFilters());
 
 const clearServerFilters = () => {
   filterCompanyType.value = "";
-  filterSex.value = "";
   filterIsWedding.value = undefined;
-  filterSalesMin.value = "";
-  filterSalesMax.value = "";
-  filterReceiptsMin.value = "";
-  filterReceiptsMax.value = "";
+  filterDemandsMin.value = "";
+  filterDemandsMax.value = "";
+  filterDemandsCountMin.value = "";
+  filterDemandsCountMax.value = "";
   filterAvgMin.value = "";
   filterAvgMax.value = "";
-  filterMaxMin.value = "";
-  filterMaxMax.value = "";
   filterSortBy.value = "";
   filterSortOrder.value = "asc";
   loadClients({ search: searchText.value.trim() || "" });
@@ -939,15 +925,6 @@ const getRowId = (params: any) => {
               <button class="cf-chip" :class="{ 'cf-chip--on': filterCompanyType === 'entrepreneur' }" @click="filterCompanyType = 'entrepreneur'; applyFilters()">ИП</button>
             </div>
           </div>
-          <!-- Пол -->
-          <div class="cf-group">
-            <div class="cf-group-label">Пол</div>
-            <div class="cf-chips">
-              <button class="cf-chip" :class="{ 'cf-chip--on': !filterSex }" @click="filterSex = ''; applyFilters()">Все</button>
-              <button class="cf-chip" :class="{ 'cf-chip--on': filterSex === 'MALE' }" @click="filterSex = 'MALE'; applyFilters()">М</button>
-              <button class="cf-chip" :class="{ 'cf-chip--on': filterSex === 'FEMALE' }" @click="filterSex = 'FEMALE'; applyFilters()">Ж</button>
-            </div>
-          </div>
           <!-- Свадьба -->
           <div class="cf-group">
             <div class="cf-group-label">Свадьба</div>
@@ -957,22 +934,22 @@ const getRowId = (params: any) => {
               <button class="cf-chip" :class="{ 'cf-chip--on': filterIsWedding === false }" @click="filterIsWedding = false; applyFilters()">Нет</button>
             </div>
           </div>
-          <!-- Продажи -->
+          <!-- Сумма продаж -->
           <div class="cf-group">
-            <div class="cf-group-label">Продажи, ₽</div>
+            <div class="cf-group-label">Сумма продаж, ₽</div>
             <div class="cf-range">
-              <input type="number" v-model="filterSalesMin" placeholder="от" class="cf-input" @input="onNumberFilterInput" min="0" />
+              <input type="number" v-model="filterDemandsMin" placeholder="от" class="cf-input" @input="onNumberFilterInput" min="0" />
               <span class="cf-range-sep">—</span>
-              <input type="number" v-model="filterSalesMax" placeholder="до" class="cf-input" @input="onNumberFilterInput" min="0" />
+              <input type="number" v-model="filterDemandsMax" placeholder="до" class="cf-input" @input="onNumberFilterInput" min="0" />
             </div>
           </div>
-          <!-- Количество чеков -->
+          <!-- Количество покупок -->
           <div class="cf-group">
-            <div class="cf-group-label">Чеков</div>
+            <div class="cf-group-label">Покупок</div>
             <div class="cf-range">
-              <input type="number" v-model="filterReceiptsMin" placeholder="от" class="cf-input" @input="onNumberFilterInput" min="0" />
+              <input type="number" v-model="filterDemandsCountMin" placeholder="от" class="cf-input" @input="onNumberFilterInput" min="0" />
               <span class="cf-range-sep">—</span>
-              <input type="number" v-model="filterReceiptsMax" placeholder="до" class="cf-input" @input="onNumberFilterInput" min="0" />
+              <input type="number" v-model="filterDemandsCountMax" placeholder="до" class="cf-input" @input="onNumberFilterInput" min="0" />
             </div>
           </div>
           <!-- Средний чек -->
@@ -984,15 +961,6 @@ const getRowId = (params: any) => {
               <input type="number" v-model="filterAvgMax" placeholder="до" class="cf-input" @input="onNumberFilterInput" min="0" />
             </div>
           </div>
-          <!-- Макс. чек -->
-          <div class="cf-group">
-            <div class="cf-group-label">Макс. чек, ₽</div>
-            <div class="cf-range">
-              <input type="number" v-model="filterMaxMin" placeholder="от" class="cf-input" @input="onNumberFilterInput" min="0" />
-              <span class="cf-range-sep">—</span>
-              <input type="number" v-model="filterMaxMax" placeholder="до" class="cf-input" @input="onNumberFilterInput" min="0" />
-            </div>
-          </div>
           <!-- Сортировка -->
           <div class="cf-group">
             <div class="cf-group-label">Сортировка</div>
@@ -1000,10 +968,9 @@ const getRowId = (params: any) => {
               <select v-model="filterSortBy" class="cf-select" @change="applyFilters()">
                 <option value="">— без сортировки —</option>
                 <option value="name">Имя</option>
-                <option value="sales_amount">Продажи</option>
-                <option value="receipts_count">Чеки</option>
+                <option value="sales_amount">Сумма продаж</option>
+                <option value="receipts_count">Покупок</option>
                 <option value="avg_receipt">Ср. чек</option>
-                <option value="max_receipt">Макс. чек</option>
                 <option value="created_at">Дата создания</option>
               </select>
               <div v-if="filterSortBy" class="cf-chips">
