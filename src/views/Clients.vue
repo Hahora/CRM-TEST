@@ -994,16 +994,11 @@ const getRowId = (params: any) => {
             <div class="cf-sort">
               <select v-model="filterSortBy" class="cf-select">
                 <option value="">— без сортировки —</option>
-                <option value="name">Имя (глобальная)</option>
-                <option value="phone">Телефон (глобальная)</option>
-                <option value="email">Email (глобальная)</option>
-                <option value="created">Дата создания (глобальная)</option>
-                <option value="updated">Дата изменения (глобальная)</option>
-                <option value="sales_amount">Сумма продаж</option>
-                <option value="receipts_count">Покупок</option>
-                <option value="avg_receipt">Ср. чек</option>
-                <option value="max_receipt">Макс. чек</option>
-                <option value="is_wedding">Свадьба</option>
+                <option value="name">Имя</option>
+                <option value="phone">Телефон</option>
+                <option value="email">Email</option>
+                <option value="created">Дата создания</option>
+                <option value="updated">Дата изменения</option>
               </select>
               <div v-if="filterSortBy" class="cf-chips">
                 <button class="cf-chip" :class="{ 'cf-chip--on': filterSortOrder === 'asc' }" @click="filterSortOrder = 'asc'">↑ По возр.</button>
