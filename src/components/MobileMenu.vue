@@ -20,31 +20,20 @@ const emit = defineEmits<{
   close: [];
 }>();
 
-interface MenuItem {
-  id: string;
-  title: string;
-  icon: IconName;
-  route: string;
-}
-
 interface MenuSection {
   title: string;
-  items: MenuItem[];
+  adminOnly?: boolean;
+  items: { id: string; title: string; icon: IconName; route: string }[];
 }
 
-const menuSections: MenuSection[] = [
+const allSections: MenuSection[] = [
   {
     title: "Основное",
     items: [
-      {
-        id: "dashboard",
-        title: "Дашборд",
-        icon: "layout-dashboard",
-        route: "/dashboard",
-      },
-      { id: "sales", title: "Продажи", icon: "trending-up", route: "/sales" },
-      { id: "clients", title: "Клиенты", icon: "users", route: "/clients" },
-      { id: "visits", title: "Посещения", icon: "map-pin", route: "/visits" },
+      { id: "dashboard", title: "Дашборд",   icon: "layout-dashboard", route: "/dashboard" },
+      { id: "sales",     title: "Продажи",   icon: "trending-up",      route: "/sales"     },
+      { id: "clients",   title: "Клиенты",   icon: "users",            route: "/clients"   },
+      { id: "visits",    title: "Посещения", icon: "map-pin",          route: "/visits"    },
     ],
   },
   {
@@ -56,22 +45,22 @@ const menuSections: MenuSection[] = [
   {
     title: "Коммуникация",
     items: [
-      { id: "mailings", title: "Рассылки", icon: "send", route: "/mailings" },
-      {
-        id: "tickets",
-        title: "Тикеты",
-        icon: "message-circle",
-        route: "/tickets",
-      },
+      { id: "mailings", title: "Рассылки", icon: "send",           route: "/mailings" },
+      { id: "tickets",  title: "Тикеты",   icon: "message-circle", route: "/tickets"  },
     ],
   },
   {
     title: "Администрирование",
+    adminOnly: true,
     items: [
       { id: "users", title: "Пользователи", icon: "user-cog", route: "/users" },
     ],
   },
 ];
+
+const menuSections = computed(() =>
+  allSections.filter((s) => !s.adminOnly || isChiefAdmin.value)
+);
 
 const isVisible = ref(false);
 const isAnimating = ref(false);
@@ -110,15 +99,15 @@ const closeMenu = () => {
 const getItemIndex = (sectionIdx: number, itemIdx: number): number => {
   let index = 0;
   for (let i = 0; i < sectionIdx; i++) {
-    index += menuSections[i].items.length + 1; // +1 за заголовок секции
+    index += (menuSections.value[i]?.items.length ?? 0) + 1;
   }
-  return index + itemIdx + 1; // +1 за заголовок текущей секции
+  return index + itemIdx + 1;
 };
 
 const getSectionIndex = (sectionIdx: number): number => {
   let index = 0;
   for (let i = 0; i < sectionIdx; i++) {
-    index += menuSections[i].items.length + 1;
+    index += (menuSections.value[i]?.items.length ?? 0) + 1;
   }
   return index;
 };
@@ -167,7 +156,6 @@ const getSectionIndex = (sectionIdx: number): number => {
           <div
             v-for="(section, sIdx) in menuSections"
             :key="section.title"
-            v-show="section.title !== 'Администрирование' || isChiefAdmin"
             class="mb-3"
           >
             <!-- Section Title -->

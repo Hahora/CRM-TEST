@@ -28,83 +28,47 @@ const handleSettings = () => {
   router.push('/settings');
 };
 
-interface MenuItem {
-  id: string;
+interface MenuSection {
   title: string;
-  icon: string;
-  route?: string;
+  adminOnly?: boolean;
+  items: { id: string; title: string; icon: string; route: string }[];
 }
 
-const menuSections = [
+const allSections: MenuSection[] = [
   {
     title: "Основное",
     items: [
-      {
-        id: "dashboard",
-        title: "Дашборд",
-        icon: "layout-dashboard",
-        route: "/dashboard",
-      },
-      {
-        id: "sales",
-        title: "Продажи",
-        icon: "trending-up",
-        route: "/sales",
-      },
-      {
-        id: "clients",
-        title: "Клиенты",
-        icon: "users",
-        route: "/clients",
-      },
-      {
-        id: "visits",
-        title: "Посещения",
-        icon: "map-pin",
-        route: "/visits",
-      },
+      { id: "dashboard", title: "Дашборд",    icon: "layout-dashboard", route: "/dashboard" },
+      { id: "sales",     title: "Продажи",    icon: "trending-up",      route: "/sales"     },
+      { id: "clients",   title: "Клиенты",    icon: "users",            route: "/clients"   },
+      { id: "visits",    title: "Посещения",  icon: "map-pin",          route: "/visits"    },
     ],
   },
   {
     title: "Аналитика",
     items: [
-      {
-        id: "reports",
-        title: "Отчеты",
-        icon: "file-text",
-        route: "/reports",
-      },
+      { id: "reports", title: "Отчеты", icon: "file-text", route: "/reports" },
     ],
   },
   {
     title: "Коммуникация",
     items: [
-      {
-        id: "mailings",
-        title: "Рассылки",
-        icon: "send",
-        route: "/mailings",
-      },
-      {
-        id: "tickets",
-        title: "Тикеты",
-        icon: "message-circle",
-        route: "/tickets",
-      },
+      { id: "mailings", title: "Рассылки", icon: "send",           route: "/mailings" },
+      { id: "tickets",  title: "Тикеты",   icon: "message-circle", route: "/tickets"  },
     ],
   },
   {
     title: "Администрирование",
+    adminOnly: true,
     items: [
-      {
-        id: "users",
-        title: "Пользователи",
-        icon: "user-cog",
-        route: "/users",
-      },
+      { id: "users", title: "Пользователи", icon: "user-cog", route: "/users" },
     ],
   },
 ];
+
+const menuSections = computed(() =>
+  allSections.filter((s) => !s.adminOnly || isChiefAdmin.value)
+);
 
 const navigateTo = (routePath: string) => {
   router.push(routePath);
@@ -128,12 +92,7 @@ const isActiveRoute = (routePath: string) => {
 
     <!-- Navigation -->
     <nav class="flex-1 overflow-y-auto py-4">
-      <div
-        v-for="section in menuSections"
-        :key="section.title"
-        v-show="section.title !== 'Администрирование' || isChiefAdmin"
-        class="mb-6"
-      >
+      <div v-for="section in menuSections" :key="section.title" class="mb-6">
         <!-- Section Title -->
         <div
           class="px-4 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider"
