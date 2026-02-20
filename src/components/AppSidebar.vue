@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, computed } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import AppIcon from "./AppIcon.vue";
 import { useAuth } from "@/composables/useAuth";
@@ -7,6 +7,8 @@ import { useAuth } from "@/composables/useAuth";
 const router = useRouter();
 const route = useRoute();
 const { user, userRole, fullName, logout } = useAuth();
+
+const isChiefAdmin = computed(() => userRole.value === "chief_admin");
 
 const isProfileOpen = ref(false);
 
@@ -126,7 +128,12 @@ const isActiveRoute = (routePath: string) => {
 
     <!-- Navigation -->
     <nav class="flex-1 overflow-y-auto py-4">
-      <div v-for="section in menuSections" :key="section.title" class="mb-6">
+      <div
+        v-for="section in menuSections"
+        :key="section.title"
+        v-show="section.title !== 'Администрирование' || isChiefAdmin"
+        class="mb-6"
+      >
         <!-- Section Title -->
         <div
           class="px-4 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider"

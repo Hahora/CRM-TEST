@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { ref, computed, watch } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import AppIcon from "./AppIcon.vue";
 import type { IconName } from "@/components/icons";
+import { useAuth } from "@/composables/useAuth";
 
 const router = useRouter();
 const route = useRoute();
+const { userRole } = useAuth();
+const isChiefAdmin = computed(() => userRole.value === "chief_admin");
 
 interface Props {
   isOpen: boolean;
@@ -164,6 +167,7 @@ const getSectionIndex = (sectionIdx: number): number => {
           <div
             v-for="(section, sIdx) in menuSections"
             :key="section.title"
+            v-show="section.title !== 'Администрирование' || isChiefAdmin"
             class="mb-3"
           >
             <!-- Section Title -->

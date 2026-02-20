@@ -3,13 +3,13 @@ import Dashboard from "../views/Dashboard.vue";
 import UnderDevelopment from "../views/UnderDevelopment.vue";
 import Sales from "../views/Sales.vue";
 import Clients from "../views/Clients.vue";
-import Visits from "../views/Visits.vue";
 import Reports from "@/views/Reports.vue";
 import Mailings from "@/views/Mailings.vue";
 import Tickets from "@/views/Tickets.vue";
 import TicketChat from "@/views/TicketChat.vue";
 import LoginPage from "@/views/LoginPage.vue";
 import NotFound from "@/views/NotFound.vue";
+import Users from "@/views/Users.vue";
 import { useAuth } from "@/composables/useAuth";
 
 const router = createRouter({
@@ -121,14 +121,11 @@ const router = createRouter({
     {
       path: "/users",
       name: "users",
-      component: UnderDevelopment,
-      props: {
-        title: "Пользователи",
-        description: "Модуль управления пользователями находится в разработке",
-      },
+      component: Users,
       meta: {
         title: "Пользователи",
         requiresAuth: true,
+        roles: ["chief_admin"],
       },
     },
     {
@@ -154,32 +151,33 @@ const router = createRouter({
 });
 
 // Navigation Guard для проверки авторизации
-router.beforeEach(async (to, from, next) => {
-  // Устанавливаем title страницы
+router.beforeEach(async (to, _from, next) => {
   document.title = to.meta.title ? `${to.meta.title} - CRM` : "CRM";
 
-  const { checkAuth, isAuthenticated } = useAuth();
+  const { checkAuth, isAuthenticated, userRole } = useAuth();
 
-  // Проверяем авторизацию только если пользователь не авторизован
   if (!isAuthenticated.value) {
     const isAuth = await checkAuth();
-
-    // Если маршрут требует авторизации, а пользователь не авторизован
     if (to.meta.requiresAuth && !isAuth) {
       next("/login");
       return;
     }
   }
 
-  // Если пользователь авторизован и пытается зайти на страницу логина
   if (to.path === "/login" && isAuthenticated.value) {
     next("/dashboard");
     return;
   }
 
-  // Если маршрут требует авторизации и пользователь авторизован
   if (to.meta.requiresAuth && !isAuthenticated.value) {
     next("/login");
+    return;
+  }
+
+  // Проверка допустимых ролей для маршрута
+  const allowedRoles = to.meta.roles as string[] | undefined;
+  if (allowedRoles && !allowedRoles.includes(userRole.value)) {
+    next("/dashboard");
     return;
   }
 
