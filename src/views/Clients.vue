@@ -952,15 +952,6 @@ const getRowId = (params: any) => {
               <option v-for="s in CLIENT_SOURCES" :key="s" :value="s">{{ s }}</option>
             </select>
           </div>
-          <!-- Наличие данных -->
-          <div class="cf-group">
-            <div class="cf-group-label">Наши данные</div>
-            <div class="cf-chips">
-              <button class="cf-chip" :class="{ 'cf-chip--on': filterHasLocalData === undefined }" @click="filterHasLocalData = undefined">Все</button>
-              <button class="cf-chip" :class="{ 'cf-chip--on': filterHasLocalData === true }" @click="filterHasLocalData = true">Есть</button>
-              <button class="cf-chip" :class="{ 'cf-chip--on': filterHasLocalData === false }" @click="filterHasLocalData = false">Нет</button>
-            </div>
-          </div>
           <!-- Сумма продаж -->
           <div class="cf-group">
             <div class="cf-group-label">Сумма продаж, ₽</div>
