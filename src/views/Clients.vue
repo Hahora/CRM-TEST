@@ -189,6 +189,14 @@ const onNumberFilterInput = () => {
   if (filterDebounceTimer) clearTimeout(filterDebounceTimer);
   filterDebounceTimer = setTimeout(applyFilters, 800);
 };
+
+// Немедленное применение (по кнопке) — сбрасывает все таймеры
+const applyFiltersNow = () => {
+  if (filterDebounceTimer) { clearTimeout(filterDebounceTimer); filterDebounceTimer = null; }
+  if (searchDebounceTimer) { clearTimeout(searchDebounceTimer); searchDebounceTimer = null; }
+  setQuickFilter(searchText.value);
+  applyFilters();
+};
 const selectedCount = ref(0);
 const isMobile = ref(false);
 const isFullscreen = ref(false);
@@ -979,13 +987,21 @@ const getRowId = (params: any) => {
               </div>
             </div>
           </div>
-          <!-- Сброс -->
-          <button v-if="hasActiveFilters" class="cf-reset-btn" @click="clearServerFilters()" title="Сбросить все фильтры">
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-            Сбросить
-          </button>
+          <!-- Действия -->
+          <div class="cf-actions">
+            <button class="cf-apply-btn" @click="applyFiltersNow()">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+              Применить
+            </button>
+            <button v-if="hasActiveFilters" class="cf-reset-btn" @click="clearServerFilters()" title="Сбросить все фильтры">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+              Сбросить
+            </button>
+          </div>
         </div>
       </div>
     </Transition>
@@ -2043,8 +2059,32 @@ const getRowId = (params: any) => {
   border-bottom: 1px solid var(--bd);
   flex-shrink: 0;
 }
-.cf-reset-btn {
+.cf-actions {
   align-self: flex-end;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.cf-apply-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: var(--rs);
+  border: 1px solid var(--ac);
+  background: var(--ac);
+  color: #fff;
+  font: 600 10px/1 var(--fn);
+  cursor: pointer;
+  transition: all var(--tr);
+  white-space: nowrap;
+}
+.cf-apply-btn:hover {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+}
+.cf-reset-btn {
   display: inline-flex;
   align-items: center;
   gap: 4px;
