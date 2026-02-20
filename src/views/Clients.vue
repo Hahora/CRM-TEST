@@ -183,16 +183,8 @@ const clearServerFilters = () => {
   loadClients({ search: searchText.value.trim() || "" });
 };
 
-// Числовые инпуты — дебаунс 800мс
-let filterDebounceTimer: ReturnType<typeof setTimeout> | null = null;
-const onNumberFilterInput = () => {
-  if (filterDebounceTimer) clearTimeout(filterDebounceTimer);
-  filterDebounceTimer = setTimeout(applyFilters, 800);
-};
-
-// Немедленное применение (по кнопке) — сбрасывает все таймеры
+// Немедленное применение (по кнопке) — сбрасывает таймер поиска
 const applyFiltersNow = () => {
-  if (filterDebounceTimer) { clearTimeout(filterDebounceTimer); filterDebounceTimer = null; }
   if (searchDebounceTimer) { clearTimeout(searchDebounceTimer); searchDebounceTimer = null; }
   setQuickFilter(searchText.value);
   applyFilters();
@@ -927,53 +919,53 @@ const getRowId = (params: any) => {
           <div class="cf-group">
             <div class="cf-group-label">Тип</div>
             <div class="cf-chips">
-              <button class="cf-chip" :class="{ 'cf-chip--on': !filterCompanyType }" @click="filterCompanyType = ''; applyFilters()">Все</button>
-              <button class="cf-chip" :class="{ 'cf-chip--on': filterCompanyType === 'individual' }" @click="filterCompanyType = 'individual'; applyFilters()">Физ. лицо</button>
-              <button class="cf-chip" :class="{ 'cf-chip--on': filterCompanyType === 'legal' }" @click="filterCompanyType = 'legal'; applyFilters()">Юр. лицо</button>
-              <button class="cf-chip" :class="{ 'cf-chip--on': filterCompanyType === 'entrepreneur' }" @click="filterCompanyType = 'entrepreneur'; applyFilters()">ИП</button>
+              <button class="cf-chip" :class="{ 'cf-chip--on': !filterCompanyType }" @click="filterCompanyType = ''">Все</button>
+              <button class="cf-chip" :class="{ 'cf-chip--on': filterCompanyType === 'individual' }" @click="filterCompanyType = 'individual'">Физ. лицо</button>
+              <button class="cf-chip" :class="{ 'cf-chip--on': filterCompanyType === 'legal' }" @click="filterCompanyType = 'legal'">Юр. лицо</button>
+              <button class="cf-chip" :class="{ 'cf-chip--on': filterCompanyType === 'entrepreneur' }" @click="filterCompanyType = 'entrepreneur'">ИП</button>
             </div>
           </div>
           <!-- Свадьба -->
           <div class="cf-group">
             <div class="cf-group-label">Свадьба</div>
             <div class="cf-chips">
-              <button class="cf-chip" :class="{ 'cf-chip--on': filterIsWedding === undefined }" @click="filterIsWedding = undefined; applyFilters()">Все</button>
-              <button class="cf-chip" :class="{ 'cf-chip--on': filterIsWedding === true }" @click="filterIsWedding = true; applyFilters()">Да</button>
-              <button class="cf-chip" :class="{ 'cf-chip--on': filterIsWedding === false }" @click="filterIsWedding = false; applyFilters()">Нет</button>
+              <button class="cf-chip" :class="{ 'cf-chip--on': filterIsWedding === undefined }" @click="filterIsWedding = undefined">Все</button>
+              <button class="cf-chip" :class="{ 'cf-chip--on': filterIsWedding === true }" @click="filterIsWedding = true">Да</button>
+              <button class="cf-chip" :class="{ 'cf-chip--on': filterIsWedding === false }" @click="filterIsWedding = false">Нет</button>
             </div>
           </div>
           <!-- Сумма продаж -->
           <div class="cf-group">
             <div class="cf-group-label">Сумма продаж, ₽</div>
             <div class="cf-range">
-              <input type="number" v-model="filterDemandsMin" placeholder="от" class="cf-input" @input="onNumberFilterInput" min="0" />
+              <input type="number" v-model="filterDemandsMin" placeholder="от" class="cf-input"  min="0" />
               <span class="cf-range-sep">—</span>
-              <input type="number" v-model="filterDemandsMax" placeholder="до" class="cf-input" @input="onNumberFilterInput" min="0" />
+              <input type="number" v-model="filterDemandsMax" placeholder="до" class="cf-input"  min="0" />
             </div>
           </div>
           <!-- Количество покупок -->
           <div class="cf-group">
             <div class="cf-group-label">Покупок</div>
             <div class="cf-range">
-              <input type="number" v-model="filterDemandsCountMin" placeholder="от" class="cf-input" @input="onNumberFilterInput" min="0" />
+              <input type="number" v-model="filterDemandsCountMin" placeholder="от" class="cf-input"  min="0" />
               <span class="cf-range-sep">—</span>
-              <input type="number" v-model="filterDemandsCountMax" placeholder="до" class="cf-input" @input="onNumberFilterInput" min="0" />
+              <input type="number" v-model="filterDemandsCountMax" placeholder="до" class="cf-input"  min="0" />
             </div>
           </div>
           <!-- Средний чек -->
           <div class="cf-group">
             <div class="cf-group-label">Ср. чек, ₽</div>
             <div class="cf-range">
-              <input type="number" v-model="filterAvgMin" placeholder="от" class="cf-input" @input="onNumberFilterInput" min="0" />
+              <input type="number" v-model="filterAvgMin" placeholder="от" class="cf-input"  min="0" />
               <span class="cf-range-sep">—</span>
-              <input type="number" v-model="filterAvgMax" placeholder="до" class="cf-input" @input="onNumberFilterInput" min="0" />
+              <input type="number" v-model="filterAvgMax" placeholder="до" class="cf-input"  min="0" />
             </div>
           </div>
           <!-- Сортировка -->
           <div class="cf-group">
             <div class="cf-group-label">Сортировка</div>
             <div class="cf-sort">
-              <select v-model="filterSortBy" class="cf-select" @change="applyFilters()">
+              <select v-model="filterSortBy" class="cf-select">
                 <option value="">— без сортировки —</option>
                 <option value="name">Имя</option>
                 <option value="sales_amount">Сумма продаж</option>
@@ -982,8 +974,8 @@ const getRowId = (params: any) => {
                 <option value="created_at">Дата создания</option>
               </select>
               <div v-if="filterSortBy" class="cf-chips">
-                <button class="cf-chip" :class="{ 'cf-chip--on': filterSortOrder === 'asc' }" @click="filterSortOrder = 'asc'; applyFilters()">↑ По возр.</button>
-                <button class="cf-chip" :class="{ 'cf-chip--on': filterSortOrder === 'desc' }" @click="filterSortOrder = 'desc'; applyFilters()">↓ По убыв.</button>
+                <button class="cf-chip" :class="{ 'cf-chip--on': filterSortOrder === 'asc' }" @click="filterSortOrder = 'asc'">↑ По возр.</button>
+                <button class="cf-chip" :class="{ 'cf-chip--on': filterSortOrder === 'desc' }" @click="filterSortOrder = 'desc'">↓ По убыв.</button>
               </div>
             </div>
           </div>
@@ -2072,8 +2064,8 @@ const getRowId = (params: any) => {
   gap: 4px;
   padding: 4px 10px;
   border-radius: var(--rs);
-  border: 1px solid var(--ac);
-  background: var(--ac);
+  border: 1px solid var(--pr);
+  background: var(--pr);
   color: #fff;
   font: 600 10px/1 var(--fn);
   cursor: pointer;
