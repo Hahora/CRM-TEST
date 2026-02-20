@@ -183,11 +183,11 @@ const clearServerFilters = () => {
   loadClients({ search: searchText.value.trim() || "" });
 };
 
-// Числовые инпуты — дебаунс 600мс
+// Числовые инпуты — дебаунс 800мс
 let filterDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 const onNumberFilterInput = () => {
   if (filterDebounceTimer) clearTimeout(filterDebounceTimer);
-  filterDebounceTimer = setTimeout(applyFilters, 600);
+  filterDebounceTimer = setTimeout(applyFilters, 800);
 };
 const selectedCount = ref(0);
 const isMobile = ref(false);
@@ -231,11 +231,11 @@ onUnmounted(() => {
 let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 watch(searchText, (val) => {
-  setQuickFilter(val);
   if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
   searchDebounceTimer = setTimeout(() => {
+    setQuickFilter(val);
     loadClients({ ...buildServerFilters(), search: val.trim() || "" });
-  }, 400);
+  }, 700);
 });
 
 // ═══ Бесконечная подгрузка по 50 — через DOM scroll ═══
