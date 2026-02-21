@@ -21,7 +21,8 @@ import {
   RenderApiModule,
   themeQuartz,
 } from "ag-grid-community";
-import { useClientsGrid, CLIENT_SOURCES } from "@/composables/useClientsGrid";
+import { useClientsGrid } from "@/composables/useClientsGrid";
+import { VISIT_SOURCES } from "@/services/visitsApi";
 import { useClients } from "@/composables/useClients";
 import ClientDetailModal from "@/components/clients/ClientDetailModal.vue";
 import ClientCreateModal from "@/components/clients/ClientCreateModal.vue";
@@ -949,7 +950,7 @@ const getRowId = (params: any) => {
             <div class="cf-group-label">Источник</div>
             <select v-model="filterSource" class="cf-select">
               <option value="">Все</option>
-              <option v-for="s in CLIENT_SOURCES" :key="s" :value="s">{{ s }}</option>
+              <option v-for="s in VISIT_SOURCES" :key="s" :value="s">{{ s }}</option>
             </select>
           </div>
           <!-- Сумма продаж -->
@@ -1178,7 +1179,6 @@ const getRowId = (params: any) => {
   <!-- Create modal -->
   <ClientCreateModal
     :open="showAddForm"
-    :sources="CLIENT_SOURCES"
     @close="showAddForm = false"
     @create="handleAddClient"
   />

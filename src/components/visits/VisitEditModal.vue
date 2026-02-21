@@ -127,8 +127,16 @@ const loadClientDetails = async (moyskladId: string) => {
     form.value.is_wedding = detail.is_wedding || false;
     form.value.wedding_date = detail.wedding_date || "";
     form.value.bride_name = detail.bride_name || "";
+    // Откуда узнал — берём из клиента (как логика свадьбы)
+    if (detail.source?.startsWith("Порекомендовали: ")) {
+      form.value.source = "Порекомендовали";
+      form.value.recommended_by = detail.source.replace("Порекомендовали: ", "");
+    } else {
+      form.value.source = detail.source || "";
+      form.value.recommended_by = "";
+    }
   } catch {
-    // не критично — просто не заполняем поля свадьбы
+    // не критично
   }
   isLoadingClientDetails.value = false;
 };

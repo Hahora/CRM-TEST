@@ -12,6 +12,7 @@ import {
   X,
   UserPlus,
 } from "lucide-vue-next";
+import { VISIT_SOURCES } from "@/services/visitsApi";
 
 export interface NewClientData {
   name: string;
@@ -38,7 +39,6 @@ export interface NewClientData {
 
 const props = defineProps<{
   open: boolean;
-  sources: string[];
 }>();
 
 const emit = defineEmits<{
@@ -71,13 +71,22 @@ const defaultForm = (): NewClientData => ({
 
 const form = ref<NewClientData>(defaultForm());
 const isSubmitting = ref(false);
+const recommendedBy = ref("");
+const customSource = ref("");
 
 watch(
   () => props.open,
   (v) => {
-    if (v) form.value = defaultForm();
+    if (v) {
+      form.value = defaultForm();
+      recommendedBy.value = "";
+      customSource.value = "";
+    }
   }
 );
+
+const showRecommendedBy = computed(() => form.value.source === "Порекомендовали");
+const showCustomSource = computed(() => form.value.source === "Другое");
 
 const canSubmit = computed(() => {
   const f = form.value;
@@ -89,7 +98,13 @@ const canSubmit = computed(() => {
 const handleSubmit = () => {
   if (!canSubmit.value || isSubmitting.value) return;
   isSubmitting.value = true;
-  emit("create", { ...form.value });
+  const data = { ...form.value };
+  if (showRecommendedBy.value && recommendedBy.value.trim()) {
+    data.source = `Порекомендовали: ${recommendedBy.value.trim()}`;
+  } else if (showCustomSource.value) {
+    data.source = customSource.value.trim() || "Другое";
+  }
+  emit("create", data);
   setTimeout(() => {
     isSubmitting.value = false;
   }, 400);
@@ -391,10 +406,26 @@ const types = [
                       <label>Откуда узнал</label>
                       <select v-model="form.source">
                         <option value="">—</option>
-                        <option v-for="s in sources" :key="s" :value="s">
+                        <option v-for="s in VISIT_SOURCES" :key="s" :value="s">
                           {{ s }}
                         </option>
                       </select>
+                    </div>
+                    <div v-if="showRecommendedBy" class="ccm-field">
+                      <label><User :size="12" /> Кто порекомендовал</label>
+                      <input
+                        v-model="recommendedBy"
+                        type="text"
+                        placeholder="Имя или контакт..."
+                      />
+                    </div>
+                    <div v-if="showCustomSource" class="ccm-field">
+                      <label>Уточнение</label>
+                      <input
+                        v-model="customSource"
+                        type="text"
+                        placeholder="Откуда именно..."
+                      />
                     </div>
                   </div>
                 </div>
