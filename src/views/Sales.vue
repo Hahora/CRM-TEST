@@ -194,6 +194,13 @@ const columnDefs = ref<ColDef[]>([
     })) as any,
   },
   {
+    headerName: "Консультант",
+    field: "employee_name",
+    width: 160,
+    sortable: false,
+    valueFormatter: (p) => p.value || "—",
+  },
+  {
     headerName: "Магазин",
     field: "store",
     width: 170,

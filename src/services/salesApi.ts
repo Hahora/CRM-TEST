@@ -19,6 +19,7 @@ export interface Sale {
   store_moysklad_id: string | null;
   agent_moysklad_id: string | null;
   agent_name: string;
+  employee_name: string | null;
   items: SaleItem[];
 }
 
