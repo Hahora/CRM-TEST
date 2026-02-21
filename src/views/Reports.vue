@@ -3,7 +3,7 @@ import { ref, onMounted } from "vue";
 import { visitsApi } from "@/services/visitsApi";
 import type { Branch } from "@/services/visitsApi";
 
-type ReportType = "clients" | "visits";
+type ReportType = "clients" | "visits" | "sales";
 
 const branches = ref<Branch[]>([]);
 
@@ -34,6 +34,15 @@ const REPORTS = {
     colorMid: "#a7f3d0",
     filename: "visits_report",
     icon: "visits",
+  },
+  sales: {
+    title: "Отчет по продажам",
+    desc: "Чеки, суммы, товары, консультанты, магазины",
+    color: "#d97706",
+    colorLight: "#fffbeb",
+    colorMid: "#fde68a",
+    filename: "sales_report",
+    icon: "sales",
   },
 } as const;
 
@@ -139,6 +148,28 @@ onMounted(async () => {
           </div>
         </button>
 
+        <!-- Продажи -->
+        <button class="rp-card rp-card--amber" @click="openModal('sales')">
+          <div class="rp-card-icon rp-card-icon--amber">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <rect x="5" y="2" width="14" height="20" rx="2"/>
+              <line x1="9" y1="7" x2="15" y2="7"/>
+              <line x1="9" y1="11" x2="15" y2="11"/>
+              <line x1="9" y1="15" x2="13" y2="15"/>
+            </svg>
+          </div>
+          <div class="rp-card-body">
+            <span class="rp-card-title">Отчет по продажам</span>
+            <span class="rp-card-desc">Чеки, суммы, товары, консультанты, магазины</span>
+          </div>
+          <div class="rp-card-arrow">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="5" y1="12" x2="19" y2="12"/>
+              <polyline points="12 5 19 12 12 19"/>
+            </svg>
+          </div>
+        </button>
+
         <!-- Посещения -->
         <button class="rp-card rp-card--green" @click="openModal('visits')">
           <div class="rp-card-icon rp-card-icon--green">
@@ -178,9 +209,16 @@ onMounted(async () => {
                     <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
                   </svg>
                   <!-- Visits icon -->
-                  <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <svg v-else-if="activeReport === 'visits'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/>
                     <circle cx="12" cy="10" r="3"/>
+                  </svg>
+                  <!-- Sales icon -->
+                  <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="5" y="2" width="14" height="20" rx="2"/>
+                    <line x1="9" y1="7" x2="15" y2="7"/>
+                    <line x1="9" y1="11" x2="15" y2="11"/>
+                    <line x1="9" y1="15" x2="13" y2="15"/>
                   </svg>
                 </div>
                 <div>
@@ -366,6 +404,10 @@ onMounted(async () => {
   border-color: #6ee7b7;
   box-shadow: 0 4px 20px rgba(5, 150, 105, 0.08);
 }
+.rp-card--amber:hover {
+  border-color: #fcd34d;
+  box-shadow: 0 4px 20px rgba(217, 119, 6, 0.08);
+}
 .rp-card-icon {
   width: 56px;
   height: 56px;
@@ -382,6 +424,13 @@ onMounted(async () => {
 .rp-card-icon--green {
   background: #ecfdf5;
   color: #059669;
+}
+.rp-card-icon--amber {
+  background: #fffbeb;
+  color: #d97706;
+}
+.rp-card--amber:hover .rp-card-arrow {
+  color: #d97706;
 }
 .rp-card-body {
   flex: 1;
