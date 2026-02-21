@@ -23,11 +23,6 @@ const handleLogout = async () => {
   await logout();
 };
 
-const handleSettings = () => {
-  isProfileOpen.value = false;
-  router.push('/settings');
-};
-
 interface MenuSection {
   title: string;
   adminOnly?: boolean;
@@ -161,14 +156,6 @@ const isActiveRoute = (routePath: string) => {
               </div>
             </div>
           </div>
-          <!-- Settings -->
-          <button
-            @click="handleSettings"
-            class="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-          >
-            <AppIcon name="settings" :size="15" class="text-gray-500" />
-            <span class="font-medium">Настройки</span>
-          </button>
           <!-- Logout -->
           <button
             @click="handleLogout"
