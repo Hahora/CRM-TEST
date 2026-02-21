@@ -159,13 +159,13 @@ const formatMoment = (v: string | null): string => {
 };
 
 // ── Column definitions ──
-const columnDefs = ref<ColDef[]>([
+const columnDefs = computed<ColDef[]>(() => [
   {
     headerName: "Номер",
     field: "name",
     width: 140,
     sortable: false,
-    pinned: "left" as const,
+    pinned: isMobile.value ? undefined : ("left" as const),
     cellStyle: {
       fontFamily: "'JetBrains Mono', monospace",
       fontWeight: 600,
