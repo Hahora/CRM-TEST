@@ -333,6 +333,7 @@ export function useClientsGrid() {
       field: "sales_amount",
       width: 135,
       minWidth: 110,
+      sortable: false,
       editable: false,
       valueFormatter: (params: ValueFormatterParams) =>
         formatCurrency(params.value),
@@ -347,6 +348,7 @@ export function useClientsGrid() {
       field: "receipts_count",
       width: 130,
       minWidth: 100,
+      sortable: false,
       editable: false,
       valueFormatter: (params: ValueFormatterParams) =>
         params.value != null ? String(params.value) : "—",
@@ -361,6 +363,7 @@ export function useClientsGrid() {
       field: "avg_receipt",
       width: 135,
       minWidth: 110,
+      sortable: false,
       editable: false,
       valueFormatter: (params: ValueFormatterParams) =>
         formatCurrency(params.value),
@@ -375,6 +378,7 @@ export function useClientsGrid() {
       field: "max_receipt",
       width: 130,
       minWidth: 110,
+      sortable: false,
       editable: false,
       valueFormatter: (params: ValueFormatterParams) =>
         formatCurrency(params.value),
@@ -391,6 +395,7 @@ export function useClientsGrid() {
       field: "is_wedding",
       width: 100,
       minWidth: 85,
+      sortable: false,
       editable: typeEditable(["individual"]),
       cellEditor: "agSelectCellEditor",
       cellEditorParams: {
