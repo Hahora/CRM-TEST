@@ -9,7 +9,88 @@ import type {
   ValueFormatterParams,
   ValueSetterParams,
 } from "ag-grid-community";
-import SourceCellEditor from "@/components/grid/SourceCellEditor.vue";
+import { VISIT_SOURCES } from "@/services/visitsApi";
+
+// ── JS-класс редактора ячейки «Откуда узнал» ──────────────────────────────────
+function parseSource(v: string) {
+  if (v?.startsWith("Порекомендовали: ")) return { type: "Порекомендовали", custom: v.replace("Порекомендовали: ", "") };
+  if (v && !(VISIT_SOURCES as readonly string[]).includes(v)) return { type: "Другое", custom: v };
+  return { type: v || "", custom: "" };
+}
+
+class SourceCellEditor {
+  private eGui!: HTMLDivElement;
+  private select!: HTMLSelectElement;
+  private input!: HTMLInputElement;
+
+  init(params: { value: string }) {
+    const { type, custom } = parseSource(params.value);
+
+    this.eGui = document.createElement("div");
+    Object.assign(this.eGui.style, {
+      display: "flex", alignItems: "center", gap: "6px",
+      height: "100%", padding: "0 6px", background: "#fff", minWidth: "280px",
+    });
+
+    this.select = document.createElement("select");
+    Object.assign(this.select.style, {
+      border: "1.5px solid #2563eb", borderRadius: "6px",
+      padding: "4px 6px", fontSize: "13px", height: "32px",
+      outline: "none", background: "#fff", cursor: "pointer", flex: "0 0 auto",
+    });
+
+    const blank = document.createElement("option");
+    blank.value = ""; blank.textContent = "—";
+    this.select.appendChild(blank);
+    (VISIT_SOURCES as readonly string[]).forEach((s) => {
+      const opt = document.createElement("option");
+      opt.value = s; opt.textContent = s;
+      this.select.appendChild(opt);
+    });
+    this.select.value = type;
+
+    this.input = document.createElement("input");
+    this.input.type = "text";
+    this.input.value = custom;
+    this.input.placeholder = type === "Порекомендовали" ? "Кто порекомендовал..." : "Уточнение...";
+    Object.assign(this.input.style, {
+      border: "1.5px solid #2563eb", borderRadius: "6px",
+      padding: "4px 8px", fontSize: "13px", height: "32px",
+      outline: "none", flex: "1 1 auto", minWidth: "130px",
+      display: type === "Порекомендовали" || type === "Другое" ? "" : "none",
+    });
+
+    this.select.addEventListener("change", () => {
+      const v = this.select.value;
+      if (v === "Порекомендовали" || v === "Другое") {
+        this.input.placeholder = v === "Порекомендовали" ? "Кто порекомендовал..." : "Уточнение...";
+        this.input.style.display = "";
+        this.input.value = "";
+        setTimeout(() => this.input.focus(), 0);
+      } else {
+        this.input.style.display = "none";
+        this.input.value = "";
+      }
+    });
+
+    this.eGui.appendChild(this.select);
+    this.eGui.appendChild(this.input);
+  }
+
+  getGui() { return this.eGui; }
+
+  getValue(): string {
+    const t = this.select.value;
+    const c = this.input.value.trim();
+    if (t === "Порекомендовали") return c ? `Порекомендовали: ${c}` : "Порекомендовали";
+    if (t === "Другое") return c || "Другое";
+    return t;
+  }
+
+  afterGuiAttached() { this.select.focus(); }
+  isPopup()         { return true; }
+  getPopupPosition(){ return "under"; }
+}
 
 export const CLIENT_SOURCES = [
   "Instagram",
@@ -510,9 +591,7 @@ export function useClientsGrid() {
       width: 200,
       minWidth: 130,
       editable: true,
-      cellEditor: SourceCellEditor,
-      cellEditorPopup: true,
-      cellEditorPopupPosition: "under",
+      cellEditor: SourceCellEditor as any,
       valueFormatter: (params: ValueFormatterParams) => {
         const v: string = params.value || "";
         if (!v) return "—";
