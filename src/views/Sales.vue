@@ -11,7 +11,6 @@ import {
   ValidationModule,
   TextEditorModule,
   SelectEditorModule,
-  RowSelectionModule,
   ColumnAutoSizeModule,
   ColumnApiModule,
   QuickFilterModule,
@@ -44,7 +43,6 @@ ModuleRegistry.registerModules([
   ValidationModule,
   TextEditorModule,
   SelectEditorModule,
-  RowSelectionModule,
   ColumnAutoSizeModule,
   ColumnApiModule,
   QuickFilterModule,
@@ -94,7 +92,6 @@ const isFullscreen = ref(false);
 const searchText = ref("");
 const showFilters = ref(false);
 const showStatsPanel = ref(false);
-const selectedCount = ref(0);
 const selectedSale = ref<Sale | null>(null);
 const detailClientId = ref<string | null>(null);
 
@@ -235,20 +232,6 @@ const defaultColDef = ref<ColDef>({
   sortable: false,
 });
 
-const rowSelection = ref<any>({
-  mode: "multiRow",
-  enableClickSelection: false,
-});
-
-const selectionColumnDef = ref({
-  width: 42,
-  minWidth: 42,
-  maxWidth: 42,
-  suppressHeaderMenuButton: true,
-  sortable: false,
-  pinned: "left" as const,
-});
-
 // ── API ──
 const loadSales = async () => {
   isLoading.value = true;
@@ -315,10 +298,6 @@ const onFirstDataRendered = (params: FirstDataRenderedEvent) => {
 
 const onGridSizeChanged = (params: GridSizeChangedEvent) => {
   if (!isMobile.value && params.api) params.api.sizeColumnsToFit();
-};
-
-const onSelectionChanged = () => {
-  selectedCount.value = gridApi.value?.getSelectedRows().length ?? 0;
 };
 
 // Click: agent_name → client detail; else → receipt modal
@@ -470,6 +449,7 @@ onUnmounted(() => {
             <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
           </svg>
         </button>
+
       </div>
     </header>
 
@@ -663,8 +643,6 @@ onUnmounted(() => {
         :columnDefs="columnDefs"
         :defaultColDef="defaultColDef"
         :rowData="sales"
-        :rowSelection="rowSelection"
-        :selectionColumnDef="selectionColumnDef"
         :getRowId="getRowId"
         :animateRows="true"
         :enableCellTextSelection="true"
@@ -672,7 +650,6 @@ onUnmounted(() => {
         :suppressDragLeaveHidesColumns="true"
         overlayNoRowsTemplate='<div class="ov-empty"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" stroke-width="1.5"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="9" y1="7" x2="15" y2="7"/><line x1="9" y1="11" x2="15" y2="11"/></svg><span>Продажи не найдены</span></div>'
         @grid-ready="onGridReady"
-        @selection-changed="onSelectionChanged"
         @first-data-rendered="onFirstDataRendered"
         @grid-size-changed="onGridSizeChanged"
         @cell-clicked="onCellClicked"
@@ -682,7 +659,6 @@ onUnmounted(() => {
     <!-- FOOTER -->
     <footer class="page-footer">
       <div class="footer-l">
-        <span v-if="selectedCount > 0">Выбрано: <b>{{ selectedCount }}</b></span>
         <span>Загружено: <b>{{ sales.length }}</b> из <b>{{ totalSales }}</b></span>
         <span v-if="hasMore && !isLoadingMore" class="footer-more">
           — прокрутите вниз для загрузки
