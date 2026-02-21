@@ -275,6 +275,9 @@ const showRecommendedBy = computed(
 const showCustomSource = computed(
   () => form.value.source === "Другое"
 );
+const canFillDetails = computed(
+  () => !!form.value.client_moysklad_id || form.value.is_phantom
+);
 
 // ── Save ──
 const handleSave = async () => {
@@ -592,38 +595,6 @@ defineExpose({ onNewClientCreated });
                 <div class="vem-phantom-badge">
                   <Ghost :size="14" /> Гость без регистрации в базе
                 </div>
-                <div class="vem-field">
-                  <label><User :size="11" /> Имя (необязательно)</label>
-                  <input
-                    v-model="form.phantom_name"
-                    type="text"
-                    placeholder="Иван Иванов..."
-                  />
-                </div>
-                <div class="vem-field">
-                  <label><Phone :size="11" /> Телефон (необязательно)</label>
-                  <input
-                    v-model="form.phantom_phone"
-                    type="text"
-                    placeholder="+7..."
-                  />
-                </div>
-                <!-- Откуда узнал для анонима -->
-                <div class="vem-field">
-                  <label>Откуда узнал</label>
-                  <select v-model="form.source">
-                    <option value="">—</option>
-                    <option v-for="s in VISIT_SOURCES" :key="s" :value="s">{{ s }}</option>
-                  </select>
-                </div>
-                <div class="vem-field" v-if="showRecommendedBy">
-                  <label><User :size="11" /> Кто порекомендовал</label>
-                  <input v-model="form.recommended_by" type="text" placeholder="Имя или контакт..." />
-                </div>
-                <div class="vem-field" v-if="showCustomSource">
-                  <label>Уточнение</label>
-                  <input v-model="customSource" type="text" placeholder="Откуда именно..." />
-                </div>
               </div>
 
               <!-- Regular client search -->
@@ -739,7 +710,7 @@ defineExpose({ onNewClientCreated });
             </div>
 
             <!-- Details -->
-            <div class="vem-section">
+            <div class="vem-section" :class="{ 'vem-section--locked': !canFillDetails }">
               <h3 class="vem-sec-title"><Palette :size="13" /> Детали</h3>
               <div class="vem-fields">
                 <!-- Size select -->
@@ -814,7 +785,7 @@ defineExpose({ onNewClientCreated });
             </div>
 
             <!-- Status -->
-            <div class="vem-section">
+            <div class="vem-section" :class="{ 'vem-section--locked': !canFillDetails }">
               <h3 class="vem-sec-title">Статус визита</h3>
               <div class="vem-statuses">
                 <button
@@ -1363,6 +1334,12 @@ defineExpose({ onNewClientCreated });
   to {
     transform: rotate(360deg);
   }
+}
+
+.vem-section--locked {
+  opacity: 0.4;
+  pointer-events: none;
+  user-select: none;
 }
 
 @media (max-width: 640px) {
