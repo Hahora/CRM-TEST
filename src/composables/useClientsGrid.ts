@@ -9,7 +9,7 @@ import type {
   ValueFormatterParams,
   ValueSetterParams,
 } from "ag-grid-community";
-import { VISIT_SOURCES } from "@/services/visitsApi";
+import SourceCellEditor from "@/components/grid/SourceCellEditor.vue";
 
 export const CLIENT_SOURCES = [
   "Instagram",
@@ -507,13 +507,12 @@ export function useClientsGrid() {
     {
       headerName: "Откуда узнал",
       field: "source",
-      width: 155,
-      minWidth: 115,
+      width: 200,
+      minWidth: 130,
       editable: true,
-      cellEditor: "agSelectCellEditor",
-      cellEditorParams: {
-        values: ["", ...VISIT_SOURCES],
-      },
+      cellEditor: SourceCellEditor,
+      cellEditorPopup: true,
+      cellEditorPopupPosition: "under",
       valueFormatter: (params: ValueFormatterParams) => {
         const v: string = params.value || "";
         if (!v) return "—";
