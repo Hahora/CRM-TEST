@@ -29,11 +29,6 @@ const handleLogout = async () => {
   closeProfile();
 };
 
-const handleProfileSettings = () => {
-  console.log("Переход к настройкам профиля");
-  closeProfile();
-};
-
 const getInitials = () => {
   if (!user.value) return "?";
   if (user.value.first_name) {
@@ -208,23 +203,6 @@ onUnmounted(() => {
 
             <!-- Menu Actions -->
             <div class="py-1.5">
-              <button
-                @click="handleProfileSettings"
-                class="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50/80 transition-colors flex items-center gap-2.5 group"
-              >
-                <div
-                  class="w-8 h-8 rounded-lg bg-gray-100 group-hover:bg-gray-200/70 flex items-center justify-center transition-colors"
-                >
-                  <AppIcon name="settings" :size="15" class="text-gray-500" />
-                </div>
-                <div class="flex flex-col">
-                  <span class="text-[13px] font-medium">Настройки профиля</span>
-                  <span class="text-[11px] text-gray-400"
-                    >Персональные данные</span
-                  >
-                </div>
-              </button>
-
               <button
                 @click="handleLogout"
                 class="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50/60 transition-colors flex items-center gap-2.5 group"
