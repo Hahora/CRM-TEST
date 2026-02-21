@@ -21,83 +21,77 @@ defineProps<Props>();
 </script>
 
 <template>
-  <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 md:gap-6">
-    <div class="bg-white rounded-xl border border-gray-200 p-4 md:p-6">
-      <div class="flex items-center justify-between mb-3">
-        <div
-          class="w-10 h-10 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center"
-        >
-          <AppIcon name="send" :size="20" />
+  <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+    <div class="bg-white rounded-xl border border-gray-200 p-3">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
+          <AppIcon name="send" :size="16" />
+        </div>
+        <div class="min-w-0">
+          <div class="text-xl font-bold text-gray-900 leading-none">{{ stats.total }}</div>
+          <div class="text-xs text-gray-500 mt-0.5">Всего</div>
         </div>
       </div>
-      <div class="text-2xl font-bold text-gray-900 mb-1">{{ stats.total }}</div>
-      <div class="text-sm text-gray-600">Всего рассылок</div>
     </div>
 
-    <div class="bg-white rounded-xl border border-gray-200 p-4 md:p-6">
-      <div class="flex items-center justify-between mb-3">
-        <div
-          class="w-10 h-10 bg-gray-50 text-gray-600 rounded-lg flex items-center justify-center"
-        >
-          <AppIcon name="edit" :size="20" />
+    <div class="bg-white rounded-xl border border-gray-200 p-3">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 bg-gray-50 text-gray-600 rounded-lg flex items-center justify-center flex-shrink-0">
+          <AppIcon name="edit" :size="16" />
+        </div>
+        <div class="min-w-0">
+          <div class="text-xl font-bold text-gray-900 leading-none">{{ stats.draft }}</div>
+          <div class="text-xs text-gray-500 mt-0.5">Черновики</div>
         </div>
       </div>
-      <div class="text-2xl font-bold text-gray-900 mb-1">{{ stats.draft }}</div>
-      <div class="text-sm text-gray-600">Черновики</div>
     </div>
 
-    <div class="bg-white rounded-xl border border-gray-200 p-4 md:p-6">
-      <div class="flex items-center justify-between mb-3">
-        <div
-          class="w-10 h-10 bg-orange-50 text-orange-600 rounded-lg flex items-center justify-center"
-        >
-          <AppIcon name="clock" :size="20" />
+    <div class="bg-white rounded-xl border border-gray-200 p-3">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 bg-orange-50 text-orange-600 rounded-lg flex items-center justify-center flex-shrink-0">
+          <AppIcon name="clock" :size="16" />
+        </div>
+        <div class="min-w-0">
+          <div class="text-xl font-bold text-gray-900 leading-none">{{ stats.scheduled }}</div>
+          <div class="text-xs text-gray-500 mt-0.5">Запланировано</div>
         </div>
       </div>
-      <div class="text-2xl font-bold text-gray-900 mb-1">
-        {{ stats.scheduled }}
-      </div>
-      <div class="text-sm text-gray-600">Запланировано</div>
     </div>
 
-    <div class="bg-white rounded-xl border border-gray-200 p-4 md:p-6">
-      <div class="flex items-center justify-between mb-3">
-        <div
-          class="w-10 h-10 bg-green-50 text-green-600 rounded-lg flex items-center justify-center"
-        >
-          <AppIcon name="check-circle" :size="20" />
+    <div class="bg-white rounded-xl border border-gray-200 p-3">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 bg-green-50 text-green-600 rounded-lg flex items-center justify-center flex-shrink-0">
+          <AppIcon name="check-circle" :size="16" />
+        </div>
+        <div class="min-w-0">
+          <div class="text-xl font-bold text-gray-900 leading-none">{{ stats.sent }}</div>
+          <div class="text-xs text-gray-500 mt-0.5">Отправлено</div>
         </div>
       </div>
-      <div class="text-2xl font-bold text-gray-900 mb-1">{{ stats.sent }}</div>
-      <div class="text-sm text-gray-600">Отправлено</div>
     </div>
 
-    <div class="bg-white rounded-xl border border-gray-200 p-4 md:p-6">
-      <div class="flex items-center justify-between mb-3">
-        <div
-          class="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-lg flex items-center justify-center"
-        >
-          <AppIcon name="trending-up" :size="20" />
+    <div class="bg-white rounded-xl border border-gray-200 p-3">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 bg-emerald-50 text-emerald-600 rounded-lg flex items-center justify-center flex-shrink-0">
+          <AppIcon name="trending-up" :size="16" />
+        </div>
+        <div class="min-w-0">
+          <div class="text-xl font-bold text-gray-900 leading-none">{{ stats.deliveryRate }}%</div>
+          <div class="text-xs text-gray-500 mt-0.5">Доставляемость</div>
         </div>
       </div>
-      <div class="text-2xl font-bold text-gray-900 mb-1">
-        {{ stats.deliveryRate }}%
-      </div>
-      <div class="text-sm text-gray-600">Доставляемость</div>
     </div>
 
-    <div class="bg-white rounded-xl border border-gray-200 p-4 md:p-6">
-      <div class="flex items-center justify-between mb-3">
-        <div
-          class="w-10 h-10 bg-purple-50 text-purple-600 rounded-lg flex items-center justify-center"
-        >
-          <AppIcon name="mail" :size="20" />
+    <div class="bg-white rounded-xl border border-gray-200 p-3">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 bg-purple-50 text-purple-600 rounded-lg flex items-center justify-center flex-shrink-0">
+          <AppIcon name="mail" :size="16" />
+        </div>
+        <div class="min-w-0">
+          <div class="text-xl font-bold text-gray-900 leading-none">{{ stats.openRate }}%</div>
+          <div class="text-xs text-gray-500 mt-0.5">Открываемость</div>
         </div>
       </div>
-      <div class="text-2xl font-bold text-gray-900 mb-1">
-        {{ stats.openRate }}%
-      </div>
-      <div class="text-sm text-gray-600">Открываемость</div>
     </div>
   </div>
 </template>

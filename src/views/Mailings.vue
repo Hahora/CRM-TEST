@@ -1,44 +1,15 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
-import { format } from "date-fns";
-import { ru } from "date-fns/locale";
+import { ref, computed } from "vue";
 import AppIcon from "@/components/AppIcon.vue";
-import MailingsFilters from "@/components/mailings/MailingsFilters.vue";
-import MailingsTable from "@/components/mailings/MailingsTable.vue";
 import MailingsStats from "@/components/mailings/MailingsStats.vue";
+import MailingsFilters from "@/components/mailings/MailingsFilters.vue";
+import type { MailingsFilters as TFilters } from "@/components/mailings/MailingsFilters.vue";
+import MailingsTable from "@/components/mailings/MailingsTable.vue";
+import type { Mailing } from "@/components/mailings/MailingsTable.vue";
 import CreateMailingModal from "@/components/mailings/CreateMailingModal.vue";
 import MailingDetailsModal from "@/components/mailings/MailingDetailsModal.vue";
-import DevelopmentBanner from "@/components/DevelopmentBanner.vue";
 
-interface Mailing {
-  id: string;
-  name: string;
-  type: "telegram" | "email" | "max";
-  status: "draft" | "scheduled" | "sending" | "sent" | "failed";
-  subject?: string;
-  message: string;
-  recipients: number;
-  sent: number;
-  delivered: number;
-  opened?: number;
-  clicked?: number;
-  failed: number;
-  scheduledAt?: string;
-  sentAt?: string;
-  createdAt: string;
-  createdBy: string;
-  branch: string;
-  targetAudience: string[];
-}
-
-interface MailingsFilters {
-  search: string;
-  type: string;
-  status: string;
-  branch: string;
-  dateFrom: string;
-  dateTo: string;
-}
+// ── Данные ──────────────────────────────────────────────────────────────────
 
 const mailings = ref<Mailing[]>([
   {
@@ -47,8 +18,7 @@ const mailings = ref<Mailing[]>([
     type: "telegram",
     status: "sent",
     subject: "🎄 Новогодние скидки до 50%!",
-    message:
-      "Дорогие клиенты! Поздравляем с наступающим Новым годом! Специально для вас скидки до 50% на все товары до 31 декабря.",
+    message: "Дорогие клиенты! Поздравляем с наступающим Новым годом! Специально для вас скидки до 50% на все товары до 31 декабря.",
     recipients: 1247,
     sent: 1247,
     delivered: 1198,
@@ -66,8 +36,7 @@ const mailings = ref<Mailing[]>([
     name: "Напоминание о встрече",
     type: "max",
     status: "sent",
-    message:
-      "Напоминаем о встрече завтра в 14:00. Ждем вас по адресу: ул. Ленина, 1. Тел: +7(495)123-45-67",
+    message: "Напоминаем о встрече завтра в 14:00. Ждем вас по адресу: ул. Ленина, 1. Тел: +7(495)123-45-67",
     recipients: 45,
     sent: 45,
     delivered: 43,
@@ -84,8 +53,7 @@ const mailings = ref<Mailing[]>([
     type: "email",
     status: "scheduled",
     subject: "Новости недели и специальные предложения",
-    message:
-      "Добро пожаловать в еженедельную рассылку! В этом выпуске: новые товары, акции и полезные советы.",
+    message: "Добро пожаловать в еженедельную рассылку! В этом выпуске: новые товары, акции и полезные советы.",
     recipients: 892,
     sent: 0,
     delivered: 0,
@@ -98,12 +66,11 @@ const mailings = ref<Mailing[]>([
   },
   {
     id: "4",
-    name: "Опрос удовлетворенности",
+    name: "Опрос удовлетворённости",
     type: "telegram",
     status: "draft",
     subject: "Помогите нам стать лучше!",
-    message:
-      "Уважаемые клиенты! Пройдите короткий опрос о качестве наших услуг. Это займет всего 2 минуты.",
+    message: "Уважаемые клиенты! Пройдите короткий опрос о качестве наших услуг. Это займет всего 2 минуты.",
     recipients: 0,
     sent: 0,
     delivered: 0,
@@ -119,8 +86,7 @@ const mailings = ref<Mailing[]>([
     type: "max",
     status: "sending",
     subject: "Важное уведомление",
-    message:
-      "Уважаемые клиенты! Информируем вас об изменении режима работы в праздничные дни.",
+    message: "Уважаемые клиенты! Информируем вас об изменении режима работы в праздничные дни.",
     recipients: 234,
     sent: 156,
     delivered: 142,
@@ -134,7 +100,11 @@ const mailings = ref<Mailing[]>([
   },
 ]);
 
-const filters = ref<MailingsFilters>({
+const isLoading = ref(false);
+
+// ── Фильтры ──────────────────────────────────────────────────────────────────
+
+const filters = ref<TFilters>({
   search: "",
   type: "all",
   status: "all",
@@ -143,112 +113,78 @@ const filters = ref<MailingsFilters>({
   dateTo: "",
 });
 
-const isCreateModalOpen = ref(false);
-const isDetailsModalOpen = ref(false);
-const selectedMailing = ref<Mailing | null>(null);
-const isLoading = ref(false);
-
 const filteredMailings = computed(() => {
   let result = mailings.value;
 
   if (filters.value.search) {
-    const search = filters.value.search.toLowerCase();
+    const q = filters.value.search.toLowerCase();
     result = result.filter(
-      (mailing) =>
-        mailing.name.toLowerCase().includes(search) ||
-        (mailing.subject && mailing.subject.toLowerCase().includes(search)) ||
-        mailing.message.toLowerCase().includes(search)
+      (m) =>
+        m.name.toLowerCase().includes(q) ||
+        (m.subject && m.subject.toLowerCase().includes(q)) ||
+        m.message.toLowerCase().includes(q)
     );
   }
 
   if (filters.value.type !== "all") {
-    result = result.filter((mailing) => mailing.type === filters.value.type);
+    result = result.filter((m) => m.type === filters.value.type);
   }
 
   if (filters.value.status !== "all") {
-    result = result.filter(
-      (mailing) => mailing.status === filters.value.status
-    );
+    result = result.filter((m) => m.status === filters.value.status);
   }
 
   if (filters.value.branch !== "all") {
-    result = result.filter(
-      (mailing) => mailing.branch === filters.value.branch
-    );
+    result = result.filter((m) => m.branch === filters.value.branch);
   }
 
   return result;
 });
 
-const mailingsStats = computed(() => {
-  const total = filteredMailings.value.length;
-  const draft = filteredMailings.value.filter(
-    (m) => m.status === "draft"
-  ).length;
-  const scheduled = filteredMailings.value.filter(
-    (m) => m.status === "scheduled"
-  ).length;
-  const sent = filteredMailings.value.filter((m) => m.status === "sent").length;
-  const failed = filteredMailings.value.filter(
-    (m) => m.status === "failed"
-  ).length;
+// ── Статистика ───────────────────────────────────────────────────────────────
 
-  const totalRecipients = filteredMailings.value.reduce(
-    (sum, m) => sum + m.recipients,
-    0
-  );
-  const totalSent = filteredMailings.value.reduce((sum, m) => sum + m.sent, 0);
-  const totalDelivered = filteredMailings.value.reduce(
-    (sum, m) => sum + m.delivered,
-    0
-  );
-  const totalOpened = filteredMailings.value.reduce(
-    (sum, m) => sum + (m.opened || 0),
-    0
-  );
-
-  const deliveryRate =
-    totalSent > 0 ? Math.round((totalDelivered / totalSent) * 100) : 0;
-  const openRate =
-    totalDelivered > 0 ? Math.round((totalOpened / totalDelivered) * 100) : 0;
+const stats = computed(() => {
+  const all = mailings.value;
+  const totalSent = all.reduce((s, m) => s + m.sent, 0);
+  const totalDelivered = all.reduce((s, m) => s + m.delivered, 0);
+  const totalOpened = all.reduce((s, m) => s + (m.opened || 0), 0);
 
   return {
-    total,
-    draft,
-    scheduled,
-    sent,
-    failed,
-    totalRecipients,
+    total:           all.length,
+    draft:           all.filter((m) => m.status === "draft").length,
+    scheduled:       all.filter((m) => m.status === "scheduled").length,
+    sent:            all.filter((m) => m.status === "sent").length,
+    failed:          all.filter((m) => m.status === "failed").length,
+    totalRecipients: all.reduce((s, m) => s + m.recipients, 0),
     totalSent,
     totalDelivered,
     totalOpened,
-    deliveryRate,
-    openRate,
+    deliveryRate:    totalSent > 0 ? Math.round((totalDelivered / totalSent) * 100) : 0,
+    openRate:        totalDelivered > 0 ? Math.round((totalOpened / totalDelivered) * 100) : 0,
   };
 });
 
-const openCreateModal = () => {
-  isCreateModalOpen.value = true;
-};
+// ── Модальные окна ────────────────────────────────────────────────────────────
 
-const closeCreateModal = () => {
-  isCreateModalOpen.value = false;
-};
+const isCreateModalOpen = ref(false);
+const isDetailsModalOpen = ref(false);
+const selectedMailing = ref<Mailing | null>(null);
 
-const openDetailsModal = (mailing: Mailing) => {
+const openDetails = (mailing: Mailing) => {
   selectedMailing.value = mailing;
   isDetailsModalOpen.value = true;
 };
 
-const closeDetailsModal = () => {
+const closeDetails = () => {
   isDetailsModalOpen.value = false;
   selectedMailing.value = null;
 };
 
-const handleCreateMailing = (mailingData: any) => {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const handleCreate = (data: any) => {
   const newMailing: Mailing = {
     id: Date.now().toString(),
-    ...mailingData,
+    ...data,
     recipients: 0,
     sent: 0,
     delivered: 0,
@@ -256,251 +192,74 @@ const handleCreateMailing = (mailingData: any) => {
     createdAt: new Date().toISOString(),
   };
   mailings.value.unshift(newMailing);
-  closeCreateModal();
+  isCreateModalOpen.value = false;
 };
 
-const handleUpdateFilters = (newFilters: MailingsFilters) => {
-  filters.value = { ...newFilters };
-};
-
-const refreshData = async () => {
+const refresh = async () => {
   isLoading.value = true;
-
-  await new Promise((resolve) => setTimeout(resolve, 1000));
-
-  console.log("Данные рассылок обновлены");
-
+  await new Promise((r) => setTimeout(r, 800));
   isLoading.value = false;
 };
-
-const exportMailings = () => {
-  console.log("Экспорт рассылок");
-};
-
-onMounted(() => {
-  console.log("Mailings page loaded");
-});
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-50">
-    <DevelopmentBanner />
+  <div class="h-full overflow-hidden flex flex-col bg-gray-50">
     <!-- Header -->
-    <div class="bg-white border-b border-gray-200">
-      <div class="p-4 md:p-6">
-        <div
-          class="flex flex-col md:flex-row md:items-center md:justify-between gap-4"
-        >
-          <div>
-            <h1 class="text-xl md:text-2xl font-bold text-gray-900">
-              Рассылки
-            </h1>
-            <p class="text-sm md:text-base text-gray-600 mt-1">
-              Управление массовыми рассылками и уведомлениями
-            </p>
-          </div>
+    <div class="bg-white border-b border-gray-200 px-4 md:px-6 py-3 flex-shrink-0">
+      <div class="flex items-center justify-between gap-4">
+        <div>
+          <h1 class="text-lg font-semibold text-gray-900">Рассылки</h1>
+          <p class="text-xs text-gray-500 mt-0.5">Управление массовыми рассылками</p>
+        </div>
 
-          <div class="flex items-center gap-2 md:gap-3">
-            <button
-              @click="exportMailings"
-              class="px-3 py-2 md:px-4 md:py-2 border border-gray-300 text-gray-700 text-xs md:text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-1 md:gap-2"
-            >
-              <AppIcon name="file-text" :size="14" class="md:w-4 md:h-4" />
-              <span class="hidden sm:inline">Экспорт</span>
-            </button>
-            <button
-              @click="refreshData"
-              :disabled="isLoading"
-              class="px-3 py-2 md:px-4 md:py-2 bg-blue-600 text-white text-xs md:text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 md:gap-2"
-            >
-              <AppIcon
-                name="refresh-cw"
-                :size="14"
-                class="transition-transform md:w-4 md:h-4"
-                :class="{ 'animate-spin': isLoading }"
-              />
-              <span class="hidden sm:inline">{{
-                isLoading ? "Обновление..." : "Обновить"
-              }}</span>
-            </button>
-            <button
-              @click="openCreateModal"
-              class="px-3 py-2 md:px-4 md:py-2 bg-green-600 text-white text-xs md:text-sm font-medium rounded-lg hover:bg-green-700 transition-colors flex items-center gap-1 md:gap-2"
-            >
-              <AppIcon name="send" :size="14" class="md:w-4 md:h-4" />
-              <span class="hidden sm:inline">Новая рассылка</span>
-              <span class="sm:hidden">Новая</span>
-            </button>
-          </div>
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <button
+            @click="refresh"
+            :disabled="isLoading"
+            class="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+          >
+            <AppIcon name="refresh-cw" :size="14" :class="{ 'animate-spin': isLoading }" />
+            <span class="hidden sm:inline">Обновить</span>
+          </button>
+          <button
+            @click="isCreateModalOpen = true"
+            class="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <AppIcon name="plus" :size="14" />
+            <span class="hidden sm:inline">Новая рассылка</span>
+            <span class="sm:hidden">Новая</span>
+          </button>
         </div>
       </div>
     </div>
 
-    <div class="p-4 md:p-6 space-y-6">
-      <!-- Loading Overlay -->
-      <div
-        v-if="isLoading"
-        class="fixed inset-0 bg-black bg-opacity-20 z-50 flex items-center justify-center"
-      >
-        <div class="bg-white rounded-lg p-6 flex items-center gap-3 shadow-lg">
-          <AppIcon
-            name="refresh-cw"
-            :size="20"
-            class="animate-spin text-blue-600"
-          />
-          <span class="text-gray-700 font-medium"
-            >Обновление данных рассылок...</span
-          >
-        </div>
-      </div>
+    <!-- Content -->
+    <div class="flex-1 overflow-y-auto p-4 md:p-5 space-y-4">
+      <MailingsStats :stats="stats" />
 
-      <!-- Filters -->
       <MailingsFilters
         :filters="filters"
-        @update-filters="handleUpdateFilters"
+        @update:filters="(v) => (filters = v)"
       />
 
-      <!-- Statistics Cards -->
-      <div
-        class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6"
-      >
-        <div class="bg-white rounded-xl border border-gray-200 p-4 md:p-6">
-          <div class="flex items-center gap-3">
-            <div
-              class="w-10 h-10 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center"
-            >
-              <AppIcon name="send" :size="20" />
-            </div>
-            <div>
-              <div class="text-2xl font-bold text-gray-900">
-                {{ mailings.filter((m) => m.status === "sent").length }}
-              </div>
-              <div class="text-sm text-gray-600">Отправлено</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="bg-white rounded-xl border border-gray-200 p-4 md:p-6">
-          <div class="flex items-center gap-3">
-            <div
-              class="w-10 h-10 bg-orange-50 text-orange-600 rounded-lg flex items-center justify-center"
-            >
-              <AppIcon name="clock" :size="20" />
-            </div>
-            <div>
-              <div class="text-2xl font-bold text-gray-900">
-                {{ mailings.filter((m) => m.status === "scheduled").length }}
-              </div>
-              <div class="text-sm text-gray-600">Запланировано</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="bg-white rounded-xl border border-gray-200 p-4 md:p-6">
-          <div class="flex items-center gap-3">
-            <div
-              class="w-10 h-10 bg-gray-50 text-gray-600 rounded-lg flex items-center justify-center"
-            >
-              <AppIcon name="file-text" :size="20" />
-            </div>
-            <div>
-              <div class="text-2xl font-bold text-gray-900">
-                {{ mailings.filter((m) => m.status === "draft").length }}
-              </div>
-              <div class="text-sm text-gray-600">Черновики</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="bg-white rounded-xl border border-gray-200 p-4 md:p-6">
-          <div class="flex items-center gap-3">
-            <div
-              class="w-10 h-10 bg-green-50 text-green-600 rounded-lg flex items-center justify-center"
-            >
-              <AppIcon name="users" :size="20" />
-            </div>
-            <div>
-              <div class="text-2xl font-bold text-gray-900">
-                {{
-                  mailings
-                    .reduce((sum, m) => sum + m.recipients, 0)
-                    .toLocaleString()
-                }}
-              </div>
-              <div class="text-sm text-gray-600">Получателей</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Mailings Table -->
       <MailingsTable
         :mailings="filteredMailings"
-        @view-mailing="openDetailsModal"
+        :loading="isLoading"
+        @view-mailing="openDetails"
       />
-
-      <!-- Empty State -->
-      <div
-        v-if="!isLoading && filteredMailings.length === 0"
-        class="bg-white rounded-xl border border-gray-200 p-8 md:p-12 text-center"
-      >
-        <div
-          class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4"
-        >
-          <AppIcon name="send" :size="32" class="text-gray-400" />
-        </div>
-        <h3 class="text-lg font-medium text-gray-900 mb-2">
-          {{
-            filters.search ||
-            filters.type ||
-            filters.status ||
-            filters.branch ||
-            filters.dateFrom ||
-            filters.dateTo
-              ? "Рассылки не найдены"
-              : "Нет рассылок"
-          }}
-        </h3>
-        <p class="text-gray-600 mb-6">
-          {{
-            filters.search ||
-            filters.type ||
-            filters.status ||
-            filters.branch ||
-            filters.dateFrom ||
-            filters.dateTo
-              ? "Попробуйте изменить параметры поиска"
-              : "Создайте первую рассылку для ваших клиентов"
-          }}
-        </p>
-        <button
-          v-if="
-            !filters.search &&
-            !filters.type &&
-            !filters.status &&
-            !filters.branch &&
-            !filters.dateFrom &&
-            !filters.dateTo
-          "
-          @click="openCreateModal"
-          class="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors"
-        >
-          Создать рассылку
-        </button>
-      </div>
     </div>
 
     <!-- Modals -->
     <CreateMailingModal
       :is-open="isCreateModalOpen"
-      @close="closeCreateModal"
-      @create="handleCreateMailing"
+      @close="isCreateModalOpen = false"
+      @create="handleCreate"
     />
 
     <MailingDetailsModal
       :is-open="isDetailsModalOpen"
       :mailing="selectedMailing"
-      @close="closeDetailsModal"
+      @close="closeDetails"
     />
   </div>
 </template>
