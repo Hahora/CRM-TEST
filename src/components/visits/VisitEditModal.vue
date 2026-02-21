@@ -735,22 +735,6 @@ defineExpose({ onNewClientCreated });
                     />
                   </div>
                 </template>
-                <!-- Откуда узнал — клиентское поле -->
-                <div class="vem-field">
-                  <label>Откуда узнал</label>
-                  <select v-model="form.source">
-                    <option value="">—</option>
-                    <option v-for="s in VISIT_SOURCES" :key="s" :value="s">{{ s }}</option>
-                  </select>
-                </div>
-                <div class="vem-field" v-if="showRecommendedBy">
-                  <label><User :size="11" /> Кто порекомендовал</label>
-                  <input v-model="form.recommended_by" type="text" placeholder="Имя или контакт..." />
-                </div>
-                <div class="vem-field" v-if="showCustomSource">
-                  <label>Уточнение</label>
-                  <input v-model="customSource" type="text" placeholder="Откуда именно..." />
-                </div>
               </div>
             </div>
 
@@ -779,6 +763,24 @@ defineExpose({ onNewClientCreated });
                   <label><Palette :size="11" /> Цвет</label
                   ><input v-model="form.color" placeholder="Красный..." />
                 </div>
+                <!-- Откуда узнал (только для не-анонимных, у фантома своё поле) -->
+                <template v-if="!form.is_phantom">
+                  <div class="vem-field">
+                    <label>Откуда узнал</label>
+                    <select v-model="form.source">
+                      <option value="">—</option>
+                      <option v-for="s in VISIT_SOURCES" :key="s" :value="s">{{ s }}</option>
+                    </select>
+                  </div>
+                  <div class="vem-field" v-if="showRecommendedBy">
+                    <label><User :size="11" /> Кто порекомендовал</label>
+                    <input v-model="form.recommended_by" type="text" placeholder="Имя или контакт..." />
+                  </div>
+                  <div class="vem-field" v-if="showCustomSource">
+                    <label>Уточнение</label>
+                    <input v-model="customSource" type="text" placeholder="Откуда именно..." />
+                  </div>
+                </template>
                 <!-- Consultant dropdown -->
                 <div class="vem-field">
                   <label>Консультант</label>
