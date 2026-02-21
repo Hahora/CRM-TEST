@@ -1,47 +1,16 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
-import { format } from "date-fns";
-import { ru } from "date-fns/locale";
+import { useRouter } from "vue-router";
 import AppIcon from "@/components/AppIcon.vue";
+import TicketsStats from "@/components/tickets/TicketsStats.vue";
 import TicketsFilters from "@/components/tickets/TicketsFilters.vue";
 import TicketsTable from "@/components/tickets/TicketsTable.vue";
-import TicketsStats from "@/components/tickets/TicketsStats.vue";
-import DevelopmentBanner from "@/components/DevelopmentBanner.vue";
-
-import { useRouter } from "vue-router";
-
-interface Ticket {
-  id: string;
-  number: number;
-  clientName: string;
-  clientPhone?: string;
-  clientEmail?: string;
-  telegramId?: string;
-  maxId?: string;
-  status: "active" | "resolved" | "unresolved" | "closed";
-  priority: "urgent" | "high" | "medium" | "low";
-  source: "telegram" | "max";
-  subject: string;
-  lastMessage: string;
-  assignedTo?: string;
-  createdAt: string;
-  updatedAt: string;
-  resolvedAt?: string;
-  messagesCount: number;
-  isUnread: boolean;
-}
-
-interface TicketsFilters {
-  search: string;
-  status: string;
-  source: string;
-  priority: string;
-  assignedTo: string;
-  dateFrom: string;
-  dateTo: string;
-}
+import type { Ticket } from "@/components/tickets/TicketsTable.vue";
+import type { TicketsFilters as TFilters } from "@/components/tickets/TicketsFilters.vue";
 
 const router = useRouter();
+
+// ── Данные ──────────────────────────────────────────────────────────────────
 
 const tickets = ref<Ticket[]>([
   {
@@ -106,8 +75,8 @@ const tickets = ref<Ticket[]>([
     priority: "low",
     source: "max",
     subject: "Информация о товаре",
-    lastMessage: "Вопрос решен, спасибо",
-    assignedTo: "Петр Николаев",
+    lastMessage: "Вопрос решён, спасибо",
+    assignedTo: "Пётр Николаев",
     createdAt: "2024-01-06T14:30:00",
     updatedAt: "2024-01-07T09:15:00",
     resolvedAt: "2024-01-07T09:15:00",
@@ -132,7 +101,11 @@ const tickets = ref<Ticket[]>([
   },
 ]);
 
-const filters = ref<TicketsFilters>({
+const isLoading = ref(false);
+
+// ── Фильтры ──────────────────────────────────────────────────────────────────
+
+const filters = ref<TFilters>({
   search: "",
   status: "all",
   source: "all",
@@ -142,194 +115,143 @@ const filters = ref<TicketsFilters>({
   dateTo: "",
 });
 
-const isLoading = ref(false);
-
 const filteredTickets = computed(() => {
   let result = tickets.value;
 
   if (filters.value.search) {
-    const search = filters.value.search.toLowerCase();
+    const q = filters.value.search.toLowerCase();
     result = result.filter(
-      (ticket) =>
-        ticket.number.toString().includes(search) ||
-        ticket.clientName.toLowerCase().includes(search) ||
-        ticket.subject.toLowerCase().includes(search) ||
-        ticket.lastMessage.toLowerCase().includes(search)
+      (t) =>
+        t.number.toString().includes(q) ||
+        t.clientName.toLowerCase().includes(q) ||
+        t.subject.toLowerCase().includes(q) ||
+        t.lastMessage.toLowerCase().includes(q)
     );
   }
 
   if (filters.value.status !== "all") {
-    result = result.filter((ticket) => ticket.status === filters.value.status);
+    result = result.filter((t) => t.status === filters.value.status);
   }
 
   if (filters.value.source !== "all") {
-    result = result.filter((ticket) => ticket.source === filters.value.source);
+    result = result.filter((t) => t.source === filters.value.source);
   }
 
   if (filters.value.priority !== "all") {
-    result = result.filter(
-      (ticket) => ticket.priority === filters.value.priority
-    );
+    result = result.filter((t) => t.priority === filters.value.priority);
   }
 
-  if (filters.value.assignedTo !== "all") {
-    result = result.filter(
-      (ticket) => ticket.assignedTo === filters.value.assignedTo
-    );
+  if (filters.value.dateFrom) {
+    const from = new Date(filters.value.dateFrom).getTime();
+    result = result.filter((t) => new Date(t.createdAt).getTime() >= from);
+  }
+
+  if (filters.value.dateTo) {
+    const to = new Date(filters.value.dateTo).getTime() + 86400000;
+    result = result.filter((t) => new Date(t.createdAt).getTime() <= to);
   }
 
   return result;
 });
 
-const ticketsStats = computed(() => {
-  const total = filteredTickets.value.length;
-  const active = filteredTickets.value.filter(
-    (t) => t.status === "active"
-  ).length;
-  const resolved = filteredTickets.value.filter(
-    (t) => t.status === "resolved"
-  ).length;
-  const unresolved = filteredTickets.value.filter(
-    (t) => t.status === "unresolved"
-  ).length;
-  const closed = filteredTickets.value.filter(
-    (t) => t.status === "closed"
-  ).length;
-  const urgent = filteredTickets.value.filter(
-    (t) => t.priority === "urgent"
-  ).length;
-  const high = filteredTickets.value.filter(
-    (t) => t.priority === "high"
-  ).length;
+// ── Статистика ───────────────────────────────────────────────────────────────
 
-  // Рассчитаем среднее время ответа (примерная логика)
-  const avgResponseTime = calculateAvgResponseTime();
+const stats = computed(() => {
+  const all = tickets.value;
+  const resolved = all.filter((t) => t.status === "resolved");
+  const avgResponseTime =
+    resolved.length > 0
+      ? Math.round(
+          resolved.reduce((sum, t) => {
+            if (!t.resolvedAt) return sum;
+            return sum + (new Date(t.resolvedAt).getTime() - new Date(t.createdAt).getTime()) / 60000;
+          }, 0) / resolved.length
+        )
+      : 0;
 
   return {
-    total,
-    active,
-    resolved,
-    unresolved,
-    closed,
-    urgent,
-    high,
+    total:           all.length,
+    active:          all.filter((t) => t.status === "active").length,
+    resolved:        resolved.length,
+    unresolved:      all.filter((t) => t.status === "unresolved").length,
+    closed:          all.filter((t) => t.status === "closed").length,
+    urgent:          all.filter((t) => t.priority === "urgent").length,
+    high:            all.filter((t) => t.priority === "high").length,
     avgResponseTime,
   };
 });
 
-// Добавьте вспомогательную функцию
-const calculateAvgResponseTime = (): number => {
-  // Примерная логика расчета среднего времени ответа
-  // В реальном приложении нужно считать разницу между сообщениями
-  const resolvedTickets = filteredTickets.value.filter(
-    (t) => t.status === "resolved" && t.resolvedAt && t.createdAt
-  );
+const unreadCount = computed(() => tickets.value.filter((t) => t.isUnread).length);
 
-  if (resolvedTickets.length === 0) return 0;
+// ── Действия ─────────────────────────────────────────────────────────────────
 
-  let totalMinutes = 0;
-  resolvedTickets.forEach((ticket) => {
-    if (ticket.resolvedAt && ticket.createdAt) {
-      const created = new Date(ticket.createdAt).getTime();
-      const resolved = new Date(ticket.resolvedAt).getTime();
-      totalMinutes += (resolved - created) / (1000 * 60); // минуты
-    }
-  });
-
-  return Math.round(totalMinutes / resolvedTickets.length);
-};
-
-const handleUpdateFilters = (newFilters: TicketsFilters) => {
-  filters.value = { ...newFilters };
-};
-
-const refreshData = async () => {
+const refresh = async () => {
   isLoading.value = true;
-  await new Promise((resolve) => setTimeout(resolve, 1000));
+  await new Promise((r) => setTimeout(r, 800));
   isLoading.value = false;
 };
 
-const exportTickets = () => {
-  console.log("Экспорт тикетов");
-};
-
-const openTicketChat = (ticket: Ticket) => {
+const openTicket = (ticket: Ticket) => {
   router.push(`/tickets/${ticket.id}`);
 };
 
 onMounted(() => {
-  // ...
+  // загрузка данных
 });
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-50">
-    <DevelopmentBanner />
-
+  <div class="h-full overflow-hidden flex flex-col bg-gray-50">
     <!-- Header -->
-    <div class="bg-white border-b border-gray-200 px-4 md:px-6 py-4 md:py-6">
-      <div
-        class="flex flex-col md:flex-row md:items-center md:justify-between gap-4"
-      >
-        <div>
-          <h1 class="text-2xl md:text-3xl font-bold text-gray-900">Тикеты</h1>
-          <p class="text-sm md:text-base text-gray-600 mt-1">
-            Система поддержки клиентов через Telegram и МАКС
-          </p>
+    <div class="bg-white border-b border-gray-200 px-4 md:px-6 py-3 flex-shrink-0">
+      <div class="flex items-center justify-between gap-4">
+        <div class="flex items-center gap-3 min-w-0">
+          <div>
+            <div class="flex items-center gap-2">
+              <h1 class="text-lg font-semibold text-gray-900">Тикеты</h1>
+              <span
+                v-if="unreadCount > 0"
+                class="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-semibold bg-blue-600 text-white"
+              >
+                {{ unreadCount }}
+              </span>
+            </div>
+            <p class="text-xs text-gray-500 mt-0.5">
+              Поддержка клиентов через Telegram и МАКС
+            </p>
+          </div>
         </div>
-        <div class="flex items-center gap-2 md:gap-3">
+
+        <div class="flex items-center gap-2 flex-shrink-0">
           <button
-            @click="exportTickets"
-            class="px-3 py-2 md:px-4 md:py-2 border border-gray-300 text-gray-700 text-xs md:text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-1 md:gap-2"
-          >
-            <AppIcon name="file-text" :size="14" class="md:w-4 md:h-4" />
-            <span class="hidden sm:inline">Экспорт</span>
-          </button>
-          <button
-            @click="refreshData"
+            @click="refresh"
             :disabled="isLoading"
-            class="px-3 py-2 md:px-4 md:py-2 bg-blue-600 text-white text-xs md:text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 md:gap-2"
+            class="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
           >
             <AppIcon
               name="refresh-cw"
               :size="14"
-              class="[ 'transition-transform md:w-4 md:h-4', { 'animate-spin': isLoading }, ]"
+              :class="{ 'animate-spin': isLoading }"
             />
-            <span class="hidden sm:inline">{{
-              isLoading ? "Обновление..." : "Обновить"
-            }}</span>
+            <span class="hidden sm:inline">Обновить</span>
           </button>
         </div>
       </div>
     </div>
 
-    <div class="p-4 md:p-6 space-y-6">
-      <div
-        v-if="isLoading"
-        class="fixed inset-0 bg-black bg-opacity-20 z-50 flex items-center justify-center"
-      >
-        <div class="bg-white rounded-lg p-6 flex items-center gap-3 shadow-lg">
-          <AppIcon
-            name="refresh-cw"
-            :size="20"
-            class="animate-spin text-blue-600"
-          />
-          <span class="text-gray-700 font-medium"
-            >Обновление данных тикетов...</span
-          >
-        </div>
-      </div>
+    <!-- Content -->
+    <div class="flex-1 overflow-y-auto p-4 md:p-5 space-y-4">
+      <TicketsStats :stats="stats" />
 
-      <TicketsStats :stats="ticketsStats" />
       <TicketsFilters
         :filters="filters"
-        @update:filters="handleUpdateFilters"
+        @update:filters="(v) => (filters = v)"
       />
 
       <TicketsTable
         :tickets="filteredTickets"
         :loading="isLoading"
-        @view-ticket="openTicketChat"
+        @view-ticket="openTicket"
       />
     </div>
   </div>
