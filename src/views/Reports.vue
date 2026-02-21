@@ -1,386 +1,675 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
-import {
-  format,
-  subDays,
-  startOfMonth,
-  endOfMonth,
-  startOfYear,
-  endOfYear,
-} from "date-fns";
-import { ru } from "date-fns/locale";
-import AppIcon from "@/components/AppIcon.vue";
-import ReportsFilters from "@/components/reports/ReportsFilters.vue";
-import SalesReport from "@/components/reports/SalesReport.vue";
-import ClientsReport from "@/components/reports/ClientsReport.vue";
-import VisitsReport from "@/components/reports/VisitsReport.vue";
-import ManagersReport from "@/components/reports/ManagersReport.vue";
-import RevenueChart from "@/components/reports/RevenueChart.vue";
-import ConversionChart from "@/components/reports/ConversionChart.vue";
-import DevelopmentBanner from "@/components/DevelopmentBanner.vue";
-import type { IconName } from "@/components/icons";
+import { ref, onMounted } from "vue";
+import { visitsApi } from "@/services/visitsApi";
+import type { Branch } from "@/services/visitsApi";
 
-interface ReportFilters {
-  dateFrom: string;
-  dateTo: string;
-  branch: string;
-  manager: string;
-  reportType: string;
-}
+type ReportType = "clients" | "visits";
 
-interface ReportData {
-  sales: {
-    total: number;
-    completed: number;
-    pending: number;
-    cancelled: number;
-    totalAmount: number;
-    avgDeal: number;
-  };
+const branches = ref<Branch[]>([]);
+
+// ── Modal state ──
+const activeReport = ref<ReportType | null>(null);
+const allBranches = ref(true);
+const selectedBranches = ref<string[]>([]);
+const startDate = ref("");
+const endDate = ref("");
+const isDownloading = ref(false);
+const downloadDone = ref(false);
+
+const REPORTS = {
   clients: {
-    total: number;
-    new: number;
-    active: number;
-    inactive: number;
-    vip: number;
-  };
-  visits: {
-    total: number;
-    completed: number;
-    scheduled: number;
-    noShow: number;
-    avgDuration: number;
-  };
-  managers: Array<{
-    name: string;
-    sales: number;
-    revenue: number;
-    clients: number;
-    visits: number;
-    conversion: number;
-  }>;
-}
-
-const filters = ref<ReportFilters>({
-  dateFrom: format(startOfMonth(new Date()), "yyyy-MM-dd"),
-  dateTo: format(endOfMonth(new Date()), "yyyy-MM-dd"),
-  branch: "all",
-  manager: "all",
-  reportType: "summary",
-});
-
-const reportData = ref<ReportData>({
-  sales: {
-    total: 156,
-    completed: 89,
-    pending: 45,
-    cancelled: 22,
-    totalAmount: 2450000,
-    avgDeal: 27528,
-  },
-  clients: {
-    total: 1247,
-    new: 34,
-    active: 892,
-    inactive: 321,
-    vip: 34,
+    title: "Отчет по клиентам",
+    desc: "История посещений, покупки, источники привлечения",
+    color: "#2563eb",
+    colorLight: "#eff6ff",
+    colorMid: "#bfdbfe",
+    filename: "clients_report",
+    icon: "clients",
   },
   visits: {
-    total: 234,
-    completed: 189,
-    scheduled: 32,
-    noShow: 13,
-    avgDuration: 42,
+    title: "Отчет по посещениям",
+    desc: "Даты, консультанты, размеры, статусы посещений",
+    color: "#059669",
+    colorLight: "#ecfdf5",
+    colorMid: "#a7f3d0",
+    filename: "visits_report",
+    icon: "visits",
   },
-  managers: [
-    {
-      name: "Иван Петров",
-      sales: 34,
-      revenue: 890000,
-      clients: 156,
-      visits: 67,
-      conversion: 28.5,
-    },
-    {
-      name: "Анна Смирнова",
-      sales: 28,
-      revenue: 675000,
-      clients: 134,
-      visits: 54,
-      conversion: 24.1,
-    },
-    {
-      name: "Петр Николаев",
-      sales: 19,
-      revenue: 523000,
-      clients: 98,
-      visits: 43,
-      conversion: 19.4,
-    },
-    {
-      name: "Мария Иванова",
-      sales: 8,
-      revenue: 362000,
-      clients: 67,
-      visits: 28,
-      conversion: 11.9,
-    },
-  ],
-});
+} as const;
 
-const isLoading = ref(false);
-const selectedReportType = ref("summary");
-
-const reportTypes = [
-  { value: "summary", label: "Общий отчет", icon: "bar-chart-3" },
-  { value: "sales", label: "Отчет по продажам", icon: "trending-up" },
-  { value: "clients", label: "Отчет по клиентам", icon: "users" },
-  { value: "visits", label: "Отчет по посещениям", icon: "map-pin" },
-  { value: "managers", label: "Отчет по менеджерам", icon: "user-cog" },
-  { value: "revenue", label: "Анализ выручки", icon: "package" },
-  { value: "conversion", label: "Анализ конверсии", icon: "trending-up" },
-];
-
-const currentPeriodText = computed(() => {
-  const from = new Date(filters.value.dateFrom);
-  const to = new Date(filters.value.dateTo);
-  return `${format(from, "d MMM yyyy", { locale: ru })} - ${format(
-    to,
-    "d MMM yyyy",
-    { locale: ru }
-  )}`;
-});
-
-const handleUpdateFilters = (newFilters: ReportFilters) => {
-  filters.value = { ...newFilters };
-  loadReportData();
+const openModal = (type: ReportType) => {
+  activeReport.value = type;
+  allBranches.value = true;
+  selectedBranches.value = [];
+  startDate.value = "";
+  endDate.value = "";
+  downloadDone.value = false;
 };
 
-const loadReportData = async () => {
-  isLoading.value = true;
-
-  // Имитация загрузки данных
-  await new Promise((resolve) => setTimeout(resolve, 1000));
-
-  // Здесь будет логика загрузки данных с API
-  console.log("Загрузка отчетов с фильтрами:", filters.value);
-
-  isLoading.value = false;
+const closeModal = () => {
+  if (isDownloading.value) return;
+  activeReport.value = null;
 };
 
-const exportReport = () => {
-  console.log("Экспорт отчета:", selectedReportType.value);
+const handleOverlay = (e: MouseEvent) => {
+  if ((e.target as HTMLElement).classList.contains("rp-overlay")) closeModal();
 };
 
-const refreshData = async () => {
-  await loadReportData();
+const setAllBranches = (val: boolean) => {
+  allBranches.value = val;
+  if (val) selectedBranches.value = [];
 };
 
-const setQuickPeriod = (period: string) => {
-  const now = new Date();
-
-  switch (period) {
-    case "today":
-      filters.value.dateFrom = format(now, "yyyy-MM-dd");
-      filters.value.dateTo = format(now, "yyyy-MM-dd");
-      break;
-    case "week":
-      filters.value.dateFrom = format(subDays(now, 7), "yyyy-MM-dd");
-      filters.value.dateTo = format(now, "yyyy-MM-dd");
-      break;
-    case "month":
-      filters.value.dateFrom = format(startOfMonth(now), "yyyy-MM-dd");
-      filters.value.dateTo = format(endOfMonth(now), "yyyy-MM-dd");
-      break;
-    case "year":
-      filters.value.dateFrom = format(startOfYear(now), "yyyy-MM-dd");
-      filters.value.dateTo = format(endOfYear(now), "yyyy-MM-dd");
-      break;
+const toggleBranch = (id: string) => {
+  const idx = selectedBranches.value.indexOf(id);
+  if (idx >= 0) {
+    selectedBranches.value.splice(idx, 1);
+  } else {
+    selectedBranches.value.push(id);
   }
-
-  loadReportData();
+  allBranches.value = selectedBranches.value.length === 0;
 };
 
-onMounted(() => {
-  loadReportData();
+const handleDownload = async () => {
+  if (!activeReport.value) return;
+  isDownloading.value = true;
+  downloadDone.value = false;
+
+  await new Promise((r) => setTimeout(r, 2200));
+
+  const meta = REPORTS[activeReport.value];
+  const dateStr = new Date().toISOString().slice(0, 10);
+  const csv = `"${meta.title}"\n"Дата выгрузки: ${new Date().toLocaleDateString("ru-RU")}"\n\n"(данные будут здесь после подключения API)"`;
+  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${meta.filename}_${dateStr}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+
+  isDownloading.value = false;
+  downloadDone.value = true;
+  setTimeout(() => closeModal(), 900);
+};
+
+onMounted(async () => {
+  try {
+    branches.value = await visitsApi.getBranches();
+  } catch {
+    branches.value = [];
+  }
 });
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-50">
-    <DevelopmentBanner />
-    <!-- Header -->
-    <div class="bg-white border-b border-gray-200 px-4 md:px-6 py-4 md:py-6">
-      <div
-        class="flex flex-col md:flex-row md:items-center md:justify-between gap-4"
-      >
-        <div>
-          <h1 class="text-2xl md:text-3xl font-bold text-gray-900">Отчеты</h1>
-          <p class="text-sm md:text-base text-gray-600 mt-1">
-            Аналитика и отчетность по всем направлениям
-          </p>
-          <div class="text-sm text-gray-500 mt-1">
-            Период: {{ currentPeriodText }}
+  <div class="rp-page">
+    <!-- HEADER -->
+    <header class="rp-header">
+      <div>
+        <h1 class="rp-title">Отчеты</h1>
+        <p class="rp-sub">Выгрузка данных в Excel / CSV</p>
+      </div>
+    </header>
+
+    <!-- CARDS -->
+    <div class="rp-body">
+      <div class="rp-cards">
+        <!-- Клиенты -->
+        <button class="rp-card rp-card--blue" @click="openModal('clients')">
+          <div class="rp-card-icon rp-card-icon--blue">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+              <circle cx="9" cy="7" r="4"/>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+            </svg>
           </div>
-        </div>
+          <div class="rp-card-body">
+            <span class="rp-card-title">Отчет по клиентам</span>
+            <span class="rp-card-desc">История посещений, покупки, источники привлечения</span>
+          </div>
+          <div class="rp-card-arrow">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="5" y1="12" x2="19" y2="12"/>
+              <polyline points="12 5 19 12 12 19"/>
+            </svg>
+          </div>
+        </button>
 
-        <div class="flex items-center gap-2 md:gap-3">
-          <button
-            @click="exportReport"
-            class="px-3 py-2 md:px-4 md:py-2 border border-gray-300 text-gray-700 text-xs md:text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-1 md:gap-2"
-          >
-            <AppIcon name="file-text" :size="14" class="md:w-4 md:h-4" />
-            <span class="hidden sm:inline">Экспорт</span>
-          </button>
-          <button
-            @click="refreshData"
-            :disabled="isLoading"
-            class="px-3 py-2 md:px-4 md:py-2 bg-blue-600 text-white text-xs md:text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 md:gap-2"
-          >
-            <AppIcon
-              name="refresh-cw"
-              :size="14"
-              class="transition-transform md:w-4 md:h-4"
-              :class="{ 'animate-spin': isLoading }"
-            />
-            <span class="hidden sm:inline">{{
-              isLoading ? "Обновление..." : "Обновить"
-            }}</span>
-          </button>
-        </div>
+        <!-- Посещения -->
+        <button class="rp-card rp-card--green" @click="openModal('visits')">
+          <div class="rp-card-icon rp-card-icon--green">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/>
+              <circle cx="12" cy="10" r="3"/>
+            </svg>
+          </div>
+          <div class="rp-card-body">
+            <span class="rp-card-title">Отчет по посещениям</span>
+            <span class="rp-card-desc">Даты, консультанты, размеры, статусы посещений</span>
+          </div>
+          <div class="rp-card-arrow">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="5" y1="12" x2="19" y2="12"/>
+              <polyline points="12 5 19 12 12 19"/>
+            </svg>
+          </div>
+        </button>
       </div>
     </div>
 
-    <div class="p-4 md:p-6 space-y-6">
-      <!-- Loading Overlay -->
-      <div
-        v-if="isLoading"
-        class="fixed inset-0 bg-black bg-opacity-20 z-50 flex items-center justify-center"
-      >
-        <div class="bg-white rounded-lg p-6 flex items-center gap-3 shadow-lg">
-          <AppIcon
-            name="refresh-cw"
-            :size="20"
-            class="animate-spin text-blue-600"
-          />
-          <span class="text-gray-700 font-medium">Загрузка отчетов...</span>
-        </div>
-      </div>
+    <!-- MODAL -->
+    <Teleport to="body">
+      <Transition name="rp-fade">
+        <div v-if="activeReport" class="rp-overlay" @click="handleOverlay">
+          <Transition name="rp-slide">
+            <div v-if="activeReport" class="rp-modal">
+              <!-- Modal header -->
+              <div class="rp-modal-header" :style="{ borderColor: REPORTS[activeReport].colorMid }">
+                <div class="rp-modal-icon" :style="{ background: REPORTS[activeReport].colorLight, color: REPORTS[activeReport].color }">
+                  <!-- Clients icon -->
+                  <svg v-if="activeReport === 'clients'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                    <circle cx="9" cy="7" r="4"/>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                  </svg>
+                  <!-- Visits icon -->
+                  <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/>
+                    <circle cx="12" cy="10" r="3"/>
+                  </svg>
+                </div>
+                <div>
+                  <h2 class="rp-modal-title">{{ REPORTS[activeReport].title }}</h2>
+                  <p class="rp-modal-sub">{{ REPORTS[activeReport].desc }}</p>
+                </div>
+                <button class="rp-modal-close" @click="closeModal" :disabled="isDownloading">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                  </svg>
+                </button>
+              </div>
 
-      <!-- Quick Period Buttons -->
-      <div class="bg-white rounded-xl border border-gray-200 p-4 md:p-6">
-        <h3 class="text-lg font-semibold text-gray-900 mb-4">
-          Быстрый выбор периода
-        </h3>
-        <div class="flex flex-wrap gap-2">
-          <button
-            @click="setQuickPeriod('today')"
-            class="px-3 py-2 text-sm border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            Сегодня
-          </button>
-          <button
-            @click="setQuickPeriod('week')"
-            class="px-3 py-2 text-sm border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            Неделя
-          </button>
-          <button
-            @click="setQuickPeriod('month')"
-            class="px-3 py-2 text-sm border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            Месяц
-          </button>
-          <button
-            @click="setQuickPeriod('year')"
-            class="px-3 py-2 text-sm border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            Год
-          </button>
-        </div>
-      </div>
+              <!-- Modal body -->
+              <div class="rp-modal-body">
+                <!-- Period -->
+                <div class="rp-section">
+                  <label class="rp-section-label">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+                    </svg>
+                    Период
+                  </label>
+                  <div class="rp-dates">
+                    <div class="rp-date-field">
+                      <span class="rp-date-lbl">с</span>
+                      <input v-model="startDate" type="date" class="rp-input" />
+                    </div>
+                    <div class="rp-date-field">
+                      <span class="rp-date-lbl">по</span>
+                      <input v-model="endDate" type="date" class="rp-input" />
+                    </div>
+                  </div>
+                </div>
 
-      <!-- Filters -->
-      <ReportsFilters
-        :filters="filters"
-        @update:filters="handleUpdateFilters"
-      />
+                <!-- Branches -->
+                <div class="rp-section">
+                  <label class="rp-section-label">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
+                    </svg>
+                    Филиалы
+                  </label>
+                  <div class="rp-branches">
+                    <!-- All -->
+                    <label class="rp-check rp-check--all">
+                      <input
+                        type="checkbox"
+                        :checked="allBranches"
+                        @change="setAllBranches(true)"
+                        class="rp-checkbox"
+                      />
+                      <span class="rp-check-mark"></span>
+                      <span class="rp-check-lbl">Все филиалы</span>
+                    </label>
+                    <!-- Individual -->
+                    <label
+                      v-for="b in branches"
+                      :key="b.moysklad_id"
+                      class="rp-check"
+                      :class="{ 'rp-check--inactive': !b.is_active }"
+                    >
+                      <input
+                        type="checkbox"
+                        :checked="!allBranches && selectedBranches.includes(b.moysklad_id)"
+                        @change="toggleBranch(b.moysklad_id)"
+                        class="rp-checkbox"
+                      />
+                      <span class="rp-check-mark"></span>
+                      <span class="rp-check-lbl">
+                        {{ b.name }}
+                        <span v-if="!b.is_active" class="rp-inactive-badge">неактивен</span>
+                      </span>
+                    </label>
+                  </div>
+                </div>
+              </div>
 
-      <!-- Report Type Selector -->
-      <div class="bg-white rounded-xl border border-gray-200 p-4 md:p-6">
-        <h3 class="text-lg font-semibold text-gray-900 mb-4">Тип отчета</h3>
-        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-          <button
-            v-for="type in reportTypes"
-            :key="type.value"
-            @click="selectedReportType = type.value"
-            :class="[
-              'p-4 rounded-lg border-2 transition-all text-left',
-              selectedReportType === type.value
-                ? 'border-blue-500 bg-blue-50 text-blue-700'
-                : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50',
-            ]"
-          >
-            <div class="flex items-center gap-3 mb-2">
-              <AppIcon
-                :name="type.icon as IconName"
-                :size="20"
-                :class="
-                  selectedReportType === type.value
-                    ? 'text-blue-600'
-                    : 'text-gray-500'
-                "
-              />
+              <!-- Modal footer -->
+              <div class="rp-modal-footer">
+                <button class="rp-btn-cancel" @click="closeModal" :disabled="isDownloading">
+                  Отмена
+                </button>
+                <button
+                  class="rp-btn-download"
+                  :style="{ background: isDownloading || downloadDone ? undefined : REPORTS[activeReport].color }"
+                  :class="{ 'rp-btn-download--loading': isDownloading, 'rp-btn-download--done': downloadDone }"
+                  @click="handleDownload"
+                  :disabled="isDownloading || downloadDone"
+                >
+                  <!-- Idle -->
+                  <template v-if="!isDownloading && !downloadDone">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                      <polyline points="7 10 12 15 17 10"/>
+                      <line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                    Выгрузить
+                  </template>
+                  <!-- Loading -->
+                  <template v-else-if="isDownloading">
+                    <span class="rp-spinner"></span>
+                    Формируем отчет...
+                  </template>
+                  <!-- Done -->
+                  <template v-else>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    Готово!
+                  </template>
+                </button>
+              </div>
             </div>
-            <div class="text-sm font-medium">{{ type.label }}</div>
-          </button>
+          </Transition>
         </div>
-      </div>
-
-      <!-- Report Content -->
-      <div class="space-y-6">
-        <!-- Summary Report -->
-        <div v-if="selectedReportType === 'summary'" class="space-y-6">
-          <SalesReport :data="reportData.sales" />
-          <ClientsReport :data="reportData.clients" />
-          <VisitsReport :data="reportData.visits" />
-          <ManagersReport :data="reportData.managers" />
-        </div>
-
-        <!-- Sales Report -->
-        <SalesReport
-          v-else-if="selectedReportType === 'sales'"
-          :data="reportData.sales"
-          :detailed="true"
-        />
-
-        <!-- Clients Report -->
-        <ClientsReport
-          v-else-if="selectedReportType === 'clients'"
-          :data="reportData.clients"
-          :detailed="true"
-        />
-
-        <!-- Visits Report -->
-        <VisitsReport
-          v-else-if="selectedReportType === 'visits'"
-          :data="reportData.visits"
-          :detailed="true"
-        />
-
-        <!-- Managers Report -->
-        <ManagersReport
-          v-else-if="selectedReportType === 'managers'"
-          :data="reportData.managers"
-          :detailed="true"
-        />
-
-        <!-- Revenue Chart -->
-        <RevenueChart v-else-if="selectedReportType === 'revenue'" />
-
-        <!-- Conversion Chart -->
-        <ConversionChart v-else-if="selectedReportType === 'conversion'" />
-      </div>
-    </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
+
+<style scoped>
+.rp-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #f8fafc;
+  font-family: "Manrope", -apple-system, BlinkMacSystemFont, sans-serif;
+  color: #0f172a;
+}
+
+/* Header */
+.rp-header {
+  padding: 20px 24px 16px;
+  background: #fff;
+  border-bottom: 1px solid #e2e8f0;
+  flex-shrink: 0;
+}
+.rp-title {
+  font: 800 20px/1 "Manrope", sans-serif;
+  letter-spacing: -0.02em;
+  margin: 0 0 4px;
+}
+.rp-sub {
+  font: 400 12px/1 "Manrope", sans-serif;
+  color: #64748b;
+  margin: 0;
+}
+
+/* Body */
+.rp-body {
+  flex: 1;
+  padding: 28px 24px;
+  overflow-y: auto;
+}
+
+/* Cards */
+.rp-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 540px;
+}
+.rp-card {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 20px 22px;
+  background: #fff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 14px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 180ms cubic-bezier(0.4, 0, 0.2, 1);
+  width: 100%;
+}
+.rp-card:hover {
+  border-color: #93c5fd;
+  box-shadow: 0 4px 20px rgba(37, 99, 235, 0.08);
+  transform: translateY(-1px);
+}
+.rp-card--green:hover {
+  border-color: #6ee7b7;
+  box-shadow: 0 4px 20px rgba(5, 150, 105, 0.08);
+}
+.rp-card-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.rp-card-icon--blue {
+  background: #eff6ff;
+  color: #2563eb;
+}
+.rp-card-icon--green {
+  background: #ecfdf5;
+  color: #059669;
+}
+.rp-card-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.rp-card-title {
+  font: 700 15px/1 "Manrope", sans-serif;
+  color: #0f172a;
+}
+.rp-card-desc {
+  font: 400 12px/1.4 "Manrope", sans-serif;
+  color: #64748b;
+}
+.rp-card-arrow {
+  color: #94a3b8;
+  flex-shrink: 0;
+  transition: transform 180ms;
+}
+.rp-card:hover .rp-card-arrow {
+  transform: translateX(3px);
+  color: #2563eb;
+}
+.rp-card--green:hover .rp-card-arrow {
+  color: #059669;
+}
+
+/* Overlay */
+.rp-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+/* Modal */
+.rp-modal {
+  background: #fff;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 460px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.18);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.rp-modal-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 20px 22px 18px;
+  border-bottom: 1.5px solid #e2e8f0;
+}
+.rp-modal-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.rp-modal-title {
+  font: 700 16px/1.1 "Manrope", sans-serif;
+  margin: 0 0 4px;
+  color: #0f172a;
+}
+.rp-modal-sub {
+  font: 400 11px/1.4 "Manrope", sans-serif;
+  color: #64748b;
+  margin: 0;
+}
+.rp-modal-close {
+  margin-left: auto;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  cursor: pointer;
+  color: #94a3b8;
+  transition: all 150ms;
+}
+.rp-modal-close:hover:not(:disabled) {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+.rp-modal-close:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Modal body */
+.rp-modal-body {
+  padding: 20px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.rp-modal-body::-webkit-scrollbar { width: 4px; }
+.rp-modal-body::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+
+.rp-section { display: flex; flex-direction: column; gap: 10px; }
+.rp-section-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: 700 10px/1 "Manrope", sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #64748b;
+}
+
+/* Dates */
+.rp-dates { display: flex; gap: 10px; }
+.rp-date-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+.rp-date-lbl {
+  font: 600 12px/1 "Manrope", sans-serif;
+  color: #94a3b8;
+  white-space: nowrap;
+}
+.rp-input {
+  flex: 1;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font: 400 12px "Manrope", sans-serif;
+  color: #0f172a;
+  background: #f8fafc;
+  outline: none;
+  transition: all 150ms;
+  min-width: 0;
+}
+.rp-input:focus {
+  border-color: #2563eb;
+  background: #fff;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.08);
+}
+
+/* Branches */
+.rp-branches {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 6px 4px;
+}
+.rp-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background 120ms;
+  user-select: none;
+}
+.rp-check:hover { background: #eff6ff; }
+.rp-check--all {
+  border-bottom: 1px solid #e2e8f0;
+  margin-bottom: 4px;
+  padding-bottom: 10px;
+}
+.rp-check--inactive .rp-check-lbl { color: #94a3b8; }
+.rp-checkbox { display: none; }
+.rp-check-mark {
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 4px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 150ms;
+  background: #fff;
+  position: relative;
+}
+.rp-checkbox:checked + .rp-check-mark {
+  background: #2563eb;
+  border-color: #2563eb;
+}
+.rp-checkbox:checked + .rp-check-mark::after {
+  content: "";
+  display: block;
+  width: 8px;
+  height: 5px;
+  border-left: 2px solid #fff;
+  border-bottom: 2px solid #fff;
+  transform: rotate(-45deg) translate(0px, -1px);
+}
+.rp-check-lbl {
+  font: 500 13px/1 "Manrope", sans-serif;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.rp-inactive-badge {
+  font: 400 10px/1 "Manrope", sans-serif;
+  color: #94a3b8;
+  background: #f1f5f9;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* Modal footer */
+.rp-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 16px 22px;
+  border-top: 1px solid #e2e8f0;
+  background: #fafbfc;
+}
+.rp-btn-cancel {
+  padding: 8px 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: none;
+  font: 600 12px "Manrope", sans-serif;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 150ms;
+}
+.rp-btn-cancel:hover:not(:disabled) { background: #f1f5f9; color: #0f172a; }
+.rp-btn-cancel:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.rp-btn-download {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 18px;
+  border-radius: 8px;
+  border: none;
+  font: 700 12px "Manrope", sans-serif;
+  color: #fff;
+  cursor: pointer;
+  transition: all 180ms;
+  min-width: 150px;
+  justify-content: center;
+}
+.rp-btn-download:hover:not(:disabled) { filter: brightness(1.08); box-shadow: 0 3px 10px rgba(0,0,0,0.15); }
+.rp-btn-download:disabled { cursor: not-allowed; }
+.rp-btn-download--loading { background: #64748b !important; }
+.rp-btn-download--done { background: #059669 !important; }
+
+.rp-spinner {
+  width: 13px;
+  height: 13px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: rp-spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes rp-spin { to { transform: rotate(360deg); } }
+
+/* Transitions */
+.rp-fade-enter-active, .rp-fade-leave-active { transition: opacity 200ms; }
+.rp-fade-enter-from, .rp-fade-leave-to { opacity: 0; }
+.rp-slide-enter-active { transition: all 220ms cubic-bezier(0.34, 1.2, 0.64, 1); }
+.rp-slide-leave-active { transition: all 160ms ease-in; }
+.rp-slide-enter-from { opacity: 0; transform: scale(0.94) translateY(8px); }
+.rp-slide-leave-to { opacity: 0; transform: scale(0.96) translateY(4px); }
+
+@media (max-width: 600px) {
+  .rp-body { padding: 16px; }
+  .rp-card { padding: 16px; gap: 14px; }
+  .rp-card-icon { width: 46px; height: 46px; }
+  .rp-dates { flex-direction: column; }
+}
+</style>

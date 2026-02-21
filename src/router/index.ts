@@ -89,6 +89,7 @@ const router = createRouter({
       meta: {
         title: "Отчеты",
         requiresAuth: true,
+        roles: ["chief_admin"],
       },
     },
     {
