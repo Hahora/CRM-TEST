@@ -485,7 +485,7 @@ onUnmounted(() => {
                 v-for="b in branches"
                 :key="b.moysklad_id"
                 :value="b.local_id"
-              >{{ b.name }}</option>
+              >{{ b.name }}{{ !b.is_active ? " (неактивен)" : "" }}</option>
             </select>
           </div>
           <div class="fp-field">

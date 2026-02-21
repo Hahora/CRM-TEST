@@ -165,14 +165,14 @@ const dateDisplay = computed(() => ({
 const loadBranches = async () => {
   try {
     const resp = await visitsApi.getBranches();
-    branches.value = (Array.isArray(resp) ? resp : []).filter(
-      (b) => b.is_active
-    );
+    branches.value = Array.isArray(resp) ? resp : [];
     if (
       branches.value.length &&
       !branches.value.find((b) => b.moysklad_id === branchMoyskladId.value)
     ) {
-      branchMoyskladId.value = branches.value[0].moysklad_id;
+      // Выбираем первый активный, либо первый вообще
+      const first = branches.value.find((b) => b.is_active) ?? branches.value[0];
+      branchMoyskladId.value = first?.moysklad_id ?? "";
     }
     branchesLoaded.value = true;
   } catch (e) {
@@ -609,7 +609,7 @@ const toggleFitting = async (visit: Visit | null, e: Event) => {
             :key="b.moysklad_id"
             :value="b.moysklad_id"
           >
-            {{ b.name }}
+            {{ b.name }}{{ !b.is_active ? " (неактивен)" : "" }}
           </option>
         </select>
         <button
