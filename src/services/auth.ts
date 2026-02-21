@@ -48,7 +48,8 @@ class AuthService {
 
   private async makeRequest(
     url: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    retries = 1
   ): Promise<Response> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.timeout);
@@ -64,6 +65,11 @@ class AuthService {
       });
 
       clearTimeout(timeoutId);
+
+      if (response.status === 502 && retries > 0) {
+        return this.makeRequest(url, options, retries - 1);
+      }
+
       return response;
     } catch (error) {
       clearTimeout(timeoutId);

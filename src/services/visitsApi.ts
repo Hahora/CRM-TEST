@@ -237,7 +237,8 @@ class VisitsApiService {
 
   private async makeRequest<T>(
     url: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    retries = 1
   ): Promise<T> {
     const token = authService.getAccessToken();
     const response = await fetch(`${this.baseUrl}${url}`, {
@@ -250,6 +251,10 @@ class VisitsApiService {
     });
 
     if (!response.ok) {
+      if (response.status === 502 && retries > 0) {
+        return this.makeRequest(url, options, retries - 1);
+      }
+
       if (response.status === 401) {
         try {
           const newTokens = await authService.refreshToken();
