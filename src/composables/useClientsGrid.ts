@@ -9,6 +9,7 @@ import type {
   ValueFormatterParams,
   ValueSetterParams,
 } from "ag-grid-community";
+import { VISIT_SOURCES } from "@/services/visitsApi";
 
 export const CLIENT_SOURCES = [
   "Instagram",
@@ -506,14 +507,19 @@ export function useClientsGrid() {
     {
       headerName: "Откуда узнал",
       field: "source",
-      width: 145,
+      width: 155,
       minWidth: 115,
       editable: true,
       cellEditor: "agSelectCellEditor",
       cellEditorParams: {
-        values: ["", ...CLIENT_SOURCES],
+        values: ["", ...VISIT_SOURCES],
       },
-      valueFormatter: (params: ValueFormatterParams) => params.value || "—",
+      valueFormatter: (params: ValueFormatterParams) => {
+        const v: string = params.value || "";
+        if (!v) return "—";
+        if (v.startsWith("Порекомендовали: ")) return `Рек: ${v.replace("Порекомендовали: ", "")}`;
+        return v;
+      },
     },
 
     // ── ИНН (юр. лицо + ИП) ──

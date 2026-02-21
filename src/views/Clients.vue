@@ -122,6 +122,7 @@ const showFilters = ref(false);
 const filterCompanyType = ref("");
 const filterIsWedding = ref<boolean | undefined>(undefined);
 const filterSource = ref("");
+const filterCustomSource = ref("");
 const filterHasLocalData = ref<boolean | undefined>(undefined);
 const filterDemandsMin = ref("");
 const filterDemandsMax = ref("");
@@ -164,7 +165,11 @@ const buildServerFilters = () => ({
   search: searchText.value.trim() || "",
   company_types: filterCompanyType.value || undefined,
   is_wedding: filterIsWedding.value,
-  source: filterSource.value || undefined,
+  source: filterSource.value === "Порекомендовали" && filterCustomSource.value.trim()
+    ? `Порекомендовали: ${filterCustomSource.value.trim()}`
+    : filterSource.value === "Другое" && filterCustomSource.value.trim()
+    ? filterCustomSource.value.trim()
+    : filterSource.value || undefined,
   has_local_data: filterHasLocalData.value,
   demands_sum_min:   filterDemandsMin.value      ? Number(filterDemandsMin.value)      : undefined,
   demands_sum_max:   filterDemandsMax.value      ? Number(filterDemandsMax.value)      : undefined,
@@ -182,6 +187,7 @@ const clearServerFilters = () => {
   filterCompanyType.value = "";
   filterIsWedding.value = undefined;
   filterSource.value = "";
+  filterCustomSource.value = "";
   filterHasLocalData.value = undefined;
   filterDemandsMin.value = "";
   filterDemandsMax.value = "";
@@ -948,10 +954,26 @@ const getRowId = (params: any) => {
           <!-- Источник -->
           <div class="cf-group">
             <div class="cf-group-label">Источник</div>
-            <select v-model="filterSource" class="cf-select">
+            <select v-model="filterSource" class="cf-select" @change="filterCustomSource = ''">
               <option value="">Все</option>
               <option v-for="s in VISIT_SOURCES" :key="s" :value="s">{{ s }}</option>
             </select>
+            <input
+              v-if="filterSource === 'Порекомендовали'"
+              v-model="filterCustomSource"
+              type="text"
+              class="cf-input"
+              placeholder="Кто порекомендовал..."
+              style="margin-top:4px"
+            />
+            <input
+              v-if="filterSource === 'Другое'"
+              v-model="filterCustomSource"
+              type="text"
+              class="cf-input"
+              placeholder="Уточнение..."
+              style="margin-top:4px"
+            />
           </div>
           <!-- Сумма продаж -->
           <div class="cf-group">

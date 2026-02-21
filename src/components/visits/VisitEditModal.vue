@@ -96,6 +96,7 @@ const form = ref({
 });
 const visitId = ref<number | null>(null);
 const isSaving = ref(false);
+const customSource = ref("");
 
 // ── Russian status → enum mapping ──
 const russianStatusMap: Record<string, VisitStatus> = {
@@ -131,9 +132,15 @@ const loadClientDetails = async (moyskladId: string) => {
     if (detail.source?.startsWith("Порекомендовали: ")) {
       form.value.source = "Порекомендовали";
       form.value.recommended_by = detail.source.replace("Порекомендовали: ", "");
+      customSource.value = "";
+    } else if (detail.source && !VISIT_SOURCES.includes(detail.source as typeof VISIT_SOURCES[number])) {
+      form.value.source = "Другое";
+      form.value.recommended_by = "";
+      customSource.value = detail.source;
     } else {
       form.value.source = detail.source || "";
       form.value.recommended_by = "";
+      customSource.value = "";
     }
   } catch {
     // не критично
@@ -192,6 +199,8 @@ watch(
         color: vis.color || "",
         source: vis.source?.startsWith("Порекомендовали: ")
           ? "Порекомендовали"
+          : vis.source && !VISIT_SOURCES.includes(vis.source as typeof VISIT_SOURCES[number])
+          ? "Другое"
           : vis.source || "",
         recommended_by: vis.source?.startsWith("Порекомендовали: ")
           ? vis.source.replace("Порекомендовали: ", "")
@@ -204,7 +213,14 @@ watch(
         postponed_until: vis.postponed_until || "",
         deposit_amount: vis.deposit_amount ?? "",
       };
-      // Подтягиваем данные свадьбы клиента если есть
+      // customSource для "Другое" из данных визита
+      customSource.value =
+        vis.source &&
+        !vis.source.startsWith("Порекомендовали: ") &&
+        !VISIT_SOURCES.includes(vis.source as typeof VISIT_SOURCES[number])
+          ? vis.source
+          : "";
+      // Подтягиваем данные свадьбы и источника клиента если есть
       if (!isPhantom && vis.client_moysklad_id) {
         loadClientDetails(vis.client_moysklad_id);
       }
@@ -235,6 +251,7 @@ watch(
         postponed_until: "",
         deposit_amount: "",
       };
+      customSource.value = "";
     }
     acClientOpen.value = false;
     loadEmployees();
@@ -255,6 +272,9 @@ const showDepositAmount = computed(
 const showRecommendedBy = computed(
   () => form.value.source === "Порекомендовали"
 );
+const showCustomSource = computed(
+  () => form.value.source === "Другое"
+);
 
 // ── Save ──
 const handleSave = async () => {
@@ -266,6 +286,8 @@ const handleSave = async () => {
     const sourceValue =
       showRecommendedBy.value && form.value.recommended_by
         ? `Порекомендовали: ${form.value.recommended_by}`
+        : showCustomSource.value
+        ? customSource.value.trim() || "Другое"
         : form.value.source || undefined;
 
     if (visitId.value) {
@@ -300,6 +322,7 @@ const handleSave = async () => {
           is_wedding: form.value.is_wedding,
           wedding_date: form.value.is_wedding && form.value.wedding_date ? form.value.wedding_date : null,
           bride_name: form.value.is_wedding && form.value.bride_name ? form.value.bride_name : null,
+          source: sourceValue,
         }));
       }
       await Promise.all(promises);
@@ -345,6 +368,7 @@ const handleSave = async () => {
           is_wedding: form.value.is_wedding,
           wedding_date: form.value.is_wedding && form.value.wedding_date ? form.value.wedding_date : null,
           bride_name: form.value.is_wedding && form.value.bride_name ? form.value.bride_name : null,
+          source: sourceValue,
         }));
       }
       await Promise.all(promises);
@@ -394,6 +418,20 @@ const selectAcClient = (cl: any) => {
   form.value.is_wedding = cl.is_wedding || false;
   form.value.wedding_date = cl.wedding_date || "";
   form.value.bride_name = cl.bride_name || "";
+  // Откуда узнал — берём из данных клиента
+  if (cl.source?.startsWith("Порекомендовали: ")) {
+    form.value.source = "Порекомендовали";
+    form.value.recommended_by = cl.source.replace("Порекомендовали: ", "");
+    customSource.value = "";
+  } else if (cl.source && !VISIT_SOURCES.includes(cl.source as typeof VISIT_SOURCES[number])) {
+    form.value.source = "Другое";
+    form.value.recommended_by = "";
+    customSource.value = cl.source;
+  } else {
+    form.value.source = cl.source || "";
+    form.value.recommended_by = "";
+    customSource.value = "";
+  }
   acClientOpen.value = false;
 };
 const clearClient = () => {
@@ -726,6 +764,15 @@ defineExpose({ onNewClientCreated });
                     v-model="form.recommended_by"
                     type="text"
                     placeholder="Имя или контакт..."
+                  />
+                </div>
+                <!-- Уточнение для "Другое" -->
+                <div class="vem-field" v-if="showCustomSource">
+                  <label>Уточнение</label>
+                  <input
+                    v-model="customSource"
+                    type="text"
+                    placeholder="Откуда именно..."
                   />
                 </div>
                 <!-- Consultant dropdown -->
