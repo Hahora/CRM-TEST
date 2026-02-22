@@ -10,6 +10,7 @@ import { useLoading } from "./composables/useLoading";
 
 const route = useRoute();
 const isMobileMenuOpen = ref(false);
+const isSidebarCollapsed = ref(localStorage.getItem("sidebar-collapsed") === "true");
 const { loadingState } = useLoading();
 
 const showAppInterface = computed(() => {
@@ -22,6 +23,10 @@ const toggleMobileMenu = () => {
 
 const closeMobileMenu = () => {
   isMobileMenuOpen.value = false;
+};
+
+const handleSidebarCollapse = (collapsed: boolean) => {
+  isSidebarCollapsed.value = collapsed;
 };
 </script>
 
@@ -40,11 +45,12 @@ const closeMobileMenu = () => {
     <!-- App Interface -->
     <template v-if="showAppInterface">
       <AppHeader @toggle-sidebar="toggleMobileMenu" />
-      <AppSidebar />
+      <AppSidebar @toggle-collapse="handleSidebarCollapse" />
       <MobileMenu :is-open="isMobileMenuOpen" @close="closeMobileMenu" />
 
       <main
-        class="pt-14 md:pt-0 md:ml-64 transition-all duration-300 h-full overflow-hidden"
+        class="pt-14 md:pt-0 transition-all duration-200 h-full overflow-hidden"
+        :class="isSidebarCollapsed ? 'md:ml-16' : 'md:ml-64'"
       >
         <RouterView />
       </main>

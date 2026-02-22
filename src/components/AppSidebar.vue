@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import AppIcon from "./AppIcon.vue";
 import { useAuth } from "@/composables/useAuth";
@@ -8,9 +8,21 @@ const router = useRouter();
 const route = useRoute();
 const { user, userRole, fullName, logout } = useAuth();
 
-const isChiefAdmin = computed(() => userRole.value === "chief_admin");
+const emit = defineEmits<{ (e: "toggle-collapse", collapsed: boolean): void }>();
 
+const isChiefAdmin = computed(() => userRole.value === "chief_admin");
 const isProfileOpen = ref(false);
+const isCollapsed = ref(localStorage.getItem("sidebar-collapsed") === "true");
+
+const toggleCollapse = () => {
+  isCollapsed.value = !isCollapsed.value;
+  localStorage.setItem("sidebar-collapsed", String(isCollapsed.value));
+  emit("toggle-collapse", isCollapsed.value);
+};
+
+onMounted(() => {
+  emit("toggle-collapse", isCollapsed.value);
+});
 
 const getInitials = () => {
   if (!user.value) return "?";
@@ -33,10 +45,10 @@ const allSections: MenuSection[] = [
   {
     title: "Основное",
     items: [
-      { id: "dashboard", title: "Дашборд",    icon: "layout-dashboard", route: "/dashboard" },
-      { id: "sales",     title: "Продажи",    icon: "trending-up",      route: "/sales"     },
-      { id: "clients",   title: "Клиенты",    icon: "users",            route: "/clients"   },
-      { id: "visits",    title: "Посещения",  icon: "map-pin",          route: "/visits"    },
+      { id: "dashboard", title: "Дашборд",   icon: "layout-dashboard", route: "/dashboard" },
+      { id: "sales",     title: "Продажи",   icon: "trending-up",      route: "/sales"     },
+      { id: "clients",   title: "Клиенты",   icon: "users",            route: "/clients"   },
+      { id: "visits",    title: "Посещения", icon: "map-pin",          route: "/visits"    },
     ],
   },
   {
@@ -77,44 +89,61 @@ const isActiveRoute = (routePath: string) => {
 <template>
   <!-- Desktop Sidebar Only -->
   <aside
-    class="hidden md:flex fixed top-0 left-0 bottom-0 w-64 bg-white border-r border-gray-200 z-40 flex-col"
+    class="hidden md:flex fixed top-0 left-0 bottom-0 bg-white border-r border-gray-200 z-40 flex-col transition-all duration-200"
+    :class="isCollapsed ? 'w-16' : 'w-64'"
   >
-    <!-- CRM Brand -->
-    <div class="px-4 py-4 border-b border-gray-200 flex-shrink-0">
-      <h1 class="text-[15px] font-semibold text-gray-900 leading-tight tracking-[-0.01em]">СРМ СИСТЕМА</h1>
-      <span class="text-[10px] font-medium text-gray-400 uppercase tracking-widest leading-none">HUSBAND</span>
+    <!-- Brand + Toggle -->
+    <div
+      class="border-b border-gray-200 flex-shrink-0 flex items-center min-h-[57px]"
+      :class="isCollapsed ? 'justify-center px-2' : 'justify-between px-4'"
+    >
+      <div v-if="!isCollapsed" class="py-4">
+        <h1 class="text-[15px] font-semibold text-gray-900 leading-tight tracking-[-0.01em]">СРМ СИСТЕМА</h1>
+        <span class="text-[10px] font-medium text-gray-400 uppercase tracking-widest leading-none">HUSBAND</span>
+      </div>
+      <button
+        @click="toggleCollapse"
+        class="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
+        :title="isCollapsed ? 'Развернуть меню' : 'Свернуть меню'"
+      >
+        <AppIcon :name="isCollapsed ? 'chevron-right' : 'chevron-left'" :size="16" />
+      </button>
     </div>
 
     <!-- Navigation -->
-    <nav class="flex-1 overflow-y-auto py-4">
-      <div v-for="section in menuSections" :key="section.title" class="mb-6">
+    <nav class="flex-1 overflow-y-auto overflow-x-hidden py-4 min-w-0">
+      <div v-for="section in menuSections" :key="section.title" class="mb-4">
         <!-- Section Title -->
         <div
+          v-if="!isCollapsed"
           class="px-4 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider"
         >
           {{ section.title }}
+        </div>
+        <div v-else class="px-3 mb-2">
+          <div class="border-t border-gray-100" />
         </div>
 
         <!-- Menu Items -->
         <ul class="space-y-1 px-2">
           <li v-for="item in section.items" :key="item.id">
             <button
-              @click="navigateTo(item.route!)"
-              class="w-full flex items-center justify-start gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-colors"
-              :class="
-                isActiveRoute(item.route!)
+              @click="navigateTo(item.route)"
+              class="w-full flex items-center py-2 text-sm font-medium rounded-lg transition-colors"
+              :class="[
+                isCollapsed ? 'justify-center px-2' : 'justify-start gap-3 px-3',
+                isActiveRoute(item.route)
                   ? 'bg-blue-50 text-blue-700'
-                  : 'text-gray-700 hover:bg-gray-100'
-              "
+                  : 'text-gray-700 hover:bg-gray-100',
+              ]"
+              :title="isCollapsed ? item.title : undefined"
             >
               <AppIcon
                 :name="item.icon as any"
                 :size="20"
-                :class="
-                  isActiveRoute(item.route!) ? 'text-blue-600' : 'text-gray-500'
-                "
+                :class="isActiveRoute(item.route) ? 'text-blue-600' : 'text-gray-500'"
               />
-              <span class="truncate">{{ item.title }}</span>
+              <span v-if="!isCollapsed" class="truncate">{{ item.title }}</span>
             </button>
           </li>
         </ul>
@@ -123,7 +152,7 @@ const isActiveRoute = (routePath: string) => {
 
     <!-- Profile -->
     <div class="border-t border-gray-200 p-2 flex-shrink-0 relative">
-      <!-- Dropdown (opens upward) -->
+      <!-- Dropdown -->
       <Transition
         enter-active-class="transition duration-150 ease-out"
         enter-from-class="opacity-0 translate-y-2"
@@ -134,9 +163,12 @@ const isActiveRoute = (routePath: string) => {
       >
         <div
           v-if="isProfileOpen"
-          class="absolute bottom-full left-2 right-2 mb-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden z-50"
+          class="absolute bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden z-50"
+          :class="isCollapsed
+            ? 'bottom-0 left-full ml-2 w-56'
+            : 'bottom-full left-2 right-2 mb-1'"
         >
-          <!-- User info header -->
+          <!-- User info -->
           <div class="px-4 py-3 bg-gradient-to-br from-gray-50 to-blue-50/40 border-b border-gray-100">
             <div class="flex items-center gap-3">
               <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-violet-500 flex items-center justify-center shadow-md flex-shrink-0">
@@ -150,7 +182,7 @@ const isActiveRoute = (routePath: string) => {
                   <span class="text-[10px] text-gray-400 capitalize">{{ userRole }}</span>
                   <span v-if="user" class="flex items-center gap-1 text-[10px]" :class="user.is_active ? 'text-emerald-600' : 'text-red-500'">
                     <span class="w-1.5 h-1.5 rounded-full" :class="user.is_active ? 'bg-emerald-500' : 'bg-red-400'" />
-                    {{ user.is_active ? 'Активен' : 'Неактивен' }}
+                    {{ user.is_active ? "Активен" : "Неактивен" }}
                   </span>
                 </div>
               </div>
@@ -170,26 +202,31 @@ const isActiveRoute = (routePath: string) => {
       <!-- Trigger button -->
       <button
         @click="isProfileOpen = !isProfileOpen"
-        class="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg transition-colors text-left"
-        :class="isProfileOpen ? 'bg-blue-50' : 'hover:bg-gray-100'"
+        class="w-full flex items-center gap-2.5 rounded-lg transition-colors"
+        :class="[
+          isCollapsed ? 'justify-center px-2 py-2' : 'px-3 py-2 text-left',
+          isProfileOpen ? 'bg-blue-50' : 'hover:bg-gray-100',
+        ]"
       >
         <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-violet-500 flex items-center justify-center flex-shrink-0 shadow-sm">
           <span class="text-xs font-semibold text-white">{{ getInitials() }}</span>
         </div>
-        <div class="flex-1 min-w-0">
-          <div class="text-[13px] font-semibold text-gray-800 truncate">{{ fullName }}</div>
-          <div class="text-[11px] text-gray-400 capitalize leading-tight">{{ userRole }}</div>
-        </div>
-        <AppIcon
-          name="chevron-down"
-          :size="14"
-          class="text-gray-400 transition-transform flex-shrink-0"
-          :class="isProfileOpen ? 'rotate-180' : ''"
-        />
+        <template v-if="!isCollapsed">
+          <div class="flex-1 min-w-0">
+            <div class="text-[13px] font-semibold text-gray-800 truncate">{{ fullName }}</div>
+            <div class="text-[11px] text-gray-400 capitalize leading-tight">{{ userRole }}</div>
+          </div>
+          <AppIcon
+            name="chevron-down"
+            :size="14"
+            class="text-gray-400 transition-transform flex-shrink-0"
+            :class="isProfileOpen ? 'rotate-180' : ''"
+          />
+        </template>
       </button>
     </div>
 
-    <!-- Overlay to close dropdown -->
+    <!-- Overlay to close profile dropdown -->
     <div
       v-if="isProfileOpen"
       class="fixed inset-0 z-40"
