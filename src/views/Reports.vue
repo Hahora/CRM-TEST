@@ -91,6 +91,7 @@ const handleDownload = async () => {
       URL.revokeObjectURL(url);
     } else {
       const token = localStorage.getItem("access_token");
+      const baseUrl = (import.meta.env.VITE_API_BASE_URL as string || "").replace(/\/$/, "");
       const params = new URLSearchParams();
 
       if (startDate.value && endDate.value) {
@@ -100,17 +101,17 @@ const handleDownload = async () => {
         params.set("period", "month");
       }
 
-      let endpoint = "";
+      let path = "";
       if (activeReport.value === "clients") {
-        endpoint = "/api/v1/reports/clients-changes";
+        path = "/api/v1/reports/clients-changes";
       } else {
-        endpoint = "/api/v1/reports/visits-excel";
+        path = "/api/v1/reports/visits-excel";
         if (selectedBranchId.value !== null) {
           params.set("branch_id", String(selectedBranchId.value));
         }
       }
 
-      const response = await fetch(`${endpoint}?${params}`, {
+      const response = await fetch(`${baseUrl}${path}?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
