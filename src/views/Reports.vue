@@ -9,17 +9,17 @@ const branches = ref<Branch[]>([]);
 
 // ── Modal state ──
 const activeReport = ref<ReportType | null>(null);
-const allBranches = ref(true);
-const selectedBranches = ref<string[]>([]);
+const selectedBranchId = ref<number | null>(null); // null = все филиалы
 const startDate = ref("");
 const endDate = ref("");
 const isDownloading = ref(false);
 const downloadDone = ref(false);
+const downloadError = ref("");
 
 const REPORTS = {
   clients: {
     title: "Отчет по клиентам",
-    desc: "История посещений, покупки, источники привлечения",
+    desc: "Новые и изменённые клиенты за период",
     color: "#2563eb",
     colorLight: "#eff6ff",
     colorMid: "#bfdbfe",
@@ -48,11 +48,11 @@ const REPORTS = {
 
 const openModal = (type: ReportType) => {
   activeReport.value = type;
-  allBranches.value = true;
-  selectedBranches.value = [];
+  selectedBranchId.value = null;
   startDate.value = "";
   endDate.value = "";
   downloadDone.value = false;
+  downloadError.value = "";
 };
 
 const closeModal = () => {
@@ -64,44 +64,91 @@ const handleOverlay = (e: MouseEvent) => {
   if ((e.target as HTMLElement).classList.contains("rp-overlay")) closeModal();
 };
 
-const setAllBranches = (val: boolean) => {
-  allBranches.value = val;
-  if (val) selectedBranches.value = [];
-};
-
-const toggleBranch = (id: string) => {
-  const idx = selectedBranches.value.indexOf(id);
-  if (idx >= 0) {
-    selectedBranches.value.splice(idx, 1);
-  } else {
-    selectedBranches.value.push(id);
-  }
-  allBranches.value = selectedBranches.value.length === 0;
+const selectBranch = (localId: number | null) => {
+  selectedBranchId.value = localId;
 };
 
 const handleDownload = async () => {
   if (!activeReport.value) return;
   isDownloading.value = true;
   downloadDone.value = false;
+  downloadError.value = "";
 
-  await new Promise((r) => setTimeout(r, 2200));
+  try {
+    if (activeReport.value === "sales") {
+      // Эндпоинт в разработке — временная заглушка
+      await new Promise((r) => setTimeout(r, 1800));
+      const dateStr = new Date().toISOString().slice(0, 10);
+      const csv = `"Отчет по продажам"\n"Дата выгрузки: ${new Date().toLocaleDateString("ru-RU")}"\n\n"(эндпоинт в разработке)"`;
+      const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `sales_report_${dateStr}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } else {
+      const token = localStorage.getItem("access_token");
+      const params = new URLSearchParams();
 
-  const meta = REPORTS[activeReport.value];
-  const dateStr = new Date().toISOString().slice(0, 10);
-  const csv = `"${meta.title}"\n"Дата выгрузки: ${new Date().toLocaleDateString("ru-RU")}"\n\n"(данные будут здесь после подключения API)"`;
-  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${meta.filename}_${dateStr}.csv`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+      if (startDate.value && endDate.value) {
+        params.set("start_date", startDate.value);
+        params.set("end_date", endDate.value);
+      } else {
+        params.set("period", "month");
+      }
 
-  isDownloading.value = false;
-  downloadDone.value = true;
-  setTimeout(() => closeModal(), 900);
+      let endpoint = "";
+      if (activeReport.value === "clients") {
+        endpoint = "/api/v1/reports/clients-changes";
+      } else {
+        endpoint = "/api/v1/reports/visits-excel";
+        if (selectedBranchId.value !== null) {
+          params.set("branch_id", String(selectedBranchId.value));
+        }
+      }
+
+      const response = await fetch(`${endpoint}?${params}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!response.ok) {
+        const text = await response.text().catch(() => "");
+        let msg = `Ошибка сервера: ${response.status}`;
+        try {
+          const json = JSON.parse(text);
+          if (json.detail) msg = json.detail;
+        } catch { /* ignore */ }
+        throw new Error(msg);
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+
+      // Имя файла из Content-Disposition или дефолтное
+      const cd = response.headers.get("Content-Disposition") ?? "";
+      const match = cd.match(/filename[^;=\n]*=([^;\n]*)/);
+      const filename = match?.[1]?.replace(/["']/g, "").trim()
+        ?? `${REPORTS[activeReport.value].filename}.xlsx`;
+      a.download = filename;
+
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    isDownloading.value = false;
+    downloadDone.value = true;
+    setTimeout(() => closeModal(), 900);
+  } catch (e) {
+    isDownloading.value = false;
+    downloadError.value = e instanceof Error ? e.message : "Ошибка выгрузки";
+  }
 };
 
 onMounted(async () => {
@@ -254,27 +301,27 @@ onMounted(async () => {
                   </div>
                 </div>
 
-                <!-- Branches -->
-                <div class="rp-section">
+                <!-- Branches (только для посещений) -->
+                <div v-if="activeReport === 'visits'" class="rp-section">
                   <label class="rp-section-label">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
                     </svg>
-                    Филиалы
+                    Филиал
                   </label>
                   <div class="rp-branches">
-                    <!-- All -->
+                    <!-- Все -->
                     <label class="rp-check rp-check--all">
                       <input
-                        type="checkbox"
-                        :checked="allBranches"
-                        @change="setAllBranches(true)"
+                        type="radio"
+                        :checked="selectedBranchId === null"
+                        @change="selectBranch(null)"
                         class="rp-checkbox"
                       />
                       <span class="rp-check-mark"></span>
                       <span class="rp-check-lbl">Все филиалы</span>
                     </label>
-                    <!-- Individual -->
+                    <!-- Конкретный -->
                     <label
                       v-for="b in branches"
                       :key="b.moysklad_id"
@@ -282,9 +329,9 @@ onMounted(async () => {
                       :class="{ 'rp-check--inactive': !b.is_active }"
                     >
                       <input
-                        type="checkbox"
-                        :checked="!allBranches && selectedBranches.includes(b.moysklad_id)"
-                        @change="toggleBranch(b.moysklad_id)"
+                        type="radio"
+                        :checked="selectedBranchId === b.local_id"
+                        @change="selectBranch(b.local_id ?? null)"
                         class="rp-checkbox"
                       />
                       <span class="rp-check-mark"></span>
@@ -299,38 +346,44 @@ onMounted(async () => {
 
               <!-- Modal footer -->
               <div class="rp-modal-footer">
-                <button class="rp-btn-cancel" @click="closeModal" :disabled="isDownloading">
-                  Отмена
-                </button>
-                <button
-                  class="rp-btn-download"
-                  :style="{ background: isDownloading || downloadDone ? undefined : REPORTS[activeReport].color }"
-                  :class="{ 'rp-btn-download--loading': isDownloading, 'rp-btn-download--done': downloadDone }"
-                  @click="handleDownload"
-                  :disabled="isDownloading || downloadDone"
-                >
-                  <!-- Idle -->
-                  <template v-if="!isDownloading && !downloadDone">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                      <polyline points="7 10 12 15 17 10"/>
-                      <line x1="12" y1="15" x2="12" y2="3"/>
-                    </svg>
-                    Выгрузить
-                  </template>
-                  <!-- Loading -->
-                  <template v-else-if="isDownloading">
-                    <span class="rp-spinner"></span>
-                    Формируем отчет...
-                  </template>
-                  <!-- Done -->
-                  <template v-else>
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                      <polyline points="20 6 9 17 4 12"/>
-                    </svg>
-                    Готово!
-                  </template>
-                </button>
+                <div class="rp-footer-l">
+                  <span v-if="downloadError" class="rp-error">{{ downloadError }}</span>
+                  <span v-else-if="!startDate && !endDate" class="rp-period-hint">По умолчанию: последний месяц</span>
+                </div>
+                <div class="rp-footer-r">
+                  <button class="rp-btn-cancel" @click="closeModal" :disabled="isDownloading">
+                    Отмена
+                  </button>
+                  <button
+                    class="rp-btn-download"
+                    :style="{ background: isDownloading || downloadDone ? undefined : REPORTS[activeReport].color }"
+                    :class="{ 'rp-btn-download--loading': isDownloading, 'rp-btn-download--done': downloadDone }"
+                    @click="handleDownload"
+                    :disabled="isDownloading || downloadDone"
+                  >
+                    <!-- Idle -->
+                    <template v-if="!isDownloading && !downloadDone">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="7 10 12 15 17 10"/>
+                        <line x1="12" y1="15" x2="12" y2="3"/>
+                      </svg>
+                      Выгрузить
+                    </template>
+                    <!-- Loading -->
+                    <template v-else-if="isDownloading">
+                      <span class="rp-spinner"></span>
+                      Формируем отчет...
+                    </template>
+                    <!-- Done -->
+                    <template v-else>
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <polyline points="20 6 9 17 4 12"/>
+                      </svg>
+                      Готово!
+                    </template>
+                  </button>
+                </div>
               </div>
             </div>
           </Transition>
@@ -658,11 +711,29 @@ onMounted(async () => {
 .rp-modal-footer {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: 8px;
   padding: 16px 22px;
   border-top: 1px solid #e2e8f0;
   background: #fafbfc;
+}
+.rp-footer-l {
+  flex: 1;
+  min-width: 0;
+}
+.rp-footer-r {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.rp-error {
+  font: 500 11px/1.4 "Manrope", sans-serif;
+  color: #dc2626;
+}
+.rp-period-hint {
+  font: 400 11px/1 "Manrope", sans-serif;
+  color: #94a3b8;
 }
 .rp-btn-cancel {
   padding: 8px 16px;
