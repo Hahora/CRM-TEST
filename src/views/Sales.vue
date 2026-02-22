@@ -387,8 +387,17 @@ onUnmounted(() => {
       </div>
 
       <div class="header-search">
-        <svg class="toolbar-search-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+        <svg
+          class="toolbar-search-ico"
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <circle cx="11" cy="11" r="8" />
+          <line x1="21" y1="21" x2="16.65" y2="16.65" />
         </svg>
         <input
           v-model="searchText"
@@ -396,9 +405,21 @@ onUnmounted(() => {
           placeholder="Поиск по номеру, покупателю..."
           class="toolbar-search-input"
         />
-        <button v-if="searchText" class="toolbar-search-clear" @click="searchText = ''">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+        <button
+          v-if="searchText"
+          class="toolbar-search-clear"
+          @click="searchText = ''"
+        >
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+          >
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
           </svg>
         </button>
       </div>
@@ -411,11 +432,20 @@ onUnmounted(() => {
           @click="showFilters = !showFilters"
           title="Фильтры"
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
             <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
           </svg>
           <span class="hbtn-text">Фильтры</span>
-          <span v-if="activeFilterCount > 0" class="filter-badge">{{ activeFilterCount }}</span>
+          <span v-if="activeFilterCount > 0" class="filter-badge">{{
+            activeFilterCount
+          }}</span>
         </button>
 
         <!-- Stats -->
@@ -425,8 +455,17 @@ onUnmounted(() => {
           @click="showStatsPanel = !showStatsPanel"
           title="Статистика"
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" />
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <line x1="18" y1="20" x2="18" y2="10" />
+            <line x1="12" y1="20" x2="12" y2="4" />
+            <line x1="6" y1="20" x2="6" y2="14" />
           </svg>
         </button>
 
@@ -437,7 +476,14 @@ onUnmounted(() => {
           :disabled="isExporting"
           title="Экспорт CSV"
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
             <polyline points="7 10 12 15 17 10" />
             <line x1="12" y1="15" x2="12" y2="3" />
@@ -451,12 +497,22 @@ onUnmounted(() => {
           :disabled="isLoading"
           title="Обновить"
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" :class="{ spinning: isLoading }">
-            <polyline points="23 4 23 10 17 10" /><polyline points="1 20 1 14 7 14" />
-            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            :class="{ spinning: isLoading }"
+          >
+            <polyline points="23 4 23 10 17 10" />
+            <polyline points="1 20 1 14 7 14" />
+            <path
+              d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"
+            />
           </svg>
         </button>
-
       </div>
     </header>
 
@@ -472,7 +528,9 @@ onUnmounted(() => {
                 v-for="b in branches"
                 :key="b.moysklad_id"
                 :value="b.local_id"
-              >{{ b.name }}{{ !b.is_active ? " (неактивен)" : "" }}</option>
+              >
+                {{ b.name }}{{ !b.is_active ? " (неактивен)" : "" }}
+              </option>
             </select>
           </div>
           <div class="fp-field">
@@ -539,8 +597,18 @@ onUnmounted(() => {
         <div class="stats-row">
           <div class="scard">
             <div class="scard-ico scard-ico--blue">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="5" y="2" width="14" height="20" rx="2" /><line x1="9" y1="7" x2="15" y2="7" /><line x1="9" y1="11" x2="15" y2="11" /><line x1="9" y1="15" x2="13" y2="15" />
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <rect x="5" y="2" width="14" height="20" rx="2" />
+                <line x1="9" y1="7" x2="15" y2="7" />
+                <line x1="9" y1="11" x2="15" y2="11" />
+                <line x1="9" y1="15" x2="13" y2="15" />
               </svg>
             </div>
             <div class="scard-body">
@@ -550,34 +618,66 @@ onUnmounted(() => {
           </div>
           <div class="scard">
             <div class="scard-ico scard-ico--green">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M6 3v18" /><path d="M6 12h8a4 4 0 0 0 0-8H6" /><path d="M4 16h10" />
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M6 3v18" />
+                <path d="M6 12h8a4 4 0 0 0 0-8H6" />
+                <path d="M4 16h10" />
               </svg>
             </div>
             <div class="scard-body">
-              <span class="scard-val">{{ formatCurrency(displayStats.totalAmount) }}</span>
+              <span class="scard-val">{{
+                formatCurrency(displayStats.totalAmount)
+              }}</span>
               <span class="scard-lbl">Сумма (загружено)</span>
             </div>
           </div>
           <div class="scard">
             <div class="scard-ico scard-ico--purple">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" />
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <line x1="18" y1="20" x2="18" y2="10" />
+                <line x1="12" y1="20" x2="12" y2="4" />
+                <line x1="6" y1="20" x2="6" y2="14" />
               </svg>
             </div>
             <div class="scard-body">
-              <span class="scard-val">{{ formatCurrency(displayStats.avg) }}</span>
+              <span class="scard-val">{{
+                formatCurrency(displayStats.avg)
+              }}</span>
               <span class="scard-lbl">Ср. чек</span>
             </div>
           </div>
           <div class="scard">
             <div class="scard-ico scard-ico--amber">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
               </svg>
             </div>
             <div class="scard-body">
-              <span class="scard-val">{{ displayStats.loaded }} / {{ displayStats.total }}</span>
+              <span class="scard-val"
+                >{{ displayStats.loaded }} / {{ displayStats.total }}</span
+              >
               <span class="scard-lbl">Загружено</span>
             </div>
           </div>
@@ -588,26 +688,58 @@ onUnmounted(() => {
     <!-- MOBILE BAR -->
     <div class="mobile-bar" v-if="isMobile && !isFullscreen">
       <div class="mobile-bar-hint">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+          <circle cx="12" cy="12" r="3" />
         </svg>
         Свайп ← → для прокрутки
       </div>
-      <button class="mobile-bar-fs" @click="isFullscreen = true" title="Во весь экран">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polyline points="15 3 21 3 21 9" /><polyline points="9 21 3 21 3 15" />
-          <line x1="21" y1="3" x2="14" y2="10" /><line x1="3" y1="21" x2="10" y2="14" />
+      <button
+        class="mobile-bar-fs"
+        @click="isFullscreen = true"
+        title="Во весь экран"
+      >
+        <svg
+          width="15"
+          height="15"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <polyline points="15 3 21 3 21 9" />
+          <polyline points="9 21 3 21 3 15" />
+          <line x1="21" y1="3" x2="14" y2="10" />
+          <line x1="3" y1="21" x2="10" y2="14" />
         </svg>
       </button>
     </div>
 
     <!-- FULLSCREEN EXIT -->
     <div class="fs-exit-bar" v-if="isFullscreen">
-      <span class="fs-exit-info">Продаж: <b>{{ totalSales }}</b></span>
+      <span class="fs-exit-info"
+        >Продаж: <b>{{ totalSales }}</b></span
+      >
       <button class="fs-exit-btn" @click="isFullscreen = false">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polyline points="4 14 4 20 10 20" /><polyline points="20 10 20 4 14 4" />
-          <line x1="14" y1="10" x2="21" y2="3" /><line x1="3" y1="21" x2="10" y2="14" />
+        <svg
+          width="15"
+          height="15"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <polyline points="4 14 4 20 10 20" />
+          <polyline points="20 10 20 4 14 4" />
+          <line x1="14" y1="10" x2="21" y2="3" />
+          <line x1="3" y1="21" x2="10" y2="14" />
         </svg>
         <span>Свернуть</span>
       </button>
@@ -623,7 +755,10 @@ onUnmounted(() => {
           </div>
           <div class="skeleton-row" v-for="r in 12" :key="r">
             <div class="skeleton-cell" v-for="c in 6" :key="c">
-              <div class="skeleton-bar" :style="{ width: 40 + Math.random() * 50 + '%' }"></div>
+              <div
+                class="skeleton-bar"
+                :style="{ width: 40 + Math.random() * 50 + '%' }"
+              ></div>
             </div>
           </div>
         </div>
@@ -636,11 +771,15 @@ onUnmounted(() => {
         </div>
       </Transition>
 
-      <!-- Load more indicator -->
-      <Transition name="fade">
-        <div v-if="isLoadingMore" class="load-more-bar">
-          <span class="load-more-spinner"></span>
-          Загружаю ещё...
+      <!-- Индикатор подгрузки внизу таблицы -->
+      <Transition name="slide-up">
+        <div v-if="isLoadingMore" class="grid-loading-more">
+          <div class="loading-more-inner">
+            <div class="loading-dots">
+              <span></span><span></span><span></span>
+            </div>
+            <span>Загрузка ещё {{ PAGE_SIZE }}...</span>
+          </div>
         </div>
       </Transition>
 
@@ -666,13 +805,15 @@ onUnmounted(() => {
     <!-- FOOTER -->
     <footer class="page-footer">
       <div class="footer-l">
-        <span>Загружено: <b>{{ sales.length }}</b> из <b>{{ totalSales }}</b></span>
-        <span v-if="hasMore && !isLoadingMore" class="footer-more">
-          — прокрутите вниз для загрузки
-        </span>
+        <span
+          >Загружено: <b>{{ sales.length }}</b> из <b>{{ totalSales }}</b></span
+        >
+        <span v-if="isLoadingMore" class="footer-loading">подгрузка...</span>
       </div>
       <div class="footer-r">
-        <span class="footer-tip">Клик по строке — чек · Клик по имени — клиент</span>
+        <span class="footer-tip"
+          >Клик по строке — чек · Клик по имени — клиент</span
+        >
       </div>
     </footer>
 
@@ -681,7 +822,11 @@ onUnmounted(() => {
       :open="!!selectedSale"
       :sale="selectedSale"
       @close="selectedSale = null"
-      @open-client="(id) => { detailClientId = id; }"
+      @open-client="
+        (id) => {
+          detailClientId = id;
+        }
+      "
     />
 
     <!-- CLIENT DETAIL MODAL -->
@@ -963,10 +1108,22 @@ onUnmounted(() => {
   border-radius: var(--rs);
   flex-shrink: 0;
 }
-.scard-ico--blue { background: var(--prl); color: var(--pr); }
-.scard-ico--green { background: var(--okl); color: var(--ok); }
-.scard-ico--purple { background: var(--pul); color: var(--pu); }
-.scard-ico--amber { background: var(--aml); color: var(--am); }
+.scard-ico--blue {
+  background: var(--prl);
+  color: var(--pr);
+}
+.scard-ico--green {
+  background: var(--okl);
+  color: var(--ok);
+}
+.scard-ico--purple {
+  background: var(--pul);
+  color: var(--pu);
+}
+.scard-ico--amber {
+  background: var(--aml);
+  color: var(--am);
+}
 .scard-body {
   display: flex;
   flex-direction: column;
@@ -1016,7 +1173,10 @@ onUnmounted(() => {
   transition: all var(--tr);
   flex-shrink: 0;
 }
-.mobile-bar-fs:active { background: var(--pr); color: #fff; }
+.mobile-bar-fs:active {
+  background: var(--pr);
+  color: #fff;
+}
 .fs-exit-bar {
   display: flex;
   align-items: center;
@@ -1026,8 +1186,14 @@ onUnmounted(() => {
   border-bottom: 1px solid var(--bd);
   flex-shrink: 0;
 }
-.fs-exit-info { font-size: 11px; color: var(--tx2); }
-.fs-exit-info b { color: var(--tx); font-family: var(--fm); }
+.fs-exit-info {
+  font-size: 11px;
+  color: var(--tx2);
+}
+.fs-exit-info b {
+  color: var(--tx);
+  font-family: var(--fm);
+}
 .fs-exit-btn {
   display: flex;
   align-items: center;
@@ -1041,7 +1207,10 @@ onUnmounted(() => {
   cursor: pointer;
   transition: all var(--tr);
 }
-.fs-exit-btn:active { background: var(--sfh); color: var(--tx); }
+.fs-exit-btn:active {
+  background: var(--sfh);
+  color: var(--tx);
+}
 .sales-page--fs .page-header,
 .sales-page--fs .stats-panel,
 .sales-page--fs .filter-panel,
@@ -1074,6 +1243,7 @@ onUnmounted(() => {
 .skeleton-header {
   display: flex;
   gap: 1px;
+  padding: 0;
   background: var(--sfh);
   border-bottom: 1px solid var(--bd);
   height: 44px;
@@ -1087,6 +1257,12 @@ onUnmounted(() => {
   border-radius: 4px;
   animation: skeleton-pulse 1.5s ease-in-out infinite;
 }
+.skeleton-hcell:nth-child(1) {
+  flex: 0 0 60px;
+}
+.skeleton-hcell:nth-child(2) {
+  flex: 0 0 180px;
+}
 .skeleton-row {
   display: flex;
   gap: 1px;
@@ -1094,8 +1270,19 @@ onUnmounted(() => {
   height: 42px;
   align-items: center;
 }
-.skeleton-row:nth-child(odd) { background: var(--bg); }
-.skeleton-cell { flex: 1; padding: 0 12px; }
+.skeleton-row:nth-child(odd) {
+  background: var(--bg);
+}
+.skeleton-cell {
+  flex: 1;
+  padding: 0 12px;
+}
+.skeleton-cell:nth-child(1) {
+  flex: 0 0 60px;
+}
+.skeleton-cell:nth-child(2) {
+  flex: 0 0 180px;
+}
 .skeleton-bar {
   height: 10px;
   background: linear-gradient(90deg, var(--bd) 25%, #e8edf3 50%, var(--bd) 75%);
@@ -1103,17 +1290,35 @@ onUnmounted(() => {
   border-radius: 4px;
   animation: skeleton-shimmer 1.8s ease-in-out infinite;
 }
+.skeleton-row:nth-child(2) .skeleton-bar { animation-delay: 0.1s; }
+.skeleton-row:nth-child(3) .skeleton-bar { animation-delay: 0.2s; }
+.skeleton-row:nth-child(4) .skeleton-bar { animation-delay: 0.3s; }
+.skeleton-row:nth-child(5) .skeleton-bar { animation-delay: 0.4s; }
+.skeleton-row:nth-child(6) .skeleton-bar { animation-delay: 0.15s; }
+.skeleton-row:nth-child(7) .skeleton-bar { animation-delay: 0.25s; }
+.skeleton-row:nth-child(8) .skeleton-bar { animation-delay: 0.35s; }
 @keyframes skeleton-shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 }
 @keyframes skeleton-pulse {
-  0%, 100% { opacity: 0.6; }
-  50% { opacity: 1; }
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 .grid-refresh-bar {
   position: absolute;
-  top: 0; left: 0; right: 0;
+  top: 0;
+  left: 0;
+  right: 0;
   height: 3px;
   z-index: 10;
   overflow: hidden;
@@ -1127,34 +1332,63 @@ onUnmounted(() => {
   animation: refresh-slide 1.2s ease-in-out infinite;
 }
 @keyframes refresh-slide {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(350%); }
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(350%);
+  }
 }
-.load-more-bar {
+.grid-loading-more {
   position: absolute;
-  bottom: 12px;
-  left: 50%;
-  transform: translateX(-50%);
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 8;
+  pointer-events: none;
+}
+.loading-more-inner {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 14px;
-  background: var(--sf);
-  border: 1px solid var(--bd);
-  border-radius: 20px;
-  font: 600 11px var(--fn);
+  justify-content: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: linear-gradient(0deg, var(--sf) 60%, transparent);
+  font: 500 12px var(--fn);
   color: var(--tx2);
-  z-index: 5;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
 }
-.load-more-spinner {
-  width: 12px;
-  height: 12px;
-  border: 2px solid var(--bd);
-  border-top-color: var(--pr);
+.loading-dots {
+  display: flex;
+  gap: 4px;
+}
+.loading-dots span {
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
-  animation: spin 0.7s linear infinite;
+  background: var(--pr);
+  animation: dot-bounce 0.6s ease-in-out infinite;
 }
+.loading-dots span:nth-child(2) { animation-delay: 0.15s; }
+.loading-dots span:nth-child(3) { animation-delay: 0.3s; }
+@keyframes dot-bounce {
+  0%, 100% { opacity: 0.3; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1.2); }
+}
+.footer-loading {
+  color: var(--pr);
+  font-weight: 500;
+  animation: pulse 1s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.slide-up-enter-active { transition: all 200ms ease-out; }
+.slide-up-leave-active { transition: all 150ms ease-in; }
+.slide-up-enter-from { opacity: 0; transform: translateY(20px); }
+.slide-up-enter-to { opacity: 1; transform: translateY(0); }
+.slide-up-leave-from { opacity: 1; transform: translateY(0); }
+.slide-up-leave-to { opacity: 0; transform: translateY(20px); }
 .ov-empty {
   display: flex;
   flex-direction: column;
@@ -1181,35 +1415,103 @@ onUnmounted(() => {
   display: flex;
   gap: 12px;
 }
-.footer-l b { color: var(--tx); font-family: var(--fm); }
-.footer-more { color: var(--txm); font-style: italic; }
-.footer-tip { font-style: italic; color: var(--txm); font-size: 11px; }
+.footer-l b {
+  color: var(--tx);
+  font-family: var(--fm);
+}
+.footer-more {
+  color: var(--txm);
+  font-style: italic;
+}
+.footer-tip {
+  font-style: italic;
+  color: var(--txm);
+  font-size: 11px;
+}
 
 /* Transitions */
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
-.spinning { animation: spin 1s linear infinite; }
-.fold-enter-active { transition: all 200ms ease-out; overflow: hidden; }
-.fold-leave-active { transition: all 150ms ease-in; overflow: hidden; }
-.fold-enter-from { opacity: 0; max-height: 0; }
-.fold-enter-to { opacity: 1; max-height: 500px; }
-.fold-leave-from { opacity: 1; max-height: 500px; }
-.fold-leave-to { opacity: 0; max-height: 0; }
-.fade-enter-active, .fade-leave-active { transition: opacity 150ms; }
-.fade-enter-from, .fade-leave-to { opacity: 0; }
+.spinning {
+  animation: spin 1s linear infinite;
+}
+.fold-enter-active {
+  transition: all 200ms ease-out;
+  overflow: hidden;
+}
+.fold-leave-active {
+  transition: all 150ms ease-in;
+  overflow: hidden;
+}
+.fold-enter-from {
+  opacity: 0;
+  max-height: 0;
+}
+.fold-enter-to {
+  opacity: 1;
+  max-height: 500px;
+}
+.fold-leave-from {
+  opacity: 1;
+  max-height: 500px;
+}
+.fold-leave-to {
+  opacity: 0;
+  max-height: 0;
+}
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 150ms;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
 
 @media (max-width: 768px) {
-  .page-header { flex-wrap: wrap; padding: 8px 10px; gap: 6px; }
-  .header-left { order: 1; }
-  .header-search { order: 3; flex: 1 1 100%; max-width: 100%; }
-  .header-btns { order: 2; margin-left: auto; }
-  .hbtn-text { display: none; }
-  .header-title { font-size: 15px; }
-  .fp-row { gap: 8px; }
-  .fp-input, .fp-select { min-width: 100px; }
-  .page-footer { flex-direction: column; gap: 2px; text-align: center; }
-  .footer-tip { display: none; }
-  .grid-wrap { touch-action: auto; }
+  .page-header {
+    flex-wrap: wrap;
+    padding: 8px 10px;
+    gap: 6px;
+  }
+  .header-left {
+    order: 1;
+  }
+  .header-search {
+    order: 3;
+    flex: 1 1 100%;
+    max-width: 100%;
+  }
+  .header-btns {
+    order: 2;
+    margin-left: auto;
+  }
+  .hbtn-text {
+    display: none;
+  }
+  .header-title {
+    font-size: 15px;
+  }
+  .fp-row {
+    gap: 8px;
+  }
+  .fp-input,
+  .fp-select {
+    min-width: 100px;
+  }
+  .page-footer {
+    flex-direction: column;
+    gap: 2px;
+    text-align: center;
+  }
+  .footer-tip {
+    display: none;
+  }
+  .grid-wrap {
+    touch-action: auto;
+  }
 }
 </style>
