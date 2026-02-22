@@ -51,7 +51,7 @@ class UserService {
       const response = await this.api.get<User>("/api/v1/auth/me");
       return response.data;
     } catch (error) {
-      console.error("Error fetching current user:", error);
+      console.error("Ошибка получения текущего пользователя:", error);
       throw error;
     }
   }
@@ -66,7 +66,7 @@ class UserService {
       });
       return response.data;
     } catch (error) {
-      console.error("Error fetching users:", error);
+      console.error("Ошибка получения списка пользователей:", error);
       throw error;
     }
   }
@@ -77,7 +77,7 @@ class UserService {
       const response = await this.api.get<User>(`/api/v1/users/${userId}`);
       return response.data;
     } catch (error) {
-      console.error("Error fetching user:", error);
+      console.error("Ошибка получения пользователя:", error);
       throw error;
     }
   }

@@ -102,7 +102,7 @@ class VisitService {
       });
       return response.data;
     } catch (error) {
-      console.error("Error fetching visits:", error);
+      console.error("Ошибка загрузки посещений:", error);
       throw error;
     }
   }
@@ -113,7 +113,7 @@ class VisitService {
       const response = await this.api.post<Visit>("/api/v1/visits", visitData);
       return response.data;
     } catch (error) {
-      console.error("Error creating visit:", error);
+      console.error("Ошибка создания посещения:", error);
       throw error;
     }
   }
@@ -124,7 +124,7 @@ class VisitService {
       const response = await this.api.get<Visit>(`/api/v1/visits/${visitId}`);
       return response.data;
     } catch (error) {
-      console.error("Error fetching visit:", error);
+      console.error("Ошибка получения посещения:", error);
       throw error;
     }
   }
@@ -141,7 +141,7 @@ class VisitService {
       );
       return response.data;
     } catch (error) {
-      console.error("Error updating visit:", error);
+      console.error("Ошибка обновления посещения:", error);
       throw error;
     }
   }
@@ -151,7 +151,7 @@ class VisitService {
     try {
       await this.api.delete(`/api/v1/visits/${visitId}`);
     } catch (error) {
-      console.error("Error deleting visit:", error);
+      console.error("Ошибка удаления посещения:", error);
       throw error;
     }
   }
@@ -166,7 +166,7 @@ class VisitService {
       });
       return response.data;
     } catch (error) {
-      console.error("Error fetching visit statistics:", error);
+      console.error("Ошибка загрузки статистики посещений:", error);
       throw error;
     }
   }
@@ -179,7 +179,7 @@ class VisitService {
       });
       return response.data;
     } catch (error) {
-      console.error("Error exporting visits:", error);
+      console.error("Ошибка экспорта посещений:", error);
       throw error;
     }
   }

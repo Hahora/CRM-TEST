@@ -54,7 +54,7 @@ const togglePasswordVisibility = () => {
 
         <!-- Brand name -->
         <div class="lp-brand">
-          <h1 class="lp-brand-title">CRM СИСТЕМА</h1>
+          <h1 class="lp-brand-title">СРМ СИСТЕМА</h1>
           <span class="lp-brand-sub">HUSBAND</span>
         </div>
 
@@ -87,7 +87,7 @@ const togglePasswordVisibility = () => {
       </div>
 
       <div class="lp-left-footer">
-        <span>© 2026 CRM v1.0.0</span>
+        <span>© 2026 СРМ v1.0.0</span>
       </div>
     </div>
 
@@ -100,7 +100,7 @@ const togglePasswordVisibility = () => {
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
           </div>
           <div>
-            <div class="lp-mobile-title">CRM СИСТЕМА</div>
+            <div class="lp-mobile-title">СРМ СИСТЕМА</div>
             <div class="lp-mobile-sub">HUSBAND</div>
           </div>
         </div>

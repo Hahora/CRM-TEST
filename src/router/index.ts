@@ -153,7 +153,7 @@ const router = createRouter({
 
 // Navigation Guard для проверки авторизации
 router.beforeEach(async (to, _from, next) => {
-  document.title = to.meta.title ? `${to.meta.title} - CRM` : "CRM";
+  document.title = to.meta.title ? `${to.meta.title} - СРМ` : "СРМ";
 
   const { checkAuth, isAuthenticated, userRole } = useAuth();
 

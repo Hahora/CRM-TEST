@@ -129,7 +129,7 @@ class AuthService {
 
       return data;
     } catch (error) {
-      console.error("Login error:", error);
+      console.error("Ошибка входа:", error);
       throw error;
     }
   }
@@ -138,7 +138,7 @@ class AuthService {
     try {
       const refreshToken = this.getRefreshToken();
       if (!refreshToken) {
-        throw new Error("Refresh token не найден");
+        throw new Error("Токен обновления не найден");
       }
 
       const response = await this.makeRequest("/api/v1/auth/refresh", {
@@ -161,7 +161,7 @@ class AuthService {
 
       return data;
     } catch (error) {
-      console.error("Refresh token error:", error);
+      console.error("Ошибка обновления токена:", error);
       this.clearTokens();
       throw error;
     }
@@ -171,7 +171,7 @@ class AuthService {
     try {
       const token = this.getAccessToken();
       if (!token) {
-        throw new Error("Access token не найден");
+        throw new Error("Токен доступа не найден");
       }
 
       const response = await this.makeRequest("/api/v1/auth/me", {
@@ -216,7 +216,7 @@ class AuthService {
 
       return JSON.parse(text);
     } catch (error) {
-      console.error("Get current user error:", error);
+      console.error("Ошибка получения пользователя:", error);
       throw error;
     }
   }
@@ -234,7 +234,7 @@ class AuthService {
         });
       }
     } catch (error) {
-      console.error("Logout error:", error);
+      console.error("Ошибка выхода:", error);
     } finally {
       this.clearTokens();
     }
@@ -287,7 +287,7 @@ class AuthService {
       console.log(`API ping response: ${response.status}`);
       return response.ok;
     } catch (error) {
-      console.error("API ping failed:", error);
+      console.error("Ошибка соединения с API:", error);
       return false;
     }
   }

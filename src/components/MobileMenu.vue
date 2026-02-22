@@ -140,7 +140,7 @@ const getSectionIndex = (sectionIdx: number): number => {
                 : 'opacity-0 -translate-x-4'
             "
           >
-            <h2 class="font-semibold text-base text-gray-900">CRM СИСТЕМА</h2>
+            <h2 class="font-semibold text-base text-gray-900">СРМ СИСТЕМА</h2>
             <p class="text-gray-500 text-xs">HUSBAND</p>
           </div>
           <button
@@ -210,7 +210,7 @@ const getSectionIndex = (sectionIdx: number): number => {
           class="border-t border-gray-200 px-4 py-2 bg-gray-50 flex-shrink-0"
         >
           <div class="text-xs text-gray-500 text-center">
-            <p>© 2026 CRM v1.0.0</p>
+            <p>© 2026 СРМ v1.0.0</p>
           </div>
         </div>
       </div>

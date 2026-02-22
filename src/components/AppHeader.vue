@@ -75,7 +75,7 @@ onUnmounted(() => {
           <h1
             class="text-[15px] font-semibold text-gray-900 leading-tight tracking-[-0.01em]"
           >
-            CRM СИСТЕМА
+            СРМ СИСТЕМА
           </h1>
           <span
             class="text-[10px] font-medium text-gray-400 uppercase tracking-widest leading-none"

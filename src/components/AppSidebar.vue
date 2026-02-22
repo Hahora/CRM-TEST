@@ -81,7 +81,7 @@ const isActiveRoute = (routePath: string) => {
   >
     <!-- CRM Brand -->
     <div class="px-4 py-4 border-b border-gray-200 flex-shrink-0">
-      <h1 class="text-[15px] font-semibold text-gray-900 leading-tight tracking-[-0.01em]">CRM СИСТЕМА</h1>
+      <h1 class="text-[15px] font-semibold text-gray-900 leading-tight tracking-[-0.01em]">СРМ СИСТЕМА</h1>
       <span class="text-[10px] font-medium text-gray-400 uppercase tracking-widest leading-none">HUSBAND</span>
     </div>
 
