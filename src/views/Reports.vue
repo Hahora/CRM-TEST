@@ -46,11 +46,18 @@ const REPORTS = {
   },
 } as const;
 
+const todayMsk = () => {
+  const now = new Date();
+  const msk = new Date(now.getTime() + (3 * 60 - now.getTimezoneOffset()) * 60000);
+  return msk.toISOString().slice(0, 10);
+};
+
 const openModal = (type: ReportType) => {
   activeReport.value = type;
   selectedBranchId.value = null;
-  startDate.value = "";
-  endDate.value = "";
+  const today = todayMsk();
+  startDate.value = today;
+  endDate.value = today;
   downloadDone.value = false;
   downloadError.value = "";
 };
