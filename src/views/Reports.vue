@@ -11,7 +11,7 @@ const branches = ref<Branch[]>([]);
 
 // ── Modal state ──
 const activeReport = ref<ReportType | null>(null);
-const selectedBranchId = ref<number | null>(null); // null = все филиалы
+const selectedBranchIds = ref<number[]>([]); // пусто = все филиалы
 const startDate = ref("");
 const endDate = ref("");
 const isDownloading = ref(false);
@@ -56,7 +56,7 @@ const todayMsk = () => {
 
 const openModal = (type: ReportType) => {
   activeReport.value = type;
-  selectedBranchId.value = null;
+  selectedBranchIds.value = [];
   const today = todayMsk();
   startDate.value = today;
   endDate.value = today;
@@ -73,8 +73,17 @@ const handleOverlay = (e: MouseEvent) => {
   if ((e.target as HTMLElement).classList.contains("rp-overlay")) closeModal();
 };
 
-const selectBranch = (localId: number | null) => {
-  selectedBranchId.value = localId;
+const toggleBranch = (localId: number) => {
+  const idx = selectedBranchIds.value.indexOf(localId);
+  if (idx === -1) {
+    selectedBranchIds.value.push(localId);
+  } else {
+    selectedBranchIds.value.splice(idx, 1);
+  }
+};
+
+const toggleAllBranches = () => {
+  selectedBranchIds.value = [];
 };
 
 const handleDownload = async () => {
@@ -88,7 +97,7 @@ const handleDownload = async () => {
       const params = {
         start_date: startDate.value || undefined,
         end_date: endDate.value || undefined,
-        branch_id: selectedBranchId.value,
+        branch_ids: selectedBranchIds.value.length > 0 ? selectedBranchIds.value : undefined,
       };
 
       let result: DownloadResult;
@@ -235,7 +244,6 @@ onMounted(async () => {
                 </div>
                 <div>
                   <h2 class="rp-modal-title">{{ REPORTS[activeReport].title }}</h2>
-                  <p class="rp-modal-sub">{{ REPORTS[activeReport].desc }}</p>
                 </div>
                 <button class="rp-modal-close" @click="closeModal" :disabled="isDownloading">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -278,9 +286,9 @@ onMounted(async () => {
                     <!-- Все -->
                     <label class="rp-check rp-check--all">
                       <input
-                        type="radio"
-                        :checked="selectedBranchId === null"
-                        @change="selectBranch(null)"
+                        type="checkbox"
+                        :checked="selectedBranchIds.length === 0"
+                        @change="toggleAllBranches"
                         class="rp-checkbox"
                       />
                       <span class="rp-check-mark"></span>
@@ -294,9 +302,9 @@ onMounted(async () => {
                       :class="{ 'rp-check--inactive': !b.is_active }"
                     >
                       <input
-                        type="radio"
-                        :checked="selectedBranchId === b.local_id"
-                        @change="selectBranch(b.local_id ?? null)"
+                        type="checkbox"
+                        :checked="b.local_id != null && selectedBranchIds.includes(b.local_id)"
+                        @change="b.local_id != null && toggleBranch(b.local_id)"
                         class="rp-checkbox"
                       />
                       <span class="rp-check-mark"></span>
@@ -503,9 +511,9 @@ onMounted(async () => {
 }
 .rp-modal-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 14px;
-  padding: 20px 22px 18px;
+  padding: 18px 22px;
   border-bottom: 1.5px solid #e2e8f0;
 }
 .rp-modal-icon {
@@ -519,7 +527,7 @@ onMounted(async () => {
 }
 .rp-modal-title {
   font: 700 16px/1.1 "Manrope", sans-serif;
-  margin: 0 0 4px;
+  margin: 0;
   color: #0f172a;
 }
 .rp-modal-sub {

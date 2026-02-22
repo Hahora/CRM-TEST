@@ -3,7 +3,7 @@ import { authService } from "./auth";
 export interface ReportParams {
   start_date?: string;
   end_date?: string;
-  branch_id?: number | null;
+  branch_ids?: number[];
 }
 
 export interface DownloadResult {
@@ -27,8 +27,10 @@ class ReportsApiService {
     } else {
       p.set("period", "month");
     }
-    if (withBranch && params.branch_id != null) {
-      p.set("branch_id", String(params.branch_id));
+    if (withBranch && params.branch_ids && params.branch_ids.length > 0) {
+      for (const id of params.branch_ids) {
+        p.append("branch_id", String(id));
+      }
     }
     return p;
   }
