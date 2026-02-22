@@ -1,5 +1,6 @@
 import axios from "axios";
-import type { AxiosInstance } from "axios";
+import type { AxiosInstance, AxiosError } from "axios";
+import { authService } from "@/services/auth";
 
 export interface User {
   id: number;
@@ -43,6 +44,26 @@ class UserService {
       }
       return config;
     });
+
+    this.api.interceptors.response.use(
+      (response) => response,
+      async (error: AxiosError) => {
+        const original = error.config as any;
+        if (error.response?.status === 401 && !original._retry) {
+          original._retry = true;
+          try {
+            const newTokens = await authService.refreshToken();
+            authService.setTokens(newTokens.access_token, newTokens.refresh_token);
+            original.headers.Authorization = `Bearer ${newTokens.access_token}`;
+            return this.api(original);
+          } catch {
+            authService.clearTokens();
+            return Promise.reject(new Error("Сессия истекла"));
+          }
+        }
+        return Promise.reject(error);
+      }
+    );
   }
 
   // Получить текущего пользователя

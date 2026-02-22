@@ -2,6 +2,8 @@
 import { ref, onMounted } from "vue";
 import { visitsApi } from "@/services/visitsApi";
 import type { Branch } from "@/services/visitsApi";
+import { reportsApi } from "@/services/reportsApi";
+import type { DownloadResult } from "@/services/reportsApi";
 
 type ReportType = "clients" | "visits" | "sales";
 
@@ -82,68 +84,26 @@ const handleDownload = async () => {
   downloadError.value = "";
 
   try {
-    if (activeReport.value === "sales") {
-      // Эндпоинт в разработке — временная заглушка
-      await new Promise((r) => setTimeout(r, 1800));
-      const dateStr = new Date().toISOString().slice(0, 10);
-      const csv = `"Отчет по продажам"\n"Дата выгрузки: ${new Date().toLocaleDateString("ru-RU")}"\n\n"(эндпоинт в разработке)"`;
-      const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `sales_report_${dateStr}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } else {
-      const token = localStorage.getItem("access_token");
-      const baseUrl = (import.meta.env.VITE_API_BASE_URL as string || "").replace(/\/$/, "");
-      const params = new URLSearchParams();
+    {
+      const params = {
+        start_date: startDate.value || undefined,
+        end_date: endDate.value || undefined,
+        branch_id: selectedBranchId.value,
+      };
 
-      if (startDate.value && endDate.value) {
-        params.set("start_date", startDate.value);
-        params.set("end_date", endDate.value);
-      } else {
-        params.set("period", "month");
-      }
-
-      let path = "";
+      let result: DownloadResult;
       if (activeReport.value === "clients") {
-        path = "/api/v1/reports/clients-changes";
+        result = await reportsApi.downloadClients(params);
+      } else if (activeReport.value === "visits") {
+        result = await reportsApi.downloadVisits(params);
       } else {
-        path = "/api/v1/reports/visits-excel";
-        if (selectedBranchId.value !== null) {
-          params.set("branch_id", String(selectedBranchId.value));
-        }
+        result = await reportsApi.downloadSales(params);
       }
 
-      const response = await fetch(`${baseUrl}${path}?${params}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!response.ok) {
-        const text = await response.text().catch(() => "");
-        let msg = `Ошибка сервера: ${response.status}`;
-        try {
-          const json = JSON.parse(text);
-          if (json.detail) msg = json.detail;
-        } catch { /* ignore */ }
-        throw new Error(msg);
-      }
-
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
+      const url = URL.createObjectURL(result.blob);
       const a = document.createElement("a");
       a.href = url;
-
-      // Имя файла из Content-Disposition или дефолтное
-      const cd = response.headers.get("Content-Disposition") ?? "";
-      const match = cd.match(/filename[^;=\n]*=([^;\n]*)/);
-      const filename = match?.[1]?.replace(/["']/g, "").trim()
-        ?? `${REPORTS[activeReport.value].filename}.xlsx`;
-      a.download = filename;
-
+      a.download = result.filename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -193,7 +153,6 @@ onMounted(async () => {
           </div>
           <div class="rp-card-body">
             <span class="rp-card-title">Отчет по клиентам</span>
-            <span class="rp-card-desc">История посещений, покупки, источники привлечения</span>
           </div>
           <div class="rp-card-arrow">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -215,7 +174,6 @@ onMounted(async () => {
           </div>
           <div class="rp-card-body">
             <span class="rp-card-title">Отчет по продажам</span>
-            <span class="rp-card-desc">Чеки, суммы, товары, консультанты, магазины</span>
           </div>
           <div class="rp-card-arrow">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -235,7 +193,6 @@ onMounted(async () => {
           </div>
           <div class="rp-card-body">
             <span class="rp-card-title">Отчет по посещениям</span>
-            <span class="rp-card-desc">Даты, консультанты, размеры, статусы посещений</span>
           </div>
           <div class="rp-card-arrow">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -309,8 +266,8 @@ onMounted(async () => {
                   </div>
                 </div>
 
-                <!-- Branches (только для посещений) -->
-                <div v-if="activeReport === 'visits'" class="rp-section">
+                <!-- Branches (для посещений и продаж) -->
+                <div v-if="activeReport === 'visits' || activeReport === 'sales'" class="rp-section">
                   <label class="rp-section-label">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
