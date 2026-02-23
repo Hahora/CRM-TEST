@@ -8,7 +8,6 @@ import { useAuth } from "@/composables/useAuth";
 const router = useRouter();
 const route = useRoute();
 const { userRole } = useAuth();
-const isChiefAdmin = computed(() => userRole.value === "chief_admin");
 
 interface Props {
   isOpen: boolean;
@@ -22,7 +21,7 @@ const emit = defineEmits<{
 
 interface MenuSection {
   title: string;
-  adminOnly?: boolean;
+  roles?: string[];
   items: { id: string; title: string; icon: IconName; route: string }[];
 }
 
@@ -30,12 +29,7 @@ const allSections: MenuSection[] = [
   {
     title: "Основное",
     items: [
-      {
-        id: "dashboard",
-        title: "Дашборд",
-        icon: "layout-dashboard",
-        route: "/dashboard",
-      },
+      { id: "dashboard", title: "Дашборд", icon: "layout-dashboard", route: "/dashboard" },
       { id: "sales", title: "Продажи", icon: "trending-up", route: "/sales" },
       { id: "clients", title: "Клиенты", icon: "users", route: "/clients" },
       { id: "visits", title: "Посещения", icon: "map-pin", route: "/visits" },
@@ -43,6 +37,7 @@ const allSections: MenuSection[] = [
   },
   {
     title: "Аналитика",
+    roles: ["chief_admin", "admin"],
     items: [
       { id: "reports", title: "Отчеты", icon: "file-text", route: "/reports" },
     ],
@@ -51,17 +46,12 @@ const allSections: MenuSection[] = [
     title: "Коммуникация",
     items: [
       { id: "mailings", title: "Рассылки", icon: "send", route: "/mailings" },
-      {
-        id: "tickets",
-        title: "Тикеты",
-        icon: "message-circle",
-        route: "/tickets",
-      },
+      { id: "tickets", title: "Тикеты", icon: "message-circle", route: "/tickets" },
     ],
   },
   {
     title: "Администрирование",
-    adminOnly: true,
+    roles: ["chief_admin", "admin"],
     items: [
       { id: "users", title: "Пользователи", icon: "user-cog", route: "/users" },
     ],
@@ -69,7 +59,7 @@ const allSections: MenuSection[] = [
 ];
 
 const menuSections = computed(() =>
-  allSections.filter((s) => !s.adminOnly || isChiefAdmin.value)
+  allSections.filter((s) => !s.roles || s.roles.includes(userRole.value))
 );
 
 const isVisible = ref(false);
