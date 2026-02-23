@@ -46,7 +46,17 @@ const actions = [
         :class="action.cls"
         @click="router.push(action.route)"
       >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" v-html="action.icon" />
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          v-html="action.icon"
+        />
         <span class="qa-lbl">{{ action.title }}</span>
       </button>
     </div>
@@ -54,19 +64,67 @@ const actions = [
 </template>
 
 <style scoped>
-.qa-card { background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; padding: 16px; }
-.qa-title { font-size: 14px; font-weight: 700; color: #0f172a; margin: 0 0 12px; }
-.qa-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.qa-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 14px 8px; border-radius: 10px; border: none; cursor: pointer; transition: filter 150ms, transform 100ms; }
-.qa-btn:hover { filter: brightness(0.95); }
-.qa-btn:active { transform: scale(0.97); }
-.qa-lbl { font-size: 11px; font-weight: 600; }
-.qa--blue   { background: #eff6ff; color: #2563eb; }
-.qa--green  { background: #ecfdf5; color: #059669; }
-.qa--amber  { background: #fffbeb; color: #d97706; }
-.qa--purple { background: #f5f3ff; color: #7c3aed; }
+.qa-card {
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  padding: 16px;
+}
+.qa-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 12px;
+}
+.qa-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.qa-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 14px 8px;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  transition: filter 150ms, transform 100ms;
+}
+.qa-btn:hover {
+  filter: brightness(0.95);
+}
+.qa-btn:active {
+  transform: scale(0.97);
+}
+.qa-lbl {
+  font-size: 11px;
+  font-weight: 600;
+}
+.qa--blue {
+  background: #eff6ff;
+  color: #2563eb;
+}
+.qa--green {
+  background: #ecfdf5;
+  color: #059669;
+}
+.qa--amber {
+  background: #fffbeb;
+  color: #d97706;
+}
+.qa--purple {
+  background: #f5f3ff;
+  color: #7c3aed;
+}
 @media (max-width: 768px) {
-  .qa-card { padding: 12px; }
-  .qa-btn { padding: 12px 8px; }
+  .qa-card {
+    padding: 12px;
+  }
+  .qa-btn {
+    padding: 12px 8px;
+  }
 }
 </style>
