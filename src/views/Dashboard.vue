@@ -76,7 +76,6 @@ onMounted(async () => {
 
       <!-- Branch selector: только для admin / chief_admin -->
       <div v-if="canSelectBranch" class="branch-selector">
-        <label class="branch-label">Филиал</label>
         <select
           v-model="selectedBranchId"
           class="branch-select"
