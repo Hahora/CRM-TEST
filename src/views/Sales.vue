@@ -530,7 +530,7 @@ onUnmounted(() => {
           <div class="fp-field">
             <label class="fp-label">Филиал</label>
             <select v-model="filterBranch" class="fp-select">
-              <option value="">Все филиалы</option>
+              <option v-if="!isBranch" value="">Все филиалы</option>
               <option
                 v-for="b in branches"
                 :key="b.moysklad_id"
