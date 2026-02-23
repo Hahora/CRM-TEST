@@ -89,26 +89,26 @@ const router = createRouter({
       meta: {
         title: "Отчеты",
         requiresAuth: true,
-        roles: ["chief_admin"],
+        roles: ["chief_admin", "admin"],
       },
     },
     {
       path: "/reports/clients",
       name: "report-clients",
       component: () => import("@/views/ReportClients.vue"),
-      meta: { title: "Отчет по клиентам", requiresAuth: true, roles: ["chief_admin"] },
+      meta: { title: "Отчет по клиентам", requiresAuth: true, roles: ["chief_admin", "admin"] },
     },
     {
       path: "/reports/visits",
       name: "report-visits",
       component: () => import("@/views/ReportVisits.vue"),
-      meta: { title: "Отчет по посещениям", requiresAuth: true, roles: ["chief_admin"] },
+      meta: { title: "Отчет по посещениям", requiresAuth: true, roles: ["chief_admin", "admin"] },
     },
     {
       path: "/reports/sales",
       name: "report-sales",
       component: () => import("@/views/ReportSales.vue"),
-      meta: { title: "Отчет по продажам", requiresAuth: true, roles: ["chief_admin"] },
+      meta: { title: "Отчет по продажам", requiresAuth: true, roles: ["chief_admin", "admin"] },
     },
     {
       path: "/mailings",
@@ -144,7 +144,7 @@ const router = createRouter({
       meta: {
         title: "Пользователи",
         requiresAuth: true,
-        roles: ["chief_admin"],
+        roles: ["chief_admin", "admin"],
       },
     },
     {

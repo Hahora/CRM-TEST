@@ -10,7 +10,6 @@ const { user, userRole, fullName, logout } = useAuth();
 
 const emit = defineEmits<{ (e: "toggle-collapse", collapsed: boolean): void }>();
 
-const isChiefAdmin = computed(() => userRole.value === "chief_admin");
 const isProfileOpen = ref(false);
 const isCollapsed = ref(localStorage.getItem("sidebar-collapsed") === "true");
 
@@ -37,7 +36,7 @@ const handleLogout = async () => {
 
 interface MenuSection {
   title: string;
-  adminOnly?: boolean;
+  roles?: string[];
   items: { id: string; title: string; icon: string; route: string }[];
 }
 
@@ -53,6 +52,7 @@ const allSections: MenuSection[] = [
   },
   {
     title: "Аналитика",
+    roles: ["chief_admin", "admin"],
     items: [
       { id: "reports", title: "Отчеты", icon: "file-text", route: "/reports" },
     ],
@@ -66,7 +66,7 @@ const allSections: MenuSection[] = [
   },
   {
     title: "Администрирование",
-    adminOnly: true,
+    roles: ["chief_admin", "admin"],
     items: [
       { id: "users", title: "Пользователи", icon: "user-cog", route: "/users" },
     ],
@@ -74,7 +74,7 @@ const allSections: MenuSection[] = [
 ];
 
 const menuSections = computed(() =>
-  allSections.filter((s) => !s.adminOnly || isChiefAdmin.value)
+  allSections.filter((s) => !s.roles || s.roles.includes(userRole.value))
 );
 
 const navigateTo = (routePath: string) => {

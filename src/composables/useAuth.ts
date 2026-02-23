@@ -120,6 +120,9 @@ export const useAuth = () => {
   const userRole = computed(() => user.value?.role?.name || "");
   const userPermissions = computed(() => user.value?.role?.permissions || {});
   const isActive = computed(() => user.value?.is_active || false);
+  const isChiefAdmin = computed(() => userRole.value === "chief_admin");
+  const isAdmin = computed(() => userRole.value === "admin");
+  const isBranch = computed(() => userRole.value === "branch");
 
   // Создаем полное имя из частей
   const fullName = computed(() => {
@@ -139,6 +142,9 @@ export const useAuth = () => {
     userRole,
     userPermissions,
     isActive,
+    isChiefAdmin,
+    isAdmin,
+    isBranch,
     fullName,
     isAuthenticated,
     isLoading: computed(() => isLoading.value),

@@ -26,6 +26,7 @@ export interface User {
   last_name: string;
   middle_name: string;
   is_active: boolean;
+  branch_id?: number | null;
   role: {
     id: number;
     name: string;
