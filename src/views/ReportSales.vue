@@ -9,6 +9,7 @@ const router = useRouter();
 
 const branches = ref<Branch[]>([]);
 const selectedBranchId = ref<number | null>(null);
+const isLoadingBranches = ref(true);
 
 const todayMsk = () => {
   const now = new Date();
@@ -71,6 +72,8 @@ onMounted(async () => {
     selectedBranchId.value = branches.value.find((b) => b.is_active)?.local_id ?? null;
   } catch {
     branches.value = [];
+  } finally {
+    isLoadingBranches.value = false;
   }
 });
 </script>
@@ -139,7 +142,16 @@ onMounted(async () => {
             </svg>
             Филиал
           </span>
-          <div class="rep-branches">
+          <!-- Skeleton -->
+          <div v-if="isLoadingBranches" class="rep-branches">
+            <div v-for="i in 4" :key="i" class="rep-skeleton-row">
+              <div class="rep-skeleton-circle"></div>
+              <div class="rep-skeleton-line" :style="{ width: i % 2 === 0 ? '55%' : '70%' }"></div>
+            </div>
+          </div>
+
+          <!-- Loaded -->
+          <div v-else class="rep-branches">
             <label v-for="b in branches" :key="b.moysklad_id" class="rep-check" :class="{ 'rep-check--inactive': !b.is_active }">
               <input type="radio" name="sales-branch" :checked="selectedBranchId === b.local_id" @change="b.local_id != null && (selectedBranchId = b.local_id)" class="rep-radio-input" />
               <span class="rep-radio-mark"></span>
@@ -256,6 +268,38 @@ onMounted(async () => {
 }
 .rep-check-lbl { font: 500 13px/1 "Manrope", sans-serif; color: #0f172a; display: flex; align-items: center; gap: 6px; }
 .rep-inactive-badge { font: 400 10px/1 "Manrope", sans-serif; color: #94a3b8; background: #f1f5f9; padding: 2px 6px; border-radius: 4px; }
+
+/* Skeleton loader */
+.rep-skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+}
+.rep-skeleton-circle {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #e2e8f0;
+  flex-shrink: 0;
+  animation: rep-shimmer 1.4s ease-in-out infinite;
+}
+.rep-skeleton-line {
+  height: 10px;
+  border-radius: 5px;
+  background: #e2e8f0;
+  animation: rep-shimmer 1.4s ease-in-out infinite;
+}
+.rep-skeleton-row:nth-child(2) .rep-skeleton-circle,
+.rep-skeleton-row:nth-child(2) .rep-skeleton-line { animation-delay: 0.1s; }
+.rep-skeleton-row:nth-child(3) .rep-skeleton-circle,
+.rep-skeleton-row:nth-child(3) .rep-skeleton-line { animation-delay: 0.2s; }
+.rep-skeleton-row:nth-child(4) .rep-skeleton-circle,
+.rep-skeleton-row:nth-child(4) .rep-skeleton-line { animation-delay: 0.3s; }
+@keyframes rep-shimmer {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
 
 .rep-actions { display: flex; flex-direction: column; gap: 10px; }
 .rep-error { font: 500 11px/1.4 "Manrope", sans-serif; color: #dc2626; }

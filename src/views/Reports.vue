@@ -141,11 +141,11 @@ const REPORTS = [
 .rp-card-body { flex: 1; }
 .rp-card-title { font: 700 15px/1 "Manrope", sans-serif; color: #0f172a; }
 
-.rp-card-arrow { flex-shrink: 0; color: #94a3b8; transition: transform 180ms, color 180ms; }
+.rp-card-arrow { flex-shrink: 0; transition: transform 180ms, color 180ms; }
+.rp-card-arrow--blue  { color: #2563eb; }
+.rp-card-arrow--green { color: #059669; }
 .rp-card-arrow--amber { color: #d97706; }
-.rp-card:hover .rp-card-arrow { transform: translateX(3px); color: #2563eb; }
-.rp-card--green:hover .rp-card-arrow { color: #059669; }
-.rp-card--amber:hover .rp-card-arrow { color: #d97706; }
+.rp-card:hover .rp-card-arrow { transform: translateX(3px); }
 
 @media (max-width: 600px) {
   .rp-body { padding: 16px; }
