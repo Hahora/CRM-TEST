@@ -111,13 +111,13 @@ const editingRoleLabel = computed(() => ROLES_ALL.find((r) => r.id === form.valu
 // ── Helpers ──
 const getFullName = (u: ApiUser) => {
   const parts = [u.last_name, u.first_name, u.middle_name].filter(Boolean);
-  return parts.join(" ") || u.login;
+  return parts.join(" ") || u.login || String(u.id);
 };
 
 const getInitials = (u: ApiUser) => {
   const a = u.last_name?.charAt(0) ?? "";
   const b = u.first_name?.charAt(0) ?? "";
-  return (a + b).toUpperCase() || u.login.slice(0, 2).toUpperCase();
+  return (a + b).toUpperCase() || u.login?.slice(0, 2).toUpperCase() || "?";
 };
 
 const avatarColor = (id: number) => {
@@ -396,7 +396,7 @@ onMounted(loadData);
 
             <!-- Created -->
             <div class="up-td up-td--created">
-              <span class="up-date">{{ u.created_at.slice(0, 10) }}</span>
+              <span class="up-date">{{ u.created_at?.slice(0, 10) ?? "—" }}</span>
             </div>
 
             <!-- Actions -->
