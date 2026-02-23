@@ -30,10 +30,15 @@ const allSections: MenuSection[] = [
   {
     title: "Основное",
     items: [
-      { id: "dashboard", title: "Дашборд",   icon: "layout-dashboard", route: "/dashboard" },
-      { id: "sales",     title: "Продажи",   icon: "trending-up",      route: "/sales"     },
-      { id: "clients",   title: "Клиенты",   icon: "users",            route: "/clients"   },
-      { id: "visits",    title: "Посещения", icon: "map-pin",          route: "/visits"    },
+      {
+        id: "dashboard",
+        title: "Дашборд",
+        icon: "layout-dashboard",
+        route: "/dashboard",
+      },
+      { id: "sales", title: "Продажи", icon: "trending-up", route: "/sales" },
+      { id: "clients", title: "Клиенты", icon: "users", route: "/clients" },
+      { id: "visits", title: "Посещения", icon: "map-pin", route: "/visits" },
     ],
   },
   {
@@ -45,8 +50,13 @@ const allSections: MenuSection[] = [
   {
     title: "Коммуникация",
     items: [
-      { id: "mailings", title: "Рассылки", icon: "send",           route: "/mailings" },
-      { id: "tickets",  title: "Тикеты",   icon: "message-circle", route: "/tickets"  },
+      { id: "mailings", title: "Рассылки", icon: "send", route: "/mailings" },
+      {
+        id: "tickets",
+        title: "Тикеты",
+        icon: "message-circle",
+        route: "/tickets",
+      },
     ],
   },
   {
@@ -210,7 +220,7 @@ const getSectionIndex = (sectionIdx: number): number => {
           class="border-t border-gray-200 px-4 py-2 bg-gray-50 flex-shrink-0"
         >
           <div class="text-xs text-gray-500 text-center">
-            <p>© 2026 СРМ v1.0.0</p>
+            <p>© 2026 СРМ HUSBAND</p>
           </div>
         </div>
       </div>

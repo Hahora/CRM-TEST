@@ -7,7 +7,7 @@ import { useToast } from "@/composables/useToast";
 
 const router = useRouter();
 const { login, isLoading, isAuthenticated } = useAuth();
-const { showError, showSuccess } = useToast();
+const { showSuccess } = useToast();
 
 const form = ref({
   login: "",
@@ -15,6 +15,7 @@ const form = ref({
 });
 
 const showPassword = ref(false);
+const errorMessage = ref("");
 
 onMounted(() => {
   if (isAuthenticated.value) {
@@ -22,14 +23,27 @@ onMounted(() => {
   }
 });
 
+const clearError = () => {
+  errorMessage.value = "";
+};
+
 const handleSubmit = async () => {
+  errorMessage.value = "";
+
   if (!form.value.login || !form.value.password) {
-    showError("Заполните все поля", "Введите логин и пароль для входа в систему");
+    errorMessage.value = "Введите логин и пароль";
     return;
   }
-  const success = await login(form.value);
-  if (success) {
-    showSuccess("Вход выполнен", "Добро пожаловать в систему!");
+
+  try {
+    const success = await login(form.value);
+    if (success) {
+      showSuccess("Вход выполнен", "Добро пожаловать в систему!");
+    } else {
+      errorMessage.value = "Неверный логин или пароль";
+    }
+  } catch (e) {
+    errorMessage.value = e instanceof Error ? e.message : "Ошибка входа в систему";
   }
 };
 
@@ -45,10 +59,19 @@ const togglePasswordVisibility = () => {
       <div class="lp-left-inner">
         <!-- Logo -->
         <div class="lp-logo">
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
-            <line x1="8" y1="21" x2="16" y2="21"/>
-            <line x1="12" y1="17" x2="12" y2="21"/>
+          <svg
+            width="28"
+            height="28"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+            <line x1="8" y1="21" x2="16" y2="21" />
+            <line x1="12" y1="17" x2="12" y2="21" />
           </svg>
         </div>
 
@@ -62,19 +85,51 @@ const togglePasswordVisibility = () => {
         <div class="lp-features">
           <div class="lp-feature">
             <div class="lp-feature-ico">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+              </svg>
             </div>
             <span>Управление клиентами</span>
           </div>
           <div class="lp-feature">
             <div class="lp-feature-ico">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <line x1="18" y1="20" x2="18" y2="10" />
+                <line x1="12" y1="20" x2="12" y2="4" />
+                <line x1="6" y1="20" x2="6" y2="14" />
+              </svg>
             </div>
             <span>Аналитика и отчёты</span>
           </div>
           <div class="lp-feature">
             <div class="lp-feature-ico">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+              </svg>
             </div>
             <span>Мониторинг продаж</span>
           </div>
@@ -87,7 +142,7 @@ const togglePasswordVisibility = () => {
       </div>
 
       <div class="lp-left-footer">
-        <span>© 2026 СРМ v1.0.0</span>
+        <span>© 2026 СРМ HUSBAND</span>
       </div>
     </div>
 
@@ -97,7 +152,18 @@ const togglePasswordVisibility = () => {
         <!-- Mobile brand (hidden on desktop) -->
         <div class="lp-mobile-brand">
           <div class="lp-mobile-logo">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <rect x="2" y="3" width="20" height="14" rx="2" />
+              <line x1="8" y1="21" x2="16" y2="21" />
+              <line x1="12" y1="17" x2="12" y2="21" />
+            </svg>
           </div>
           <div>
             <div class="lp-mobile-title">СРМ СИСТЕМА</div>
@@ -125,7 +191,9 @@ const togglePasswordVisibility = () => {
                 autocomplete="username"
                 placeholder="Введите логин"
                 class="lp-input"
+                :class="{ 'lp-input--error': errorMessage }"
                 :disabled="isLoading"
+                @input="clearError"
               />
             </div>
           </div>
@@ -144,7 +212,9 @@ const togglePasswordVisibility = () => {
                 autocomplete="current-password"
                 placeholder="Введите пароль"
                 class="lp-input lp-input--pw"
+                :class="{ 'lp-input--error': errorMessage }"
                 :disabled="isLoading"
+                @input="clearError"
               />
               <button
                 type="button"
@@ -158,13 +228,30 @@ const togglePasswordVisibility = () => {
             </div>
           </div>
 
+          <!-- Error -->
+          <Transition name="lp-err">
+            <div v-if="errorMessage" class="lp-error">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lp-error-ico">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+              {{ errorMessage }}
+            </div>
+          </Transition>
+
           <!-- Submit -->
           <button
             type="submit"
             class="lp-submit"
             :disabled="isLoading || !form.login || !form.password"
           >
-            <AppIcon v-if="isLoading" name="refresh-cw" :size="15" class="lp-spin" />
+            <AppIcon
+              v-if="isLoading"
+              name="refresh-cw"
+              :size="15"
+              class="lp-spin"
+            />
             <span>{{ isLoading ? "Вход..." : "Войти в систему" }}</span>
           </button>
         </form>
@@ -312,7 +399,11 @@ const togglePasswordVisibility = () => {
   right: -80px;
   width: 300px;
   height: 300px;
-  background: radial-gradient(circle, rgba(96, 165, 250, 0.2) 0%, transparent 70%);
+  background: radial-gradient(
+    circle,
+    rgba(96, 165, 250, 0.2) 0%,
+    transparent 70%
+  );
   pointer-events: none;
 }
 
@@ -334,7 +425,8 @@ const togglePasswordVisibility = () => {
   border: 1px solid #e2e8f0;
   border-radius: 16px;
   padding: 36px 32px;
-  box-shadow: 0 4px 24px rgba(15, 23, 42, 0.06), 0 1px 4px rgba(15, 23, 42, 0.04);
+  box-shadow: 0 4px 24px rgba(15, 23, 42, 0.06),
+    0 1px 4px rgba(15, 23, 42, 0.04);
 }
 
 /* Mobile brand */
@@ -522,12 +614,47 @@ const togglePasswordVisibility = () => {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .lp-spin {
   animation: spin 0.8s linear infinite;
 }
+
+/* Error state on inputs */
+.lp-input--error {
+  border-color: #fca5a5 !important;
+  background: #fff5f5 !important;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.08) !important;
+}
+
+/* Inline error block */
+.lp-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 13px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 9px;
+  color: #dc2626;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.lp-error-ico {
+  flex-shrink: 0;
+  color: #ef4444;
+}
+
+/* Error transition */
+.lp-err-enter-active { transition: all 180ms ease-out; }
+.lp-err-leave-active { transition: all 130ms ease-in; }
+.lp-err-enter-from  { opacity: 0; transform: translateY(-6px); }
+.lp-err-leave-to    { opacity: 0; transform: translateY(-4px); }
 
 /* Hint */
 .lp-hint {

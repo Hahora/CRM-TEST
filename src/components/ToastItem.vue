@@ -25,43 +25,29 @@ const isVisible = ref(false);
 const progress = ref(100);
 let progressInterval: ReturnType<typeof setInterval>;
 
+const iconName = computed(() => config.value.icon as any);
+
 const config = computed(() => {
   const map = {
     success: {
-      bg: "bg-white dark:bg-gray-900",
-      border: "border-green-500",
+      color: "#059669",
+      colorLight: "#ecfdf5",
       icon: "check-circle",
-      iconBg: "bg-green-100 dark:bg-green-900/40",
-      iconColor: "text-green-600 dark:text-green-400",
-      progressColor: "bg-green-500",
-      titleColor: "text-gray-900 dark:text-gray-100",
     },
     error: {
-      bg: "bg-white dark:bg-gray-900",
-      border: "border-red-500",
+      color: "#dc2626",
+      colorLight: "#fef2f2",
       icon: "x-circle",
-      iconBg: "bg-red-100 dark:bg-red-900/40",
-      iconColor: "text-red-600 dark:text-red-400",
-      progressColor: "bg-red-500",
-      titleColor: "text-gray-900 dark:text-gray-100",
     },
     warning: {
-      bg: "bg-white dark:bg-gray-900",
-      border: "border-amber-500",
+      color: "#d97706",
+      colorLight: "#fffbeb",
       icon: "alert-triangle",
-      iconBg: "bg-amber-100 dark:bg-amber-900/40",
-      iconColor: "text-amber-600 dark:text-amber-400",
-      progressColor: "bg-amber-500",
-      titleColor: "text-gray-900 dark:text-gray-100",
     },
     info: {
-      bg: "bg-white dark:bg-gray-900",
-      border: "border-blue-500",
+      color: "#2563eb",
+      colorLight: "#eff6ff",
       icon: "info",
-      iconBg: "bg-blue-100 dark:bg-blue-900/40",
-      iconColor: "text-blue-600 dark:text-blue-400",
-      progressColor: "bg-blue-500",
-      titleColor: "text-gray-900 dark:text-gray-100",
     },
   };
   return map[props.toast.type] ?? map.info;
@@ -72,7 +58,7 @@ const handleClose = () => {
   clearInterval(progressInterval);
   setTimeout(() => {
     emit("remove", props.toast.id);
-  }, 400);
+  }, 300);
 };
 
 onMounted(() => {
@@ -99,77 +85,148 @@ onMounted(() => {
 
 <template>
   <Transition
-    enter-active-class="transition-all duration-400 ease-[cubic-bezier(0.21,1.02,0.73,1)]"
-    enter-from-class="translate-x-full opacity-0 scale-95"
-    enter-to-class="translate-x-0 opacity-100 scale-100"
-    leave-active-class="transition-all duration-300 ease-[cubic-bezier(0.06,0.71,0.55,1)]"
-    leave-from-class="translate-x-0 opacity-100 scale-100 max-h-40"
-    leave-to-class="translate-x-full opacity-0 scale-95 max-h-0"
+    enter-active-class="ti-enter-active"
+    enter-from-class="ti-enter-from"
+    leave-active-class="ti-leave-active"
+    leave-to-class="ti-leave-to"
   >
     <div
       v-if="isVisible"
-      :class="[
-        'mb-3 rounded-xl border-l-4 shadow-xl shadow-black/8 max-w-sm w-full overflow-hidden',
-        'backdrop-blur-sm ring-1 ring-black/5 dark:ring-white/10',
-        config.bg,
-        config.border,
-      ]"
+      class="ti-wrap"
+      :style="{ '--t-color': config.color, '--t-color-light': config.colorLight }"
       role="alert"
     >
-      <div class="p-4">
-        <div class="flex items-start gap-3">
-          <!-- Icon -->
-          <div
-            :class="[
-              'flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center',
-              config.iconBg,
-            ]"
-          >
-            <AppIcon :name="config.icon" :size="18" :class="config.iconColor" />
-          </div>
-
-          <!-- Content -->
-          <div class="flex-1 min-w-0 pt-0.5">
-            <h4
-              :class="[
-                'text-sm font-semibold leading-tight',
-                config.titleColor,
-              ]"
-            >
-              {{ toast.title }}
-            </h4>
-            <p
-              v-if="toast.message"
-              class="text-sm text-gray-500 dark:text-gray-400 mt-1 leading-relaxed"
-            >
-              {{ toast.message }}
-            </p>
-          </div>
-
-          <!-- Close Button -->
-          <button
-            @click="handleClose"
-            class="flex-shrink-0 p-1.5 -m-1 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-150"
-            aria-label="Закрыть"
-          >
-            <AppIcon name="x" :size="14" />
-          </button>
+      <div class="ti-body">
+        <!-- Icon -->
+        <div class="ti-icon-wrap">
+          <AppIcon :name="iconName" :size="17" class="ti-icon" />
         </div>
+
+        <!-- Content -->
+        <div class="ti-content">
+          <p class="ti-title">{{ toast.title }}</p>
+          <p v-if="toast.message" class="ti-message">{{ toast.message }}</p>
+        </div>
+
+        <!-- Close -->
+        <button class="ti-close" @click="handleClose" aria-label="Закрыть">
+          <AppIcon name="x" :size="13" />
+        </button>
       </div>
 
       <!-- Progress bar -->
-      <div
-        v-if="!toast.persistent"
-        class="h-0.5 w-full bg-gray-100 dark:bg-gray-800"
-      >
-        <div
-          :class="[
-            'h-full transition-all duration-75 ease-linear rounded-full',
-            config.progressColor,
-          ]"
-          :style="{ width: `${progress}%`, opacity: 0.7 }"
-        />
+      <div v-if="!toast.persistent" class="ti-progress-track">
+        <div class="ti-progress-bar" :style="{ width: `${progress}%` }" />
       </div>
     </div>
   </Transition>
 </template>
+
+<style scoped>
+.ti-wrap {
+  width: 320px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-left: 3px solid var(--t-color);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.10), 0 2px 6px rgba(15, 23, 42, 0.05);
+  overflow: hidden;
+  margin-bottom: 10px;
+  font-family: "Manrope", -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.ti-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 13px 13px 13px 14px;
+}
+
+.ti-icon-wrap {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--t-color-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--t-color);
+}
+
+.ti-icon {
+  color: var(--t-color);
+}
+
+.ti-content {
+  flex: 1;
+  min-width: 0;
+  padding-top: 1px;
+}
+
+.ti-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+  line-height: 1.3;
+}
+
+.ti-message {
+  font-size: 12px;
+  color: #64748b;
+  margin: 3px 0 0;
+  line-height: 1.4;
+}
+
+.ti-close {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: background 120ms, color 120ms;
+  margin: -2px -2px 0 0;
+}
+
+.ti-close:hover {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.ti-progress-track {
+  height: 2px;
+  background: #f1f5f9;
+}
+
+.ti-progress-bar {
+  height: 100%;
+  background: var(--t-color);
+  opacity: 0.6;
+  transition: width 50ms linear;
+}
+
+/* Transitions */
+.ti-enter-active {
+  transition: all 280ms cubic-bezier(0.21, 1.02, 0.73, 1);
+}
+.ti-leave-active {
+  transition: all 220ms cubic-bezier(0.06, 0.71, 0.55, 1);
+}
+.ti-enter-from {
+  transform: translateX(calc(100% + 16px));
+  opacity: 0;
+}
+.ti-leave-to {
+  transform: translateX(calc(100% + 16px));
+  opacity: 0;
+  max-height: 0;
+  margin-bottom: 0;
+}
+</style>
