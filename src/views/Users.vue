@@ -70,13 +70,13 @@ watch(() => form.value.role_id, (id) => {
 // ── Permissions ──
 const canEdit = (u: ApiUser) => {
   if (isChiefAdmin.value) return true;
-  if (isAdmin.value) return u.role.name === "branch";
+  if (isAdmin.value) return u.role?.name === "branch";
   return false;
 };
 
 const canDelete = (u: ApiUser) => {
   if (isChiefAdmin.value) return u.id !== currentUserId.value;
-  if (isAdmin.value) return u.role.name === "branch";
+  if (isAdmin.value) return u.role?.name === "branch";
   return false;
 };
 
@@ -86,7 +86,7 @@ const filteredUsers = computed(() => {
   if (!q) return users.value;
   return users.value.filter(
     (u) =>
-      u.login.toLowerCase().includes(q) ||
+      u.login?.toLowerCase().includes(q) ||
       u.first_name.toLowerCase().includes(q) ||
       u.last_name.toLowerCase().includes(q) ||
       (u.middle_name?.toLowerCase().includes(q) ?? false)
@@ -182,7 +182,7 @@ const openEdit = (u: ApiUser) => {
     first_name:  u.first_name,
     last_name:   u.last_name,
     middle_name: u.middle_name ?? "",
-    role_id:     u.role.id,
+    role_id:     u.role?.id ?? ROLE_IDS.branch,
     branch_id:   u.branch_id,
     is_active:   u.is_active,
   };
@@ -375,8 +375,8 @@ onMounted(loadData);
 
             <!-- Role -->
             <div class="up-td up-td--role">
-              <span class="up-role-badge" :class="getRoleClass(u.role.name)">
-                {{ getRoleLabel(u.role.name) }}
+              <span class="up-role-badge" :class="getRoleClass(u.role?.name ?? '')">
+                {{ getRoleLabel(u.role?.name ?? '') }}
               </span>
             </div>
 
