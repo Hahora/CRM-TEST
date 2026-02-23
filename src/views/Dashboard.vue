@@ -54,15 +54,20 @@ const saveCache = (d: DashboardMain) => {
   } catch {}
 };
 
-const loadFromCache = (): boolean => {
+const loadFromCache = async (): Promise<boolean> => {
   try {
     const raw = localStorage.getItem(cacheKey.value);
     if (!raw) return false;
     const parsed = JSON.parse(raw);
+    // Показываем скелетон пока "читаем" кэш
+    isLoading.value = true;
+    await new Promise((r) => setTimeout(r, 350));
     data.value = parsed.data;
     cacheTimestamp.value = new Date(parsed.timestamp);
+    isLoading.value = false;
     return true;
   } catch {
+    isLoading.value = false;
     return false;
   }
 };
@@ -96,15 +101,16 @@ const loadBranches = async () => {
 };
 
 // On branch change: try cache first, reload if no cache
-watch(selectedBranchId, () => {
+watch(selectedBranchId, async () => {
   data.value = null;
   cacheTimestamp.value = null;
-  if (!loadFromCache()) loadDashboard();
+  const hit = await loadFromCache();
+  if (!hit) loadDashboard();
 });
 
 onMounted(async () => {
   await loadBranches();
-  loadFromCache();
+  await loadFromCache();
 });
 </script>
 
