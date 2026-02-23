@@ -89,8 +89,9 @@ class UsersApiService {
     return JSON.parse(text);
   }
 
-  getUsers(): Promise<ApiUser[]> {
-    return this.request<ApiUser[]>("/api/v1/users");
+  async getUsers(): Promise<ApiUser[]> {
+    const res = await this.request<{ users: ApiUser[] } | ApiUser[]>("/api/v1/users");
+    return Array.isArray(res) ? res : (res as { users: ApiUser[] }).users ?? [];
   }
 
   createUser(data: CreateUserPayload): Promise<ApiUser> {
