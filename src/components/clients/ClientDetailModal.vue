@@ -6,6 +6,7 @@ import { MapPin } from "lucide-vue-next";
 
 const props = defineProps<{
   moyskladId: string | null;
+  canDelete?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -189,6 +190,7 @@ const handleOverlayClick = (e: MouseEvent) => {
               </div>
               <div class="cdm-header-right">
                 <button
+                  v-if="canDelete !== false"
                   class="cdm-btn-del"
                   @click="handleDelete"
                   title="Удалить клиента"

@@ -3,7 +3,7 @@ import { ref, onMounted, onUnmounted } from "vue";
 import AppIcon from "./AppIcon.vue";
 import { useAuth } from "@/composables/useAuth";
 
-const { user, logout, userRole, fullName } = useAuth();
+const { user, logout, roleLabel, fullName } = useAuth();
 
 const isProfileOpen = ref(false);
 const isScrolled = ref(false);
@@ -128,9 +128,9 @@ onUnmounted(() => {
               </span>
             </div>
             <span
-              class="text-[10px] md:text-[11px] text-gray-400 leading-tight capitalize"
+              class="text-[10px] md:text-[11px] text-gray-400 leading-tight"
             >
-              {{ userRole }}
+              {{ roleLabel }}
             </span>
           </div>
 
@@ -177,9 +177,9 @@ onUnmounted(() => {
                   </div>
                   <div class="flex items-center gap-1.5 mt-1">
                     <span
-                      class="text-[10px] font-medium text-gray-500 uppercase tracking-wide capitalize"
+                      class="text-[10px] font-medium text-gray-500 uppercase tracking-wide"
                     >
-                      {{ userRole }}
+                      {{ roleLabel }}
                     </span>
                     <span class="text-gray-300">·</span>
                     <span

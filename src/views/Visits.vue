@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { visitsApi, VISIT_STATUSES, VISIT_SOURCES } from "@/services/visitsApi";
+import { useAuth } from "@/composables/useAuth";
 import type {
   Visit,
   VisitStatus,
@@ -43,6 +44,8 @@ const isMobile = ref(false);
 const isFullscreen = ref(false);
 const showStats = ref(false);
 const showTimeSettings = ref(false);
+
+const { isBranch, user } = useAuth();
 
 // Branches
 const branches = ref<Branch[]>([]);
@@ -166,11 +169,13 @@ const loadBranches = async () => {
   try {
     const resp = await visitsApi.getBranches();
     branches.value = Array.isArray(resp) ? resp : [];
+    if (isBranch.value && user.value?.branch_id != null) {
+      branches.value = branches.value.filter((b) => b.local_id === user.value!.branch_id);
+    }
     if (
       branches.value.length &&
       !branches.value.find((b) => b.moysklad_id === branchMoyskladId.value)
     ) {
-      // Выбираем первый активный, либо первый вообще
       const first = branches.value.find((b) => b.is_active) ?? branches.value[0];
       branchMoyskladId.value = first?.moysklad_id ?? "";
     }

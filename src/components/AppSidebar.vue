@@ -6,7 +6,7 @@ import { useAuth } from "@/composables/useAuth";
 
 const router = useRouter();
 const route = useRoute();
-const { user, userRole, fullName, logout } = useAuth();
+const { user, userRole, roleLabel, fullName, logout } = useAuth();
 
 const emit = defineEmits<{ (e: "toggle-collapse", collapsed: boolean): void }>();
 
@@ -179,7 +179,7 @@ const isActiveRoute = (routePath: string) => {
                 <div v-if="user" class="text-xs text-gray-500 truncate">{{ user.login }}</div>
                 <div class="flex items-center gap-2 mt-0.5">
                   <span class="text-[10px] font-mono text-gray-400 bg-gray-100 px-1 py-0.5 rounded">ID:{{ user?.id }}</span>
-                  <span class="text-[10px] text-gray-400 capitalize">{{ userRole }}</span>
+                  <span class="text-[10px] text-gray-400">{{ roleLabel }}</span>
                   <span v-if="user" class="flex items-center gap-1 text-[10px]" :class="user.is_active ? 'text-emerald-600' : 'text-red-500'">
                     <span class="w-1.5 h-1.5 rounded-full" :class="user.is_active ? 'bg-emerald-500' : 'bg-red-400'" />
                     {{ user.is_active ? "Активен" : "Неактивен" }}
@@ -214,7 +214,7 @@ const isActiveRoute = (routePath: string) => {
         <template v-if="!isCollapsed">
           <div class="flex-1 min-w-0">
             <div class="text-[13px] font-semibold text-gray-800 truncate">{{ fullName }}</div>
-            <div class="text-[11px] text-gray-400 capitalize leading-tight">{{ userRole }}</div>
+            <div class="text-[11px] text-gray-400 leading-tight">{{ roleLabel }}</div>
           </div>
           <AppIcon
             name="chevron-down"

@@ -28,6 +28,7 @@ import ClientDetailModal from "@/components/clients/ClientDetailModal.vue";
 import ClientCreateModal from "@/components/clients/ClientCreateModal.vue";
 import type { NewClientData } from "@/components/clients/ClientCreateModal.vue";
 import { clientsApi } from "@/services/clientsApi";
+import { useAuth } from "@/composables/useAuth";
 import type {
   GridReadyEvent,
   CellValueChangedEvent,
@@ -101,6 +102,8 @@ const {
   deleteClients,
   refreshData,
 } = useClients();
+
+const { isBranch } = useAuth();
 
 const {
   gridApi,
@@ -729,7 +732,7 @@ const getRowId = (params: any) => {
         </Transition>
         <Transition name="fade">
           <button
-            v-if="selectedCount > 1"
+            v-if="selectedCount > 1 && !isBranch"
             class="hbtn hbtn--danger"
             @click="handleDeleteSelected"
             title="Удалить выбранных"
@@ -1194,6 +1197,7 @@ const getRowId = (params: any) => {
   <!-- Detail modal -->
   <ClientDetailModal
     :moysklad-id="detailMoyskladId"
+    :can-delete="!isBranch"
     @close="detailMoyskladId = null"
     @delete="handleDetailDelete"
   />

@@ -31,6 +31,7 @@ import { salesApi } from "@/services/salesApi";
 import type { Sale, SaleItem } from "@/services/salesApi";
 import { visitsApi } from "@/services/visitsApi";
 import type { Branch } from "@/services/visitsApi";
+import { useAuth } from "@/composables/useAuth";
 import ClientDetailModal from "@/components/clients/ClientDetailModal.vue";
 import SaleReceiptModal from "@/components/sales/SaleReceiptModal.vue";
 
@@ -78,6 +79,8 @@ const salesTheme = themeQuartz.withParams({
   checkboxCheckedShapeColor: "#FFFFFF",
   headerColumnBorder: { color: "#CBD5E1", width: 1, style: "solid" },
 });
+
+const { isBranch, user } = useAuth();
 
 // ── State ──
 const gridApi = ref<GridApi | null>(null);
@@ -274,6 +277,10 @@ const loadBranches = async () => {
     branches.value = await visitsApi.getBranches();
   } catch {
     branches.value = [];
+  }
+  if (isBranch.value && user.value?.branch_id != null) {
+    branches.value = branches.value.filter((b) => b.local_id === user.value!.branch_id);
+    filterBranch.value = user.value.branch_id;
   }
 };
 

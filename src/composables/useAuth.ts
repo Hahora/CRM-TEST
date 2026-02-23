@@ -124,6 +124,13 @@ export const useAuth = () => {
   const isAdmin = computed(() => userRole.value === "admin");
   const isBranch = computed(() => userRole.value === "branch");
 
+  const ROLE_LABELS: Record<string, string> = {
+    chief_admin: "Главный администратор",
+    admin: "Администратор",
+    branch: "Филиал",
+  };
+  const roleLabel = computed(() => ROLE_LABELS[userRole.value] || userRole.value);
+
   // Создаем полное имя из частей
   const fullName = computed(() => {
     if (!user.value) return "";
@@ -140,6 +147,7 @@ export const useAuth = () => {
   return {
     user: computed(() => user.value),
     userRole,
+    roleLabel,
     userPermissions,
     isActive,
     isChiefAdmin,

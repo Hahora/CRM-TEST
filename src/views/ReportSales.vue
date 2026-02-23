@@ -4,8 +4,10 @@ import { useRouter } from "vue-router";
 import { reportsApi } from "@/services/reportsApi";
 import { visitsApi } from "@/services/visitsApi";
 import type { Branch } from "@/services/visitsApi";
+import { useAuth } from "@/composables/useAuth";
 
 const router = useRouter();
+const { isBranch, user } = useAuth();
 
 const branches = ref<Branch[]>([]);
 const selectedBranchId = ref<number | null>(null);
@@ -69,7 +71,12 @@ const handleDownload = async () => {
 onMounted(async () => {
   try {
     branches.value = await visitsApi.getBranches();
-    selectedBranchId.value = branches.value.find((b) => b.is_active)?.local_id ?? null;
+    if (isBranch.value && user.value?.branch_id != null) {
+      branches.value = branches.value.filter((b) => b.local_id === user.value!.branch_id);
+      selectedBranchId.value = branches.value[0]?.local_id ?? null;
+    } else {
+      selectedBranchId.value = branches.value.find((b) => b.is_active)?.local_id ?? null;
+    }
   } catch {
     branches.value = [];
   } finally {
