@@ -52,13 +52,47 @@ const handleSidebarCollapse = (collapsed: boolean) => {
         class="pt-14 md:pt-0 transition-all duration-200 h-full overflow-hidden"
         :class="isSidebarCollapsed ? 'md:ml-16' : 'md:ml-64'"
       >
-        <RouterView />
+        <RouterView v-slot="{ Component }">
+          <Transition name="page" mode="out-in">
+            <div :key="route.path" class="page-wrap">
+              <component :is="Component" />
+            </div>
+          </Transition>
+        </RouterView>
       </main>
     </template>
 
     <!-- Login Page -->
     <template v-else>
-      <RouterView />
+      <RouterView v-slot="{ Component }">
+        <Transition name="page" mode="out-in">
+          <div :key="route.path" class="page-wrap">
+            <component :is="Component" />
+          </div>
+        </Transition>
+      </RouterView>
     </template>
   </div>
 </template>
+
+<style>
+.page-wrap {
+  height: 100%;
+  overflow: hidden;
+}
+
+.page-enter-active,
+.page-leave-active {
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.page-enter-from {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+.page-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+</style>

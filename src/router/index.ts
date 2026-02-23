@@ -93,6 +93,24 @@ const router = createRouter({
       },
     },
     {
+      path: "/reports/clients",
+      name: "report-clients",
+      component: () => import("@/views/ReportClients.vue"),
+      meta: { title: "Отчет по клиентам", requiresAuth: true, roles: ["chief_admin"] },
+    },
+    {
+      path: "/reports/visits",
+      name: "report-visits",
+      component: () => import("@/views/ReportVisits.vue"),
+      meta: { title: "Отчет по посещениям", requiresAuth: true, roles: ["chief_admin"] },
+    },
+    {
+      path: "/reports/sales",
+      name: "report-sales",
+      component: () => import("@/views/ReportSales.vue"),
+      meta: { title: "Отчет по продажам", requiresAuth: true, roles: ["chief_admin"] },
+    },
+    {
       path: "/mailings",
       name: "mailings",
       component: Mailings,
