@@ -4,6 +4,7 @@ import type { TopClientItem } from "@/services/dashboardApi";
 const props = defineProps<{
   data: TopClientItem[];
   loading?: boolean;
+  notLoaded?: boolean;
 }>();
 
 const fmt = new Intl.NumberFormat("ru-RU", {
@@ -34,7 +35,7 @@ const fmtDate = (s: string) => {
     </div>
 
     <!-- Empty -->
-    <div v-else-if="!data.length" class="tc-empty">Нет данных</div>
+    <div v-else-if="!data.length" class="tc-empty">{{ notLoaded ? "Не загружено" : "Нет данных" }}</div>
 
     <!-- List -->
     <div v-else class="tc-list">

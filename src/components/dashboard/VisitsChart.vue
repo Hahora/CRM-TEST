@@ -117,4 +117,13 @@ const chartOptions = {
 .sk-chart-line { width: 100%; height: 100%; background: linear-gradient(180deg,#e2e8f0 0%,#f1f5f9 100%); border-radius: 6px; animation: sk-pulse 1.5s ease-in-out infinite; }
 .chart-empty { height: 220px; display: flex; align-items: center; justify-content: center; font-size: 13px; color: #94a3b8; }
 @keyframes sk-pulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
+@media (max-width: 768px) {
+  .chart-card { padding: 12px; }
+  .chart-header { margin-bottom: 10px; }
+  .chart-title { font-size: 13px; }
+  .chart-total { font-size: 15px; }
+  .chart-wrap { height: 150px; }
+  .chart-sk { height: 150px; }
+  .chart-empty { height: 150px; }
+}
 </style>

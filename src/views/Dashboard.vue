@@ -11,7 +11,7 @@ import SalesChart from "@/components/dashboard/SalesChart.vue";
 import VisitsChart from "@/components/dashboard/VisitsChart.vue";
 import RecentActivity from "@/components/dashboard/RecentActivity.vue";
 import TopClients from "@/components/dashboard/TopClients.vue";
-import TodaySchedule from "@/components/dashboard/TodaySchedule.vue";
+import QuickActions from "@/components/dashboard/QuickActions.vue";
 
 const { isChiefAdmin, isAdmin } = useAuth();
 const canSelectBranch = computed(() => isChiefAdmin.value || isAdmin.value);
@@ -23,6 +23,7 @@ const data = ref<DashboardMain | null>(null);
 const branches = ref<Branch[]>([]);
 const selectedBranchId = ref<number | null>(null);
 const error = ref("");
+const cacheTimestamp = ref<Date | null>(null);
 
 const fmt = new Intl.NumberFormat("ru-RU", {
   style: "currency",
@@ -31,15 +32,53 @@ const fmt = new Intl.NumberFormat("ru-RU", {
 });
 const formatCurrency = (v: number) => fmt.format(v);
 
+// Cache key per branch
+const cacheKey = computed(
+  () => `dashboard_main_${selectedBranchId.value ?? "all"}`
+);
+
+const cacheLabel = computed(() => {
+  if (!cacheTimestamp.value) return "";
+  const d = cacheTimestamp.value;
+  const day = d.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" });
+  const time = d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+  return `${day} ${time}`;
+});
+
+const saveCache = (d: DashboardMain) => {
+  try {
+    localStorage.setItem(
+      cacheKey.value,
+      JSON.stringify({ data: d, timestamp: new Date().toISOString() })
+    );
+  } catch {}
+};
+
+const loadFromCache = (): boolean => {
+  try {
+    const raw = localStorage.getItem(cacheKey.value);
+    if (!raw) return false;
+    const parsed = JSON.parse(raw);
+    data.value = parsed.data;
+    cacheTimestamp.value = new Date(parsed.timestamp);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 const loadDashboard = async () => {
   isLoading.value = true;
   error.value = "";
   try {
-    data.value = await dashboardApi.getMain(
+    const result = await dashboardApi.getMain(
       canSelectBranch.value && selectedBranchId.value != null
         ? selectedBranchId.value
         : undefined
     );
+    data.value = result;
+    cacheTimestamp.value = new Date();
+    saveCache(result);
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Ошибка загрузки";
   } finally {
@@ -56,10 +95,16 @@ const loadBranches = async () => {
   }
 };
 
-watch(selectedBranchId, () => loadDashboard());
+// On branch change: try cache first, reload if no cache
+watch(selectedBranchId, () => {
+  data.value = null;
+  cacheTimestamp.value = null;
+  if (!loadFromCache()) loadDashboard();
+});
 
 onMounted(async () => {
-  await Promise.all([loadBranches(), loadDashboard()]);
+  await loadBranches();
+  loadFromCache();
 });
 </script>
 
@@ -92,6 +137,7 @@ onMounted(async () => {
 
       <div class="header-btns">
         <button
+          v-if="data"
           class="hbtn hbtn--ghost"
           @click="showStatsPanel = !showStatsPanel"
           :class="{ 'hbtn--active': showStatsPanel }"
@@ -102,6 +148,7 @@ onMounted(async () => {
           </svg>
         </button>
         <button
+          v-if="data"
           class="hbtn hbtn--ghost"
           @click="loadDashboard"
           :disabled="isLoading"
@@ -126,7 +173,7 @@ onMounted(async () => {
 
     <!-- STATS PANEL -->
     <Transition name="fold">
-      <div v-if="showStatsPanel" class="stats-panel">
+      <div v-if="showStatsPanel && (data || (isLoading && !data))" class="stats-panel">
         <div class="stats-row">
           <!-- Skeleton while loading and no data yet -->
           <template v-if="isLoading && !data">
@@ -210,22 +257,47 @@ onMounted(async () => {
       </div>
     </Transition>
 
-    <!-- CONTENT -->
+    <!-- CONTENT (всегда видно) -->
     <div class="dashboard-content">
-      <!-- Charts Row -->
-      <div class="charts-row">
-        <SalesChart :data="data?.weekly_sales ?? []" :loading="isLoading && !data" />
-        <VisitsChart :data="data?.weekly_visits ?? []" :loading="isLoading && !data" />
+
+      <!-- Графики: загружаются / есть данные / нет данных -->
+      <template v-if="data || isLoading">
+        <!-- Строка актуальности -->
+        <div v-if="cacheLabel" class="cache-bar">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+          </svg>
+          Актуально на {{ cacheLabel }}
+        </div>
+        <div class="charts-row">
+          <SalesChart :data="data?.weekly_sales ?? []" :loading="isLoading && !data" />
+          <VisitsChart :data="data?.weekly_visits ?? []" :loading="isLoading && !data" />
+        </div>
+      </template>
+
+      <!-- Нет данных — кнопка загрузить -->
+      <div v-else class="load-card">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="load-card-ico">
+          <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+        </svg>
+        <p class="load-card-txt">Нажмите, чтобы загрузить статистику</p>
+        <button class="load-btn" @click="loadDashboard">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+          </svg>
+          Загрузить
+        </button>
       </div>
 
       <!-- Bottom Row -->
       <div class="bottom-row">
         <div class="bottom-left">
-          <RecentActivity :data="data?.recent_activities ?? []" :loading="isLoading && !data" />
+          <RecentActivity :data="data?.recent_activities ?? []" :loading="isLoading && !data" :not-loaded="!data && !isLoading" />
         </div>
         <div class="bottom-right">
-          <TodaySchedule :data="data?.today_schedule ?? []" :loading="isLoading && !data" />
-          <TopClients :data="data?.top_clients ?? []" :loading="isLoading && !data" />
+          <QuickActions />
+          <TopClients :data="data?.top_clients ?? []" :loading="isLoading && !data" :not-loaded="!data && !isLoading" />
         </div>
       </div>
     </div>
@@ -249,11 +321,18 @@ onMounted(async () => {
 .header-title { font-size: 16px; font-weight: 800; letter-spacing: -0.02em; margin: 0; }
 .header-date { font-size: 11px; color: var(--tx2); font-weight: 500; }
 .branch-selector { display: flex; flex-direction: column; gap: 2px; }
-.branch-label { font-size: 10px; font-weight: 600; color: var(--tx2); text-transform: uppercase; letter-spacing: 0.04em; }
 .branch-select { padding: 5px 8px; border: 1px solid var(--bd); border-radius: var(--rs); font: 500 11px var(--fn); background: var(--sf); color: var(--tx); outline: none; transition: all var(--tr); min-width: 160px; cursor: pointer; }
 .branch-select:focus { border-color: var(--pr); box-shadow: 0 0 0 2px rgba(37,99,235,.1); }
 .branch-select:disabled { opacity: .5; cursor: not-allowed; }
 .header-btns { display: flex; gap: 4px; flex-shrink: 0; align-items: center; margin-left: auto; }
+/* Cache bar */
+.cache-bar { display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; color: var(--txm); }
+/* Load card */
+.load-card { background: var(--sf); border-radius: 12px; border: 1px solid var(--bd); padding: 40px 20px; display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; }
+.load-card-ico { color: var(--txm); }
+.load-card-txt { font-size: 13px; color: var(--tx2); margin: 0; }
+.load-btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 20px; border-radius: var(--r); font: 700 12px var(--fn); background: var(--pr); color: #fff; border: none; cursor: pointer; transition: background var(--tr); margin-top: 4px; }
+.load-btn:hover { background: var(--prh); }
 .hbtn { display: inline-flex; align-items: center; gap: 4px; padding: 6px 8px; border-radius: var(--rs); font: 600 11px/1 var(--fn); border: none; cursor: pointer; transition: all var(--tr); white-space: nowrap; }
 .hbtn:disabled { opacity: .45; cursor: not-allowed; }
 .hbtn--ghost { background: none; color: var(--tx2); border: 1px solid var(--bd); }
@@ -295,5 +374,17 @@ onMounted(async () => {
 .fold-leave-from { opacity: 1; max-height: 500px; }
 .fold-leave-to { opacity: 0; max-height: 0; }
 @media (max-width: 1024px) { .charts-row { grid-template-columns: 1fr; } .bottom-row { grid-template-columns: 1fr; } }
-@media (max-width: 768px) { .page-header { padding: 8px 10px; gap: 6px; } .header-title { font-size: 15px; } .branch-select { min-width: 130px; font-size: 10px; } .stats-row { padding: 8px 12px; gap: 6px; } .scard { min-width: 120px; padding: 6px 8px; } .scard-val { font-size: 13px; } .dashboard-content { padding: 10px; } }
+@media (max-width: 768px) {
+  .page-header { padding: 8px 10px; gap: 6px; }
+  .header-title { font-size: 15px; }
+  .branch-select { min-width: 130px; font-size: 10px; }
+  .stats-row { padding: 8px 10px; gap: 6px; }
+  .scard { min-width: 110px; padding: 6px 8px; }
+  .scard-val { font-size: 13px; }
+  .scard-lbl { font-size: 9px; }
+  .dashboard-content { padding: 8px; gap: 8px; }
+  .charts-row { gap: 8px; }
+  .bottom-row { gap: 8px; }
+  .load-card { padding: 28px 16px; }
+}
 </style>

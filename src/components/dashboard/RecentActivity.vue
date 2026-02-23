@@ -4,6 +4,7 @@ import type { RecentActivityItem } from "@/services/dashboardApi";
 const props = defineProps<{
   data: RecentActivityItem[];
   loading?: boolean;
+  notLoaded?: boolean;
 }>();
 
 const STATUS_CFG: Record<string, { label: string; cls: string; icon: string }> = {
@@ -52,7 +53,7 @@ const fmtAmount = (v: number | null) =>
     </div>
 
     <!-- Empty -->
-    <div v-else-if="!data.length" class="act-empty">Нет активностей</div>
+    <div v-else-if="!data.length" class="act-empty">{{ notLoaded ? "Не загружено" : "Нет активностей" }}</div>
 
     <!-- List -->
     <div v-else class="act-list">
