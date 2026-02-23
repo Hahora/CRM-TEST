@@ -35,6 +35,7 @@ export interface UpdateUserPayload {
   middle_name?: string | null;
   is_active?: boolean;
   branch_id?: number | null;
+  password?: string;
 }
 
 class UsersApiService {

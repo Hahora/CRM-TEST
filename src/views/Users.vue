@@ -203,6 +203,7 @@ const handleSave = async () => {
         middle_name: form.value.middle_name.trim() || null,
         is_active:   form.value.is_active,
         branch_id:   form.value.branch_id,
+        ...(form.value.password.trim() ? { password: form.value.password.trim() } : {}),
       };
       const updated = await usersApi.updateUser(editingId.value, payload);
       const idx = users.value.findIndex((u) => u.id === editingId.value);
@@ -528,6 +529,35 @@ onMounted(loadData);
                   <label class="up-label">Роль</label>
                   <div class="up-info-val">
                     <span class="up-role-badge" :class="getRoleClass(editingRoleName)">{{ editingRoleLabel }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Новый пароль (только при редактировании, необязательный) -->
+              <div v-if="isEditing" class="up-form-row">
+                <div class="up-field up-field--full">
+                  <label class="up-label">
+                    Новый пароль
+                    <span class="up-label-hint">(оставьте пустым, чтобы не менять)</span>
+                  </label>
+                  <div class="up-pw-wrap">
+                    <input
+                      v-model="form.password"
+                      :type="showPassword ? 'text' : 'password'"
+                      class="up-input up-input--pw"
+                      placeholder="••••••••"
+                      autocomplete="new-password"
+                    />
+                    <button type="button" class="up-pw-eye" @click="showPassword = !showPassword" tabindex="-1">
+                      <svg v-if="!showPassword" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                      </svg>
+                      <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                        <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                        <line x1="1" y1="1" x2="23" y2="23"/>
+                      </svg>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -928,6 +958,7 @@ onMounted(loadData);
 }
 
 .up-field--req .up-label::after { content: "*"; color: var(--er); font-size: 11px; }
+.up-label-hint { font: 400 10px var(--fn); text-transform: none; letter-spacing: 0; color: var(--txm); }
 
 .up-input, .up-select {
   padding: 9px 10px;
