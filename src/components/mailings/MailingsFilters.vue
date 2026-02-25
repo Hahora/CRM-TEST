@@ -11,8 +11,14 @@ export interface MailingsFilters {
   dateTo: string;
 }
 
+interface BranchOption {
+  value: string;
+  label: string;
+}
+
 interface Props {
   filters: MailingsFilters;
+  branches?: BranchOption[];
 }
 
 const props = defineProps<Props>();
@@ -44,13 +50,6 @@ const statuses = [
   { value: "failed", label: "Ошибка" },
 ];
 
-const branches = [
-  { value: "all", label: "Все филиалы" },
-  { value: "Главный офис", label: "Главный офис" },
-  { value: "Филиал №1", label: "Филиал №1" },
-  { value: "Филиал №2", label: "Филиал №2" },
-  { value: "Филиал №3", label: "Филиал №3" },
-];
 
 const hasActiveFilters = ref(false);
 
@@ -122,10 +121,12 @@ const reset = () => {
 
       <!-- Branch -->
       <select
+        v-if="branches && branches.length > 0"
         v-model="localFilters.branch"
         @change="update"
         class="px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white"
       >
+        <option value="all">Все филиалы</option>
         <option v-for="b in branches" :key="b.value" :value="b.value">
           {{ b.label }}
         </option>
