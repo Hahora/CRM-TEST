@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, onMounted } from "vue";
 import AppIcon from "@/components/AppIcon.vue";
 import MailingsStats from "@/components/mailings/MailingsStats.vue";
 import MailingsFilters from "@/components/mailings/MailingsFilters.vue";
@@ -8,99 +8,71 @@ import MailingsTable from "@/components/mailings/MailingsTable.vue";
 import type { Mailing } from "@/components/mailings/MailingsTable.vue";
 import CreateMailingModal from "@/components/mailings/CreateMailingModal.vue";
 import MailingDetailsModal from "@/components/mailings/MailingDetailsModal.vue";
+import { mailingsApi } from "@/services/mailingsApi";
+import type { Analytics } from "@/services/mailingsApi";
 
 // ── Данные ──────────────────────────────────────────────────────────────────
 
-const mailings = ref<Mailing[]>([
-  {
-    id: "1",
-    name: "Новогодняя акция 2024",
-    type: "telegram",
-    status: "sent",
-    subject: "🎄 Новогодние скидки до 50%!",
-    message: "Дорогие клиенты! Поздравляем с наступающим Новым годом! Специально для вас скидки до 50% на все товары до 31 декабря.",
-    recipients: 1247,
-    sent: 1247,
-    delivered: 1198,
-    opened: 856,
-    clicked: 234,
-    failed: 49,
-    sentAt: "2024-01-15T10:00:00",
-    createdAt: "2024-01-14T15:30:00",
-    createdBy: "Иван Петров",
-    branch: "Главный офис",
-    targetAudience: ["vip", "active"],
-  },
-  {
-    id: "2",
-    name: "Напоминание о встрече",
-    type: "max",
-    status: "sent",
-    message: "Напоминаем о встрече завтра в 14:00. Ждем вас по адресу: ул. Ленина, 1. Тел: +7(495)123-45-67",
-    recipients: 45,
-    sent: 45,
-    delivered: 43,
-    failed: 2,
-    sentAt: "2024-01-15T16:30:00",
-    createdAt: "2024-01-15T16:25:00",
-    createdBy: "Анна Смирнова",
-    branch: "Филиал №1",
-    targetAudience: ["scheduled_visits"],
-  },
-  {
-    id: "3",
-    name: "Еженедельная рассылка",
-    type: "email",
-    status: "scheduled",
-    subject: "Новости недели и специальные предложения",
-    message: "Добро пожаловать в еженедельную рассылку! В этом выпуске: новые товары, акции и полезные советы.",
-    recipients: 892,
-    sent: 0,
-    delivered: 0,
-    failed: 0,
-    scheduledAt: "2024-01-16T09:00:00",
-    createdAt: "2024-01-15T14:20:00",
-    createdBy: "Петр Николаев",
-    branch: "Главный офис",
-    targetAudience: ["active", "newsletter_subscribers"],
-  },
-  {
-    id: "4",
-    name: "Опрос удовлетворённости",
-    type: "telegram",
-    status: "draft",
-    subject: "Помогите нам стать лучше!",
-    message: "Уважаемые клиенты! Пройдите короткий опрос о качестве наших услуг. Это займет всего 2 минуты.",
-    recipients: 0,
-    sent: 0,
-    delivered: 0,
-    failed: 0,
-    createdAt: "2024-01-15T11:45:00",
-    createdBy: "Мария Иванова",
-    branch: "Филиал №2",
-    targetAudience: ["recent_clients"],
-  },
-  {
-    id: "5",
-    name: "Уведомление через МАКС",
-    type: "max",
-    status: "sending",
-    subject: "Важное уведомление",
-    message: "Уважаемые клиенты! Информируем вас об изменении режима работы в праздничные дни.",
-    recipients: 234,
-    sent: 156,
-    delivered: 142,
-    opened: 89,
-    failed: 14,
-    sentAt: "2024-01-15T18:00:00",
-    createdAt: "2024-01-15T17:45:00",
-    createdBy: "Дмитрий Козлов",
-    branch: "Филиал №3",
-    targetAudience: ["all"],
-  },
-]);
-
+const mailings = ref<Mailing[]>([]);
 const isLoading = ref(false);
+const analytics = ref<Analytics | null>(null);
+
+/** Маппинг bot_type API → тип рассылки UI */
+function mapBotType(botType: string): Mailing["type"] {
+  if (botType === "telegram") return "telegram";
+  if (botType === "max" || botType === "max_bot") return "max";
+  return "email";
+}
+
+/** Маппинг статуса кампании API → статус UI */
+function mapStatus(status?: string): Mailing["status"] {
+  switch (status) {
+    case "draft":      return "draft";
+    case "scheduled":  return "scheduled";
+    case "sending":    return "sending";
+    case "sent":
+    case "completed":  return "sent";
+    case "failed":     return "failed";
+    default:           return "draft";
+  }
+}
+
+const loadData = async () => {
+  isLoading.value = true;
+  try {
+    const [campaigns, analyticsData] = await Promise.allSettled([
+      mailingsApi.getCampaigns(),
+      mailingsApi.getAnalytics("month"),
+    ]);
+
+    if (campaigns.status === "fulfilled") {
+      mailings.value = campaigns.value.map((c) => ({
+        id: String(c.id),
+        name: c.name,
+        type: mapBotType(c.bot_type),
+        status: mapStatus(c.status),
+        message: "",
+        recipients: 0,
+        sent: 0,
+        delivered: 0,
+        failed: 0,
+        scheduledAt: c.scheduled_at ?? undefined,
+        createdAt: c.created_at ?? new Date().toISOString(),
+        createdBy: "",
+        branch: "",
+        targetAudience: [],
+      }));
+    }
+
+    if (analyticsData.status === "fulfilled") {
+      analytics.value = analyticsData.value;
+    }
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+onMounted(loadData);
 
 // ── Фильтры ──────────────────────────────────────────────────────────────────
 
@@ -134,10 +106,6 @@ const filteredMailings = computed(() => {
     result = result.filter((m) => m.status === filters.value.status);
   }
 
-  if (filters.value.branch !== "all") {
-    result = result.filter((m) => m.branch === filters.value.branch);
-  }
-
   return result;
 });
 
@@ -145,9 +113,11 @@ const filteredMailings = computed(() => {
 
 const stats = computed(() => {
   const all = mailings.value;
-  const totalSent = all.reduce((s, m) => s + m.sent, 0);
-  const totalDelivered = all.reduce((s, m) => s + m.delivered, 0);
-  const totalOpened = all.reduce((s, m) => s + (m.opened || 0), 0);
+  const a = analytics.value;
+
+  const totalSent      = a?.total_sent      ?? all.reduce((s, m) => s + m.sent, 0);
+  const totalDelivered = a?.total_delivered ?? all.reduce((s, m) => s + m.delivered, 0);
+  const totalOpened    = a?.total_opened    ?? all.reduce((s, m) => s + (m.opened || 0), 0);
 
   return {
     total:           all.length,
@@ -159,8 +129,8 @@ const stats = computed(() => {
     totalSent,
     totalDelivered,
     totalOpened,
-    deliveryRate:    totalSent > 0 ? Math.round((totalDelivered / totalSent) * 100) : 0,
-    openRate:        totalDelivered > 0 ? Math.round((totalOpened / totalDelivered) * 100) : 0,
+    deliveryRate:    a?.delivery_rate ?? (totalSent > 0 ? Math.round((totalDelivered / totalSent) * 100) : 0),
+    openRate:        a?.open_rate     ?? (totalDelivered > 0 ? Math.round((totalOpened / totalDelivered) * 100) : 0),
   };
 });
 
@@ -181,25 +151,47 @@ const closeDetails = () => {
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const handleCreate = (data: any) => {
-  const newMailing: Mailing = {
-    id: Date.now().toString(),
-    ...data,
-    recipients: 0,
-    sent: 0,
-    delivered: 0,
-    failed: 0,
-    createdAt: new Date().toISOString(),
-  };
-  mailings.value.unshift(newMailing);
+const handleCreate = async (data: any) => {
+  try {
+    const campaign = await mailingsApi.createCampaign({
+      name: data.name,
+      template_id: data.template_id ?? 0,
+      bot_type: data.type ?? "telegram",
+      scheduled_at: data.scheduledAt ?? null,
+    });
+    mailings.value.unshift({
+      id: String(campaign.id),
+      name: campaign.name,
+      type: mapBotType(campaign.bot_type),
+      status: mapStatus(campaign.status),
+      message: data.message ?? "",
+      recipients: 0,
+      sent: 0,
+      delivered: 0,
+      failed: 0,
+      scheduledAt: campaign.scheduled_at ?? undefined,
+      createdAt: campaign.created_at ?? new Date().toISOString(),
+      createdBy: "",
+      branch: "",
+      targetAudience: [],
+    });
+  } catch {
+    // При ошибке добавляем локально как черновик
+    mailings.value.unshift({
+      id: Date.now().toString(),
+      ...data,
+      recipients: 0,
+      sent: 0,
+      delivered: 0,
+      failed: 0,
+      status: "draft",
+      createdAt: new Date().toISOString(),
+    });
+  }
   isCreateModalOpen.value = false;
 };
 
-const refresh = async () => {
-  isLoading.value = true;
-  await new Promise((r) => setTimeout(r, 800));
-  isLoading.value = false;
-};
+const refresh = () => loadData();
 </script>
 
 <template>

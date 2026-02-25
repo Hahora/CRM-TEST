@@ -7,112 +7,65 @@ import TicketsFilters from "@/components/tickets/TicketsFilters.vue";
 import TicketsTable from "@/components/tickets/TicketsTable.vue";
 import type { Ticket } from "@/components/tickets/TicketsTable.vue";
 import type { TicketsFilters as TFilters } from "@/components/tickets/TicketsFilters.vue";
+import { leadsApi } from "@/services/leadsApi";
+import type { Lead, LeadStatus } from "@/services/leadsApi";
 
 const router = useRouter();
 
-// ── Данные ──────────────────────────────────────────────────────────────────
+// ── Маппинг Lead → Ticket ────────────────────────────────────────────────────
 
-const tickets = ref<Ticket[]>([
-  {
-    id: "1",
-    number: 26,
-    clientName: "Nomadd Proger",
-    clientPhone: "tg_529349234S",
-    telegramId: "529349234S",
-    status: "active",
-    priority: "high",
-    source: "telegram",
-    subject: "Проблема с заказом",
-    lastMessage: "Админ просыпаемся!",
-    assignedTo: "Admin User",
-    createdAt: "2024-01-07T22:44:08",
-    updatedAt: "2024-01-07T22:44:08",
-    messagesCount: 3,
-    isUnread: true,
-  },
-  {
-    id: "2",
-    number: 25,
-    clientName: "Иван Сидоров",
-    clientPhone: "+7 (903) 456-78-90",
-    maxId: "max_user_123",
-    status: "resolved",
-    priority: "medium",
-    source: "max",
-    subject: "Вопрос по доставке",
-    lastMessage: "Спасибо за помощь!",
-    assignedTo: "Анна Смирнова",
-    createdAt: "2024-01-07T15:20:00",
-    updatedAt: "2024-01-07T16:45:00",
-    resolvedAt: "2024-01-07T16:45:00",
-    messagesCount: 8,
-    isUnread: false,
-  },
-  {
-    id: "3",
-    number: 24,
-    clientName: "Мария Петрова",
-    clientPhone: "tg_987654321",
-    telegramId: "987654321",
-    status: "unresolved",
-    priority: "urgent",
-    source: "telegram",
-    subject: "Срочная проблема с оплатой",
-    lastMessage: "Когда будет решение?",
-    assignedTo: "Иван Петров",
-    createdAt: "2024-01-07T10:15:00",
-    updatedAt: "2024-01-07T18:30:00",
-    messagesCount: 12,
-    isUnread: true,
-  },
-  {
-    id: "4",
-    number: 23,
-    clientName: "Алексей Козлов",
-    clientPhone: "+7 (912) 345-67-89",
-    maxId: "max_user_456",
-    status: "closed",
-    priority: "low",
-    source: "max",
-    subject: "Информация о товаре",
-    lastMessage: "Вопрос решён, спасибо",
-    assignedTo: "Пётр Николаев",
-    createdAt: "2024-01-06T14:30:00",
-    updatedAt: "2024-01-07T09:15:00",
-    resolvedAt: "2024-01-07T09:15:00",
-    messagesCount: 5,
-    isUnread: false,
-  },
-  {
-    id: "5",
-    number: 22,
-    clientName: "Елена Волкова",
-    clientPhone: "tg_555666777",
-    telegramId: "555666777",
-    status: "active",
-    priority: "medium",
-    source: "telegram",
-    subject: "Консультация по услугам",
-    lastMessage: "Жду ответа",
-    createdAt: "2024-01-07T08:45:00",
-    updatedAt: "2024-01-07T12:20:00",
-    messagesCount: 6,
-    isUnread: true,
-  },
-]);
+function mapStatus(s: LeadStatus): Ticket["status"] {
+  if (!s.is_final) return "active";
+  const n = s.name.toLowerCase();
+  if (n.includes("не реш") || n.includes("unresolved")) return "unresolved";
+  if (n.includes("реш")    || n.includes("resolved"))   return "resolved";
+  return "closed";
+}
 
+function leadToTicket(lead: Lead): Ticket {
+  const clientName =
+    lead.client.full_name || lead.client.name || `Клиент #${lead.client_id}`;
+  const assignedName = lead.assigned_to
+    ? [lead.assigned_to.first_name, lead.assigned_to.last_name]
+        .filter(Boolean).join(" ") || lead.assigned_to.login
+    : undefined;
+
+  return {
+    id:           String(lead.id),
+    number:       lead.id,
+    clientName,
+    clientPhone:  lead.client.phone,
+    telegramId:   lead.client.telegram_id ? String(lead.client.telegram_id) : undefined,
+    status:       mapStatus(lead.status),
+    priority:     "medium",
+    source:       lead.source_type === "telegram" ? "telegram" : "max",
+    subject:      lead.notes?.slice(0, 60) || `Лид #${lead.id}`,
+    lastMessage:  lead.notes || "—",
+    assignedTo:   assignedName,
+    createdAt:    lead.created_at,
+    updatedAt:    lead.updated_at,
+    resolvedAt:   lead.status.is_final ? lead.updated_at : undefined,
+    messagesCount: 0,
+    isUnread:     !lead.status.is_final,
+  };
+}
+
+// ── Данные ───────────────────────────────────────────────────────────────────
+
+const tickets  = ref<Ticket[]>([]);
 const isLoading = ref(false);
+const error    = ref("");
 
 // ── Фильтры ──────────────────────────────────────────────────────────────────
 
 const filters = ref<TFilters>({
-  search: "",
-  status: "all",
-  source: "all",
-  priority: "all",
+  search:     "",
+  status:     "all",
+  source:     "all",
+  priority:   "all",
   assignedTo: "all",
-  dateFrom: "",
-  dateTo: "",
+  dateFrom:   "",
+  dateTo:     "",
 });
 
 const filteredTickets = computed(() => {
@@ -129,17 +82,14 @@ const filteredTickets = computed(() => {
     );
   }
 
-  if (filters.value.status !== "all") {
+  if (filters.value.status !== "all")
     result = result.filter((t) => t.status === filters.value.status);
-  }
 
-  if (filters.value.source !== "all") {
+  if (filters.value.source !== "all")
     result = result.filter((t) => t.source === filters.value.source);
-  }
 
-  if (filters.value.priority !== "all") {
+  if (filters.value.priority !== "all")
     result = result.filter((t) => t.priority === filters.value.priority);
-  }
 
   if (filters.value.dateFrom) {
     const from = new Date(filters.value.dateFrom).getTime();
@@ -164,7 +114,11 @@ const stats = computed(() => {
       ? Math.round(
           resolved.reduce((sum, t) => {
             if (!t.resolvedAt) return sum;
-            return sum + (new Date(t.resolvedAt).getTime() - new Date(t.createdAt).getTime()) / 60000;
+            return (
+              sum +
+              (new Date(t.resolvedAt).getTime() - new Date(t.createdAt).getTime()) /
+                60000
+            );
           }, 0) / resolved.length
         )
       : 0;
@@ -183,21 +137,28 @@ const stats = computed(() => {
 
 const unreadCount = computed(() => tickets.value.filter((t) => t.isUnread).length);
 
-// ── Действия ─────────────────────────────────────────────────────────────────
+// ── Загрузка ─────────────────────────────────────────────────────────────────
 
-const refresh = async () => {
+const loadTickets = async () => {
   isLoading.value = true;
-  await new Promise((r) => setTimeout(r, 800));
-  isLoading.value = false;
+  error.value = "";
+  try {
+    const res = await leadsApi.getList({ limit: 200 });
+    tickets.value = res.leads.map(leadToTicket);
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "Ошибка загрузки";
+  } finally {
+    isLoading.value = false;
+  }
 };
+
+const refresh = () => loadTickets();
 
 const openTicket = (ticket: Ticket) => {
   router.push(`/tickets/${ticket.id}`);
 };
 
-onMounted(() => {
-  // загрузка данных
-});
+onMounted(loadTickets);
 </script>
 
 <template>

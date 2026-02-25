@@ -1,9 +1,12 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick } from "vue";
+import { ref, computed, onMounted, onUnmounted, nextTick } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import AppIcon from "@/components/AppIcon.vue";
+import { leadsApi } from "@/services/leadsApi";
+import type { LeadStatus } from "@/services/leadsApi";
+import { useAuth } from "@/composables/useAuth";
 
 // ── Типы ─────────────────────────────────────────────────────────────────────
 
@@ -36,122 +39,26 @@ interface Message {
   isRead: boolean;
 }
 
-// ── Моковые данные ────────────────────────────────────────────────────────────
-
-const MOCK_TICKETS: Record<string, Ticket> = {
-  "1": {
-    id: "1",
-    number: 26,
-    clientName: "Nomadd Proger",
-    clientPhone: "tg_529349234S",
-    telegramId: "529349234S",
-    status: "active",
-    priority: "high",
-    source: "telegram",
-    subject: "Проблема с заказом",
-    lastMessage: "Админ просыпаемся!",
-    assignedTo: "Admin User",
-    createdAt: "2024-01-07T20:30:00",
-    updatedAt: "2024-01-07T22:44:08",
-    messagesCount: 3,
-    isUnread: true,
-  },
-  "2": {
-    id: "2",
-    number: 25,
-    clientName: "Иван Сидоров",
-    clientPhone: "+7 (903) 456-78-90",
-    maxId: "max_user_123",
-    status: "resolved",
-    priority: "medium",
-    source: "max",
-    subject: "Вопрос по доставке",
-    lastMessage: "Спасибо за помощь!",
-    assignedTo: "Анна Смирнова",
-    createdAt: "2024-01-07T15:20:00",
-    updatedAt: "2024-01-07T16:45:00",
-    resolvedAt: "2024-01-07T16:45:00",
-    messagesCount: 8,
-    isUnread: false,
-  },
-  "3": {
-    id: "3",
-    number: 24,
-    clientName: "Мария Петрова",
-    clientPhone: "tg_987654321",
-    telegramId: "987654321",
-    status: "unresolved",
-    priority: "urgent",
-    source: "telegram",
-    subject: "Срочная проблема с оплатой",
-    lastMessage: "Когда будет решение?",
-    assignedTo: "Иван Петров",
-    createdAt: "2024-01-07T10:15:00",
-    updatedAt: "2024-01-07T18:30:00",
-    messagesCount: 12,
-    isUnread: true,
-  },
-  "4": {
-    id: "4",
-    number: 23,
-    clientName: "Алексей Козлов",
-    clientPhone: "+7 (912) 345-67-89",
-    maxId: "max_user_456",
-    status: "closed",
-    priority: "low",
-    source: "max",
-    subject: "Информация о товаре",
-    lastMessage: "Вопрос решён, спасибо",
-    assignedTo: "Пётр Николаев",
-    createdAt: "2024-01-06T14:30:00",
-    updatedAt: "2024-01-07T09:15:00",
-    resolvedAt: "2024-01-07T09:15:00",
-    messagesCount: 5,
-    isUnread: false,
-  },
-  "5": {
-    id: "5",
-    number: 22,
-    clientName: "Елена Волкова",
-    clientPhone: "tg_555666777",
-    telegramId: "555666777",
-    status: "active",
-    priority: "medium",
-    source: "telegram",
-    subject: "Консультация по услугам",
-    lastMessage: "Жду ответа",
-    createdAt: "2024-01-07T08:45:00",
-    updatedAt: "2024-01-07T12:20:00",
-    messagesCount: 6,
-    isUnread: true,
-  },
-};
-
-const MOCK_MESSAGES: Record<string, Message[]> = {
-  "1": [
-    { id: "1", text: "Здравствуйте! У меня проблема с заказом #12345",            sender: "client",  timestamp: "2024-01-07T20:30:00", isRead: true  },
-    { id: "2", text: "Добрый день! Опишите подробнее в чём проблема?",            sender: "support", timestamp: "2024-01-07T20:35:00", isRead: true  },
-    { id: "3", text: "Заказ не пришёл в указанное время, уже прошло 2 дня",       sender: "client",  timestamp: "2024-01-07T20:40:00", isRead: true  },
-    { id: "4", text: "Понял, сейчас проверю статус. Дайте мне несколько минут",   sender: "support", timestamp: "2024-01-07T20:42:00", isRead: true  },
-    { id: "5", text: "Админ просыпаемся!",                                         sender: "client",  timestamp: "2024-01-07T22:44:08", isRead: false },
-  ],
-};
-
 // ── Состояние ─────────────────────────────────────────────────────────────────
 
 const route  = useRoute();
 const router = useRouter();
+const { user } = useAuth();
 
-const ticketId        = computed(() => route.params.id as string);
-const ticket          = ref<Ticket | null>(null);
-const messages        = ref<Message[]>([]);
-const newMessage      = ref("");
-const closeStatus     = ref("");
-const isLoading       = ref(true);
-const isSending       = ref(false);
-const isClosing       = ref(false);
-const showInfo        = ref(false);
-const messagesEl      = ref<HTMLElement>();
+const ticketId      = computed(() => route.params.id as string);
+const ticket        = ref<Ticket | null>(null);
+const messages      = ref<Message[]>([]);
+const statuses      = ref<LeadStatus[]>([]);
+const newMessage    = ref("");
+const closeStatusId = ref<number | null>(null);
+const isLoading     = ref(true);
+const isSending     = ref(false);
+const isClosing     = ref(false);
+const showInfo      = ref(false);
+const sendError     = ref("");
+const messagesEl    = ref<HTMLElement>();
+
+let ws: WebSocket | null = null;
 
 // ── Справочники ───────────────────────────────────────────────────────────────
 
@@ -175,73 +82,145 @@ const getPriority = (p: string): { label: string; cls: string } => {
 
 const getSourceLabel = (s: string) => (s === "telegram" ? "Telegram" : "МАКС");
 
+// Только финальные статусы — для закрытия тикета
+const finalStatuses = computed(() => statuses.value.filter((s) => s.is_final));
+
+// ── WebSocket ─────────────────────────────────────────────────────────────────
+
+const connectWs = () => {
+  if (!user.value?.id) return;
+  try {
+    ws = new WebSocket(leadsApi.getWsUrl(user.value.id));
+    ws.onopen = () => {
+      ws?.send(JSON.stringify({ action: "subscribe", lead_id: Number(ticketId.value) }));
+    };
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === "new_message" && String(data.lead_id) === ticketId.value) {
+          messages.value.push({
+            id:        Date.now().toString(),
+            text:      data.message,
+            sender:    data.sender === "support" ? "support" : "client",
+            timestamp: data.timestamp || new Date().toISOString(),
+            isRead:    false,
+          });
+          scrollToBottom();
+        }
+      } catch { /* ignore */ }
+    };
+    ws.onerror = () => { ws = null; };
+  } catch { /* WS недоступен */ }
+};
+
+const disconnectWs = () => { ws?.close(); ws = null; };
+
 // ── Методы ────────────────────────────────────────────────────────────────────
 
 const scrollToBottom = () => {
   nextTick(() => {
-    if (messagesEl.value) {
-      messagesEl.value.scrollTop = messagesEl.value.scrollHeight;
-    }
+    if (messagesEl.value) messagesEl.value.scrollTop = messagesEl.value.scrollHeight;
   });
 };
 
 const load = async () => {
   isLoading.value = true;
-  await new Promise((r) => setTimeout(r, 300));
-  const data = MOCK_TICKETS[ticketId.value];
-  if (!data) {
+  try {
+    const [lead, leadStatuses] = await Promise.all([
+      leadsApi.getById(Number(ticketId.value)),
+      leadsApi.getStatuses(),
+    ]);
+    statuses.value = leadStatuses;
+
+    const sn = lead.status.name.toLowerCase();
+    let status: Ticket["status"];
+    if (!lead.status.is_final)                                    status = "active";
+    else if (sn.includes("не реш") || sn.includes("unresolved")) status = "unresolved";
+    else if (sn.includes("реш")    || sn.includes("resolved"))   status = "resolved";
+    else                                                           status = "closed";
+
+    const clientName =
+      lead.client.full_name || lead.client.name || `Клиент #${lead.client_id}`;
+    const assignedName = lead.assigned_to
+      ? [lead.assigned_to.first_name, lead.assigned_to.last_name]
+          .filter(Boolean).join(" ") || lead.assigned_to.login
+      : undefined;
+
+    ticket.value = {
+      id: String(lead.id), number: lead.id, clientName,
+      clientPhone:  lead.client.phone,
+      telegramId:   lead.client.telegram_id ? String(lead.client.telegram_id) : undefined,
+      status, priority: "medium",
+      source:       lead.source_type === "telegram" ? "telegram" : "max",
+      subject:      lead.notes?.slice(0, 60) || `Лид #${lead.id}`,
+      lastMessage:  lead.notes || "—",
+      assignedTo:   assignedName,
+      createdAt:    lead.created_at,
+      updatedAt:    lead.updated_at,
+      resolvedAt:   lead.status.is_final ? lead.updated_at : undefined,
+      messagesCount: 0, isUnread: !lead.status.is_final,
+    };
+
+    // Заметки лида — начальное сообщение в чате
+    messages.value = lead.notes
+      ? [{ id: "note-0", text: lead.notes, sender: "client", timestamp: lead.created_at, isRead: true }]
+      : [];
+
+    connectWs();
+    scrollToBottom();
+  } catch {
     router.push("/tickets");
-    return;
+  } finally {
+    isLoading.value = false;
   }
-  ticket.value   = data;
-  messages.value = MOCK_MESSAGES[ticketId.value] ?? [];
-  isLoading.value = false;
-  scrollToBottom();
 };
 
 const send = async () => {
   const text = newMessage.value.trim();
   if (!text || isSending.value) return;
-
-  isSending.value  = true;
+  isSending.value = true;
+  sendError.value = "";
+  const backup = newMessage.value;
   newMessage.value = "";
-
-  messages.value.push({
-    id:        Date.now().toString(),
-    text,
-    sender:    "support",
-    timestamp: new Date().toISOString(),
-    isRead:    true,
-  });
-  scrollToBottom();
-
-  await new Promise((r) => setTimeout(r, 400));
-  isSending.value = false;
+  try {
+    await leadsApi.sendMessage(Number(ticketId.value), text);
+    leadsApi.notifyMessage(Number(ticketId.value)).catch(() => {});
+    messages.value.push({
+      id: Date.now().toString(), text, sender: "support",
+      timestamp: new Date().toISOString(), isRead: true,
+    });
+    scrollToBottom();
+  } catch (e) {
+    sendError.value  = e instanceof Error ? e.message : "Не удалось отправить";
+    newMessage.value = backup;
+  } finally {
+    isSending.value = false;
+  }
 };
 
 const closeTicket = async () => {
-  if (!closeStatus.value || isClosing.value) return;
+  if (closeStatusId.value == null || isClosing.value) return;
   isClosing.value = true;
-  await new Promise((r) => setTimeout(r, 800));
-  router.push("/tickets");
+  try {
+    await leadsApi.changeStatus(Number(ticketId.value), closeStatusId.value);
+    router.push("/tickets");
+  } catch {
+    isClosing.value = false;
+  }
 };
 
 const goBack = () => router.push("/tickets");
 
-// ── Touch-swipe для мобильной панели ──────────────────────────────────────────
+// ── Touch-swipe ───────────────────────────────────────────────────────────────
 
 const touchStartY = ref(0);
-
-const onTouchStart = (e: TouchEvent) => {
-  touchStartY.value = e.touches[0]?.clientY ?? 0;
-};
-
-const onTouchEnd = (e: TouchEvent) => {
-  const diff = (e.changedTouches[0]?.clientY ?? 0) - touchStartY.value;
-  if (diff > 80) showInfo.value = false;
+const onTouchStart = (e: TouchEvent) => { touchStartY.value = e.touches[0]?.clientY ?? 0; };
+const onTouchEnd   = (e: TouchEvent) => {
+  if ((e.changedTouches[0]?.clientY ?? 0) - touchStartY.value > 80) showInfo.value = false;
 };
 
 onMounted(load);
+onUnmounted(disconnectWs);
 </script>
 
 <template>
@@ -404,17 +383,15 @@ onMounted(load);
             <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Закрыть тикет</h3>
             <div class="space-y-2">
               <select
-                v-model="closeStatus"
+                v-model="closeStatusId"
                 class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white"
               >
-                <option value="">Выберите статус</option>
-                <option value="resolved">Решён</option>
-                <option value="unresolved">Не решён</option>
-                <option value="closed">Закрыт</option>
+                <option :value="null">Выберите статус</option>
+                <option v-for="s in finalStatuses" :key="s.id" :value="s.id">{{ s.name }}</option>
               </select>
               <button
                 @click="closeTicket"
-                :disabled="!closeStatus || isClosing"
+                :disabled="closeStatusId == null || isClosing"
                 class="w-full flex items-center justify-center gap-2 px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 <AppIcon v-if="isClosing" name="refresh-cw" :size="14" class="animate-spin" />
@@ -601,17 +578,15 @@ onMounted(load);
                   <h4 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Закрыть тикет</h4>
                   <div class="space-y-2">
                     <select
-                      v-model="closeStatus"
+                      v-model="closeStatusId"
                       class="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
                     >
-                      <option value="">Выберите статус</option>
-                      <option value="resolved">Решён</option>
-                      <option value="unresolved">Не решён</option>
-                      <option value="closed">Закрыт</option>
+                      <option :value="null">Выберите статус</option>
+                      <option v-for="s in finalStatuses" :key="s.id" :value="s.id">{{ s.name }}</option>
                     </select>
                     <button
                       @click="closeTicket"
-                      :disabled="!closeStatus || isClosing"
+                      :disabled="closeStatusId == null || isClosing"
                       class="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                     >
                       <AppIcon v-if="isClosing" name="refresh-cw" :size="14" class="animate-spin" />
