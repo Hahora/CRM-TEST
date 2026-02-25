@@ -5,7 +5,7 @@ import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import AppIcon from "@/components/AppIcon.vue";
 import { leadsApi } from "@/services/leadsApi";
-import type { LeadStatus } from "@/services/leadsApi";
+import type { LeadStatus, LeadMessage } from "@/services/leadsApi";
 import { useAuth } from "@/composables/useAuth";
 
 // ── Типы ─────────────────────────────────────────────────────────────────────
@@ -90,10 +90,13 @@ const connectWs = () => {
       try {
         const data = JSON.parse(event.data);
         if (data.type === "new_message" && String(data.lead_id) === ticketId.value) {
+          const sender: "client" | "support" = data.direction === "outgoing" ? "support" : "client";
+          // Не дублируем — если уже есть по message_id
+          if (data.message_id && messages.value.some((m) => m.id === String(data.message_id))) return;
           messages.value.push({
-            id:        Date.now().toString(),
-            text:      data.message,
-            sender:    data.sender === "support" ? "support" : "client",
+            id:        data.message_id ? String(data.message_id) : Date.now().toString(),
+            text:      data.content,
+            sender,
             timestamp: data.timestamp || new Date().toISOString(),
             isRead:    false,
           });
@@ -102,10 +105,17 @@ const connectWs = () => {
       } catch { /* ignore */ }
     };
     ws.onerror = () => { ws = null; };
+    ws.onclose = () => { ws = null; };
   } catch { /* WS недоступен */ }
 };
 
-const disconnectWs = () => { ws?.close(); ws = null; };
+const disconnectWs = () => {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ action: "unsubscribe", lead_id: Number(ticketId.value) }));
+  }
+  ws?.close();
+  ws = null;
+};
 
 // ── Методы ────────────────────────────────────────────────────────────────────
 
@@ -115,12 +125,21 @@ const scrollToBottom = () => {
   });
 };
 
+const mapMessage = (m: LeadMessage): Message => ({
+  id:        String(m.id),
+  text:      m.content,
+  sender:    m.direction === "outgoing" ? "support" : "client",
+  timestamp: m.created_at,
+  isRead:    m.read_at != null,
+});
+
 const load = async () => {
   isLoading.value = true;
   try {
-    const [lead, leadStatuses] = await Promise.all([
+    const [lead, leadStatuses, msgResponse] = await Promise.all([
       leadsApi.getById(Number(ticketId.value)),
       leadsApi.getStatuses(),
+      leadsApi.getMessages(Number(ticketId.value)),
     ]);
     statuses.value = leadStatuses;
 
@@ -139,6 +158,7 @@ const load = async () => {
           .filter(Boolean).join(" ") || lead.assigned_to.login
       : undefined;
 
+    const lastMsg = msgResponse.messages[msgResponse.messages.length - 1];
     ticket.value = {
       id: String(lead.id), number: lead.id, clientName,
       clientPhone:  client?.phone,
@@ -146,18 +166,16 @@ const load = async () => {
       status, priority: "medium",
       source:       lead.source_type === "telegram" ? "telegram" : "max",
       subject:      lead.notes?.slice(0, 60) || `Лид #${lead.id}`,
-      lastMessage:  lead.notes || "—",
+      lastMessage:  lastMsg?.content || lead.notes || "—",
       assignedTo:   assignedName,
       createdAt:    lead.created_at,
       updatedAt:    lead.updated_at,
       resolvedAt:   lead.status.is_final ? lead.updated_at : undefined,
-      messagesCount: 0, isUnread: !lead.status.is_final,
+      messagesCount: msgResponse.total,
+      isUnread: !lead.status.is_final,
     };
 
-    // Заметки лида — начальное сообщение в чате
-    messages.value = lead.notes
-      ? [{ id: "note-0", text: lead.notes, sender: "client", timestamp: lead.created_at, isRead: true }]
-      : [];
+    messages.value = msgResponse.messages.map(mapMessage);
 
     connectWs();
     scrollToBottom();
@@ -177,7 +195,6 @@ const send = async () => {
   newMessage.value = "";
   try {
     await leadsApi.sendMessage(Number(ticketId.value), text);
-    leadsApi.notifyMessage(Number(ticketId.value)).catch(() => {});
     messages.value.push({
       id: Date.now().toString(), text, sender: "support",
       timestamp: new Date().toISOString(), isRead: true,

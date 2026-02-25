@@ -38,15 +38,17 @@ const connectWs = () => {
             addToast({
               type: "info",
               title: "Новый тикет",
-              message: data.lead_info?.client_name ?? "Клиент",
+              message: data.client_name ?? "Клиент",
             });
           } catch { /* не удалось загрузить лид — пропускаем */ }
 
         } else if (data.type === "new_message") {
+          // Показываем только входящие на странице списка
+          if (data.direction === "outgoing") return;
           const t = tickets.value.find((t) => t.id === String(data.lead_id));
           if (t) {
             t.isUnread = true;
-            t.lastMessage = data.message;
+            t.lastMessage = data.content;
             t.updatedAt = data.timestamp ?? new Date().toISOString();
           }
         }

@@ -55,6 +55,24 @@ export interface LeadsParams {
   status_id?: number;
   assigned_to_id?: number;
   client_id?: number;
+  source_type?: string;
+  source_id?: string;
+}
+
+export interface LeadMessage {
+  id: number;
+  lead_id: number;
+  client_id: number | null;
+  direction: "incoming" | "outgoing";
+  platform: string;
+  content: string;
+  read_at: string | null;
+  created_at: string;
+}
+
+export interface LeadMessagesResponse {
+  messages: LeadMessage[];
+  total: number;
 }
 
 export interface CreateLeadData {
@@ -81,29 +99,23 @@ export interface UpdateLeadData {
 export interface WsNewMessage {
   type: "new_message";
   lead_id: number;
-  message: string;
+  content: string;
+  direction: "incoming" | "outgoing";
+  sender: "client" | "manager";
+  client_name?: string;
+  source_type?: string;
   timestamp: string;
-  sender: "client" | "support";
+  message_id?: number;
   senderName?: string;
-  lead_info?: {
-    id: number;
-    client_name: string;
-    status: string;
-    source_type: string;
-  };
 }
 
 export interface WsNewLead {
   type: "new_lead";
   lead_id: number;
-  message: string;
-  timestamp: string;
-  lead_info: {
-    id: number;
-    client_name: string;
-    status: string;
-    source_type: string;
-  };
+  client_name?: string;
+  status?: string;
+  source_type?: string;
+  created_at?: string;
 }
 
 // ── Service ───────────────────────────────────────────────────────────────────
@@ -172,6 +184,8 @@ class LeadsApiService {
     if (params.status_id != null)      q.set("status_id",       String(params.status_id));
     if (params.assigned_to_id != null) q.set("assigned_to_id",  String(params.assigned_to_id));
     if (params.client_id != null)      q.set("client_id",       String(params.client_id));
+    if (params.source_type != null)    q.set("source_type",     params.source_type);
+    if (params.source_id != null)      q.set("source_id",       params.source_id);
     const qs = q.toString();
     return this.request<LeadsResponse>(`/api/v1/leads/${qs ? "?" + qs : ""}`);
   }
@@ -214,8 +228,9 @@ class LeadsApiService {
     });
   }
 
-  notifyMessage(id: number): Promise<void> {
-    return this.request<void>(`/api/v1/leads/${id}/notify-message`, { method: "POST" });
+  getMessages(id: number, skip = 0, limit = 200): Promise<LeadMessagesResponse> {
+    const q = new URLSearchParams({ skip: String(skip), limit: String(limit) });
+    return this.request<LeadMessagesResponse>(`/api/v1/leads/${id}/messages?${q}`);
   }
 
   // ── WebSocket ─────────────────────────────────────────────────────────────
