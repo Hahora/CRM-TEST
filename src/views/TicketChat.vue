@@ -93,6 +93,10 @@ const connectWs = () => {
           const sender: "client" | "support" = data.direction === "outgoing" ? "support" : "client";
           // Не дублируем — если уже есть по message_id
           if (data.message_id && messages.value.some((m) => m.id === String(data.message_id))) return;
+          // Снимаем pending-флаг для этого текста (если это наш исходящий)
+          if (data.direction === "outgoing" && data.content) {
+            pendingTexts.delete(data.content);
+          }
           messages.value.push({
             id:        data.message_id ? String(data.message_id) : Date.now().toString(),
             text:      data.content,
@@ -186,6 +190,9 @@ const load = async () => {
   }
 };
 
+// Временный ключ для отслеживания сообщений, ожидающих подтверждения от WS
+const pendingTexts = new Set<string>();
+
 const send = async () => {
   const text = newMessage.value.trim();
   if (!text || isSending.value) return;
@@ -195,11 +202,18 @@ const send = async () => {
   newMessage.value = "";
   try {
     await leadsApi.sendMessage(Number(ticketId.value), text);
-    messages.value.push({
-      id: Date.now().toString(), text, sender: "support",
-      timestamp: new Date().toISOString(), isRead: true,
-    });
-    scrollToBottom();
+    // Ждём WS-подтверждения; если оно не придёт за 3 с — добавляем сами
+    pendingTexts.add(text);
+    setTimeout(() => {
+      if (pendingTexts.has(text)) {
+        pendingTexts.delete(text);
+        messages.value.push({
+          id: Date.now().toString(), text, sender: "support",
+          timestamp: new Date().toISOString(), isRead: true,
+        });
+        scrollToBottom();
+      }
+    }, 3000);
   } catch (e) {
     sendError.value  = e instanceof Error ? e.message : "Не удалось отправить";
     newMessage.value = backup;
