@@ -90,7 +90,11 @@ function leadToTicket(lead: Lead): Ticket {
     number: lead.id,
     clientName,
     clientPhone: client?.phone,
-    telegramId: client?.telegram_id ? String(client.telegram_id) : undefined,
+    telegramId: client?.telegram_id
+      ? String(client.telegram_id)
+      : lead.source_type === "telegram" && lead.source_id
+        ? lead.source_id
+        : undefined,
     status: mapStatus(lead.status),
     priority: "medium",
     source: lead.source_type === "telegram" ? "telegram" : "max",

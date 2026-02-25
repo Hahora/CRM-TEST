@@ -163,6 +163,10 @@ const getSourceIcon = (s: string): any => (s === "telegram" ? "send" : "message-
               <td class="px-4 py-3">
                 <div class="text-sm font-medium text-gray-900">{{ ticket.clientName }}</div>
                 <div v-if="ticket.clientPhone" class="text-xs text-gray-400">{{ ticket.clientPhone }}</div>
+                <div v-else-if="ticket.telegramId" class="flex items-center gap-1 text-xs text-blue-500">
+                  <AppIcon name="send" :size="10" />
+                  {{ ticket.telegramId }}
+                </div>
               </td>
               <td class="px-4 py-3">
                 <div

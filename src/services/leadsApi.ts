@@ -92,6 +92,7 @@ export interface UpdateLeadData {
   notes?: string | null;
   status_id?: number;
   assigned_to_id?: number | null;
+  client_id?: number | null;
 }
 
 // ── WebSocket message types ───────────────────────────────────────────────────

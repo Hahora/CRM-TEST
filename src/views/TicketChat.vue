@@ -6,6 +6,7 @@ import { ru } from "date-fns/locale";
 import AppIcon from "@/components/AppIcon.vue";
 import { leadsApi } from "@/services/leadsApi";
 import type { LeadStatus, LeadMessage } from "@/services/leadsApi";
+import { clientsApi } from "@/services/clientsApi";
 import { useAuth } from "@/composables/useAuth";
 
 // ── Типы ─────────────────────────────────────────────────────────────────────
@@ -57,6 +58,16 @@ const isClosing     = ref(false);
 const showInfo      = ref(false);
 const sendError     = ref("");
 const messagesEl    = ref<HTMLElement>();
+
+// ── Привязка клиента ──────────────────────────────────────────────────────────
+const clientLinked     = ref(true);
+const showLinkModal    = ref(false);
+const linkQuery        = ref("");
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const linkResults      = ref<any[]>([]);
+const isLinkSearching  = ref(false);
+const isLinking        = ref(false);
+let linkSearchTimer: ReturnType<typeof setTimeout> | null = null;
 
 let ws: WebSocket | null = null;
 
@@ -180,6 +191,7 @@ const load = async () => {
     };
 
     messages.value = msgResponse.messages.map(mapMessage);
+    clientLinked.value = lead.client_id != null;
 
     connectWs();
     scrollToBottom();
@@ -234,6 +246,36 @@ const closeTicket = async () => {
 };
 
 const goBack = () => router.push("/tickets");
+
+// ── Поиск и привязка клиента ─────────────────────────────────────────────────
+
+const onLinkQueryInput = () => {
+  if (linkSearchTimer) clearTimeout(linkSearchTimer);
+  if (!linkQuery.value.trim()) { linkResults.value = []; return; }
+  linkSearchTimer = setTimeout(async () => {
+    isLinkSearching.value = true;
+    try {
+      const res = await clientsApi.getClients({ search: linkQuery.value.trim(), limit: 10 });
+      linkResults.value = res.clients || [];
+    } catch { linkResults.value = []; }
+    finally { isLinkSearching.value = false; }
+  }, 350);
+};
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const confirmLinkClient = async (client: any) => {
+  if (isLinking.value) return;
+  isLinking.value = true;
+  try {
+    await leadsApi.update(Number(ticketId.value), { client_id: client.id });
+    // Перезагружаем тикет, чтобы обновить данные клиента
+    await load();
+    showLinkModal.value = false;
+    linkQuery.value = "";
+    linkResults.value = [];
+  } catch { /* ignore */ }
+  finally { isLinking.value = false; }
+};
 
 // ── Touch-swipe ───────────────────────────────────────────────────────────────
 
@@ -297,6 +339,16 @@ onUnmounted(disconnectWs);
             <div class="flex items-center gap-2">
               <span class="text-xs font-mono text-gray-400">#{{ ticket.number }}</span>
               <span class="text-sm font-semibold text-gray-900 truncate">{{ ticket.clientName }}</span>
+              <!-- Кнопка привязки клиента -->
+              <button
+                v-if="!clientLinked"
+                @click="showLinkModal = true"
+                class="flex-shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-md text-xs font-medium bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100 transition-colors"
+                title="Привязать клиента"
+              >
+                <AppIcon name="user-plus" :size="11" />
+                <span class="hidden sm:inline">Клиент</span>
+              </button>
             </div>
             <p class="text-xs text-gray-500 truncate">{{ ticket.subject }}</p>
           </div>
@@ -327,7 +379,17 @@ onUnmounted(disconnectWs);
         <aside class="hidden md:flex w-72 flex-col bg-white border-r border-gray-200 flex-shrink-0 overflow-y-auto">
           <!-- Client info -->
           <div class="p-4 border-b border-gray-100">
-            <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Клиент</h3>
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wide">Клиент</h3>
+              <button
+                v-if="!clientLinked"
+                @click="showLinkModal = true"
+                class="flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100 transition-colors"
+              >
+                <AppIcon name="user-plus" :size="11" />
+                Привязать
+              </button>
+            </div>
             <div class="space-y-2">
               <div class="flex items-start gap-2">
                 <AppIcon name="user" :size="14" class="text-gray-400 mt-0.5 flex-shrink-0" />
@@ -608,5 +670,114 @@ onUnmounted(disconnectWs);
         </div>
       </Transition>
     </template>
+
+    <!-- ── Модальное окно привязки клиента ── -->
+    <Transition
+      enter-active-class="transition duration-200 ease-out"
+      enter-from-class="opacity-0"
+      enter-to-class="opacity-100"
+      leave-active-class="transition duration-150 ease-in"
+      leave-from-class="opacity-100"
+      leave-to-class="opacity-0"
+    >
+      <div
+        v-if="showLinkModal"
+        class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+        @click.self="showLinkModal = false"
+      >
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+          <!-- Header -->
+          <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+            <div class="flex items-center gap-2">
+              <div class="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center">
+                <AppIcon name="user-plus" :size="16" class="text-amber-600" />
+              </div>
+              <div>
+                <h3 class="text-sm font-semibold text-gray-900">Привязать клиента</h3>
+                <p class="text-xs text-gray-400">Поиск по имени или телефону</p>
+              </div>
+            </div>
+            <button
+              @click="showLinkModal = false"
+              class="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <AppIcon name="x" :size="16" />
+            </button>
+          </div>
+
+          <!-- Search input -->
+          <div class="px-5 pt-4 pb-2">
+            <div class="relative">
+              <AppIcon
+                name="search"
+                :size="15"
+                class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
+              />
+              <input
+                v-model="linkQuery"
+                @input="onLinkQueryInput"
+                type="text"
+                placeholder="Введите имя или телефон..."
+                class="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                autofocus
+              />
+              <AppIcon
+                v-if="isLinkSearching"
+                name="refresh-cw"
+                :size="14"
+                class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 animate-spin"
+              />
+            </div>
+          </div>
+
+          <!-- Results -->
+          <div class="px-5 pb-4 min-h-[100px] max-h-[300px] overflow-y-auto">
+            <!-- Пусто -->
+            <div
+              v-if="!isLinkSearching && linkQuery && linkResults.length === 0"
+              class="flex flex-col items-center justify-center py-8 text-center"
+            >
+              <AppIcon name="user" :size="28" class="text-gray-300 mb-2" />
+              <p class="text-sm text-gray-400">Клиенты не найдены</p>
+            </div>
+
+            <!-- Подсказка -->
+            <div
+              v-else-if="!linkQuery"
+              class="flex flex-col items-center justify-center py-8 text-center"
+            >
+              <AppIcon name="search" :size="28" class="text-gray-300 mb-2" />
+              <p class="text-sm text-gray-400">Начните вводить имя или номер телефона</p>
+            </div>
+
+            <!-- Список клиентов -->
+            <div v-else class="space-y-1 pt-1">
+              <button
+                v-for="c in linkResults"
+                :key="c.id ?? c.moysklad_id"
+                @click="confirmLinkClient(c)"
+                :disabled="isLinking"
+                class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-50 active:bg-gray-100 transition-colors text-left disabled:opacity-50"
+              >
+                <div class="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                  <AppIcon name="user" :size="14" class="text-blue-500" />
+                </div>
+                <div class="min-w-0 flex-1">
+                  <div class="text-sm font-medium text-gray-900 truncate">{{ c.name || "—" }}</div>
+                  <div v-if="c.phone" class="text-xs text-gray-400 truncate">{{ c.phone }}</div>
+                </div>
+                <AppIcon
+                  v-if="isLinking"
+                  name="refresh-cw"
+                  :size="14"
+                  class="text-gray-400 animate-spin flex-shrink-0"
+                />
+                <AppIcon v-else name="chevron-right" :size="14" class="text-gray-300 flex-shrink-0" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
