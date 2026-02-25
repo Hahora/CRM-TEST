@@ -6,19 +6,12 @@ export interface MailingsFilters {
   search: string;
   type: string;
   status: string;
-  branch: string;
   dateFrom: string;
   dateTo: string;
 }
 
-interface BranchOption {
-  value: string;
-  label: string;
-}
-
 interface Props {
   filters: MailingsFilters;
-  branches?: BranchOption[];
 }
 
 const props = defineProps<Props>();
@@ -58,7 +51,6 @@ const update = () => {
     localFilters.value.search !== "" ||
     localFilters.value.type !== "all" ||
     localFilters.value.status !== "all" ||
-    localFilters.value.branch !== "all" ||
     localFilters.value.dateFrom !== "" ||
     localFilters.value.dateTo !== "";
   emit("update:filters", { ...localFilters.value });
@@ -69,7 +61,6 @@ const reset = () => {
     search: "",
     type: "all",
     status: "all",
-    branch: "all",
     dateFrom: "",
     dateTo: "",
   };
@@ -116,19 +107,6 @@ const reset = () => {
       >
         <option v-for="s in statuses" :key="s.value" :value="s.value">
           {{ s.label }}
-        </option>
-      </select>
-
-      <!-- Branch -->
-      <select
-        v-if="branches && branches.length > 0"
-        v-model="localFilters.branch"
-        @change="update"
-        class="px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white"
-      >
-        <option value="all">Все филиалы</option>
-        <option v-for="b in branches" :key="b.value" :value="b.value">
-          {{ b.label }}
         </option>
       </select>
 

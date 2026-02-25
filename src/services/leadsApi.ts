@@ -93,6 +93,19 @@ export interface WsNewMessage {
   };
 }
 
+export interface WsNewLead {
+  type: "new_lead";
+  lead_id: number;
+  message: string;
+  timestamp: string;
+  lead_info: {
+    id: number;
+    client_name: string;
+    status: string;
+    source_type: string;
+  };
+}
+
 // ── Service ───────────────────────────────────────────────────────────────────
 
 class LeadsApiService {

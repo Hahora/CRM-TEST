@@ -10,8 +10,6 @@ import CreateMailingModal from "@/components/mailings/CreateMailingModal.vue";
 import MailingDetailsModal from "@/components/mailings/MailingDetailsModal.vue";
 import { mailingsApi } from "@/services/mailingsApi";
 import type { Analytics } from "@/services/mailingsApi";
-import { visitsApi } from "@/services/visitsApi";
-import type { Branch } from "@/services/visitsApi";
 
 // ── Данные ──────────────────────────────────────────────────────────────────
 
@@ -19,14 +17,6 @@ const mailings = ref<Mailing[]>([]);
 const isLoading = ref(false);
 const analytics = ref<Analytics | null>(null);
 const showStatsPanel = ref(false);
-const branches = ref<Branch[]>([]);
-
-const branchOptions = computed(() =>
-  branches.value.map((b) => ({
-    value: String(b.local_id ?? b.moysklad_id),
-    label: b.name + (!b.is_active ? " (неакт.)" : ""),
-  }))
-);
 
 /** Маппинг bot_type API → тип рассылки UI */
 function mapBotType(botType: string): Mailing["type"] {
@@ -56,10 +46,9 @@ function mapStatus(status?: string): Mailing["status"] {
 const loadData = async () => {
   isLoading.value = true;
   try {
-    const [campaigns, analyticsData, branchData] = await Promise.allSettled([
+    const [campaigns, analyticsData] = await Promise.allSettled([
       mailingsApi.getCampaigns(),
       mailingsApi.getAnalytics("month"),
-      visitsApi.getBranches(),
     ]);
 
     if (campaigns.status === "fulfilled") {
@@ -84,9 +73,6 @@ const loadData = async () => {
     if (analyticsData.status === "fulfilled") {
       analytics.value = analyticsData.value;
     }
-    if (branchData.status === "fulfilled") {
-      branches.value = branchData.value;
-    }
   } finally {
     isLoading.value = false;
   }
@@ -100,7 +86,6 @@ const filters = ref<TFilters>({
   search: "",
   type: "all",
   status: "all",
-  branch: "all",
   dateFrom: "",
   dateTo: "",
 });
@@ -292,7 +277,6 @@ const refresh = () => loadData();
 
       <MailingsFilters
         :filters="filters"
-        :branches="branchOptions"
         @update:filters="(v) => (filters = v)"
       />
 
