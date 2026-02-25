@@ -113,6 +113,7 @@ const error = ref("");
 
 const filters = ref<TFilters>({
   search: "",
+  status: "all",
   source: "all",
   assignedTo: "all",
   dateFrom: "",
@@ -132,6 +133,9 @@ const filteredTickets = computed(() => {
         t.lastMessage.toLowerCase().includes(q)
     );
   }
+
+  if (filters.value.status !== "all")
+    result = result.filter((t) => t.status === filters.value.status);
 
   if (filters.value.source !== "all")
     result = result.filter((t) => t.source === filters.value.source);

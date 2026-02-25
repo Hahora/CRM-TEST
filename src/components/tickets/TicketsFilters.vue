@@ -4,6 +4,7 @@ import AppIcon from "@/components/AppIcon.vue";
 
 export interface TicketsFilters {
   search: string;
+  status: string;
   source: string;
   assignedTo: string;
   dateFrom: string;
@@ -28,6 +29,14 @@ watch(
   { deep: true }
 );
 
+const statuses = [
+  { value: "all", label: "Все статусы" },
+  { value: "active", label: "Активные" },
+  { value: "resolved", label: "Решены" },
+  { value: "unresolved", label: "Не решены" },
+  { value: "closed", label: "Закрыты" },
+];
+
 const sources = [
   { value: "all", label: "Все источники" },
   { value: "telegram", label: "Telegram" },
@@ -39,6 +48,7 @@ const hasActiveFilters = ref(false);
 const update = () => {
   hasActiveFilters.value =
     localFilters.value.search !== "" ||
+    localFilters.value.status !== "all" ||
     localFilters.value.source !== "all" ||
     localFilters.value.assignedTo !== "all" ||
     localFilters.value.dateFrom !== "" ||
@@ -49,6 +59,7 @@ const update = () => {
 const reset = () => {
   localFilters.value = {
     search: "",
+    status: "all",
     source: "all",
     assignedTo: "all",
     dateFrom: "",
@@ -77,6 +88,17 @@ const reset = () => {
           class="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
         />
       </div>
+
+      <!-- Status -->
+      <select
+        v-model="localFilters.status"
+        @change="update"
+        class="px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white"
+      >
+        <option v-for="s in statuses" :key="s.value" :value="s.value">
+          {{ s.label }}
+        </option>
+      </select>
 
       <!-- Source -->
       <select

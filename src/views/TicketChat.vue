@@ -71,14 +71,6 @@ const getStatus = (s: string): { label: string; cls: string } => {
   }
 };
 
-const getPriority = (p: string): { label: string; cls: string } => {
-  switch (p) {
-    case "urgent": return { label: "Срочный", cls: "bg-red-100 text-red-700"       };
-    case "high":   return { label: "Высокий", cls: "bg-orange-100 text-orange-700" };
-    case "medium": return { label: "Средний", cls: "bg-yellow-100 text-yellow-700" };
-    default:       return { label: "Низкий",  cls: "bg-green-100 text-green-700"   };
-  }
-};
 
 const getSourceLabel = (s: string) => (s === "telegram" ? "Telegram" : "МАКС");
 
@@ -282,12 +274,6 @@ onUnmounted(disconnectWs);
           <div class="hidden sm:flex items-center gap-2 flex-shrink-0">
             <span
               class="px-2 py-0.5 rounded-full text-xs font-medium"
-              :class="getPriority(ticket.priority).cls"
-            >
-              {{ getPriority(ticket.priority).label }}
-            </span>
-            <span
-              class="px-2 py-0.5 rounded-full text-xs font-medium"
               :class="getStatus(ticket.status).cls"
             >
               {{ getStatus(ticket.status).label }}
@@ -348,13 +334,6 @@ onUnmounted(disconnectWs);
                   class="px-2 py-0.5 rounded-full text-xs font-medium"
                   :class="getStatus(ticket.status).cls"
                 >{{ getStatus(ticket.status).label }}</span>
-              </div>
-              <div class="flex justify-between items-center">
-                <span class="text-xs text-gray-500">Приоритет</span>
-                <span
-                  class="px-2 py-0.5 rounded-full text-xs font-medium"
-                  :class="getPriority(ticket.priority).cls"
-                >{{ getPriority(ticket.priority).label }}</span>
               </div>
               <div class="flex justify-between items-center">
                 <span class="text-xs text-gray-500">Источник</span>
@@ -524,9 +503,6 @@ onUnmounted(disconnectWs);
                 <div class="flex items-center gap-2 flex-wrap">
                   <span class="px-2.5 py-1 rounded-full text-sm font-medium" :class="getStatus(ticket.status).cls">
                     {{ getStatus(ticket.status).label }}
-                  </span>
-                  <span class="px-2.5 py-1 rounded-full text-sm font-medium" :class="getPriority(ticket.priority).cls">
-                    {{ getPriority(ticket.priority).label }}
                   </span>
                 </div>
 
