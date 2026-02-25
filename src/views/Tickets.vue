@@ -74,8 +74,9 @@ function mapStatus(s: LeadStatus): Ticket["status"] {
 }
 
 function leadToTicket(lead: Lead): Ticket {
+  const client = lead.client;
   const clientName =
-    lead.client.full_name || lead.client.name || `Клиент #${lead.client_id}`;
+    client?.full_name || client?.name || `Клиент #${lead.client_id ?? lead.id}`;
   const assignedName = lead.assigned_to
     ? [lead.assigned_to.first_name, lead.assigned_to.last_name]
         .filter(Boolean)
@@ -86,10 +87,8 @@ function leadToTicket(lead: Lead): Ticket {
     id: String(lead.id),
     number: lead.id,
     clientName,
-    clientPhone: lead.client.phone,
-    telegramId: lead.client.telegram_id
-      ? String(lead.client.telegram_id)
-      : undefined,
+    clientPhone: client?.phone,
+    telegramId: client?.telegram_id ? String(client.telegram_id) : undefined,
     status: mapStatus(lead.status),
     priority: "medium",
     source: lead.source_type === "telegram" ? "telegram" : "max",

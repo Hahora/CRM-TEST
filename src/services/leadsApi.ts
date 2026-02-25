@@ -30,7 +30,7 @@ export interface LeadUser {
 
 export interface Lead {
   id: number;
-  client_id: number;
+  client_id: number | null;
   status_id: number;
   assigned_to_id: number | null;
   source_type: string;
@@ -40,7 +40,7 @@ export interface Lead {
   created_at: string;
   updated_at: string;
   status: LeadStatus;
-  client: LeadClient;
+  client: LeadClient | null;
   assigned_to: LeadUser | null;
 }
 
