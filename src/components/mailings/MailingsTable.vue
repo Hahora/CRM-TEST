@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref, computed, watch } from "vue";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import AppIcon from "@/components/AppIcon.vue";
@@ -6,7 +7,7 @@ import AppIcon from "@/components/AppIcon.vue";
 export interface Mailing {
   id: string;
   name: string;
-  type: "telegram" | "email" | "max";
+  type: "telegram" | "max";
   status: "draft" | "scheduled" | "sending" | "sent" | "failed";
   subject?: string;
   message: string;
@@ -29,15 +30,27 @@ interface Props {
   loading?: boolean;
 }
 
-defineProps<Props>();
+const props = defineProps<Props>();
 
 const emit = defineEmits<{
   "view-mailing": [mailing: Mailing];
 }>();
 
+const PAGE_SIZE = 20;
+const currentPage = ref(1);
+
+watch(() => props.mailings.length, () => { currentPage.value = 1; });
+
+const totalPages = computed(() => Math.max(1, Math.ceil(props.mailings.length / PAGE_SIZE)));
+
+const paginated = computed(() => {
+  const start = (currentPage.value - 1) * PAGE_SIZE;
+  return props.mailings.slice(start, start + PAGE_SIZE);
+});
+
 const getStatus = (s: string): { label: string; cls: string } => {
   switch (s) {
-    case "draft":     return { label: "Черновик",      cls: "bg-gray-100 text-gray-700"   };
+    case "draft":     return { label: "Черновик",      cls: "bg-gray-100 text-gray-700"    };
     case "scheduled": return { label: "Запланировано", cls: "bg-orange-100 text-orange-700" };
     case "sending":   return { label: "Отправляется",  cls: "bg-blue-100 text-blue-700"    };
     case "sent":      return { label: "Отправлено",    cls: "bg-green-100 text-green-700"  };
@@ -47,166 +60,189 @@ const getStatus = (s: string): { label: string; cls: string } => {
 };
 
 const getType = (t: string): { label: string; cls: string } => {
-  switch (t) {
-    case "telegram": return { label: "Telegram", cls: "text-blue-600 bg-blue-50"   };
-    case "email":    return { label: "Email",    cls: "text-green-600 bg-green-50"  };
-    default:         return { label: "МАКС",     cls: "text-purple-600 bg-purple-50" };
-  }
+  if (t === "telegram") return { label: "Telegram", cls: "text-blue-600 bg-blue-50"    };
+  return                        { label: "МАКС",     cls: "text-purple-600 bg-purple-50" };
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const getTypeIcon = (t: string): any => {
-  switch (t) {
-    case "telegram": return "send";
-    case "email":    return "mail";
-    default:         return "message-circle";
-  }
-};
+const getTypeIcon = (t: string): any => (t === "telegram" ? "send" : "message-circle");
 
 const getDeliveryRate = (m: Mailing) => {
   if (m.sent === 0) return 0;
   return Math.round((m.delivered / m.sent) * 100);
 };
+
+const displayDate = (m: Mailing): { label: string; sub: string; orange: boolean } => {
+  if (m.sentAt)
+    return { label: format(new Date(m.sentAt), "dd.MM.yy HH:mm", { locale: ru }), sub: "отправлено", orange: false };
+  if (m.scheduledAt)
+    return { label: format(new Date(m.scheduledAt), "dd.MM.yy HH:mm", { locale: ru }), sub: "запланировано", orange: true };
+  return   { label: format(new Date(m.createdAt),   "dd.MM.yy HH:mm", { locale: ru }), sub: "создано",      orange: false };
+};
 </script>
 
 <template>
   <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
-    <!-- Table header -->
+    <!-- Header -->
     <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
       <h3 class="text-sm font-semibold text-gray-900">Список рассылок</h3>
       <span class="text-xs text-gray-400 font-medium">{{ mailings.length }} рассылок</span>
     </div>
 
-    <div class="overflow-x-auto">
-      <table class="w-full">
-        <thead>
-          <tr class="border-b border-gray-100">
-            <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Рассылка</th>
-            <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Тип</th>
-            <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Статус</th>
-            <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Получатели</th>
-            <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wide hidden md:table-cell">Доставляемость</th>
-            <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wide hidden lg:table-cell">Дата</th>
-            <th class="px-4 py-2.5 w-10"></th>
-          </tr>
-        </thead>
-
-        <tbody class="divide-y divide-gray-50">
-          <!-- Loading -->
-          <tr v-if="loading">
-            <td colspan="7" class="px-4 py-10 text-center">
-              <div class="flex items-center justify-center gap-2 text-gray-400">
-                <AppIcon name="refresh-cw" :size="16" class="animate-spin" />
-                <span class="text-sm">Загрузка...</span>
-              </div>
-            </td>
-          </tr>
-
-          <!-- Empty -->
-          <tr v-else-if="mailings.length === 0">
-            <td colspan="7" class="px-4 py-12 text-center">
-              <div class="flex flex-col items-center gap-2">
-                <AppIcon name="send" :size="28" class="text-gray-300" />
-                <span class="text-sm text-gray-400">Рассылки не найдены</span>
-              </div>
-            </td>
-          </tr>
-
-          <!-- Rows -->
-          <tr
-            v-else
-            v-for="mailing in mailings"
-            :key="mailing.id"
-            class="hover:bg-gray-50 cursor-pointer transition-colors group"
-            @click="emit('view-mailing', mailing)"
-          >
-            <!-- Рассылка -->
-            <td class="px-4 py-3">
-              <div class="min-w-0">
-                <div class="text-sm font-medium text-gray-900 truncate max-w-[200px]">
-                  {{ mailing.name }}
-                </div>
-                <div v-if="mailing.subject" class="text-xs text-gray-500 truncate max-w-[200px]">
-                  {{ mailing.subject }}
-                </div>
-                <div class="text-xs text-gray-400">{{ mailing.createdBy }} · {{ mailing.branch }}</div>
-              </div>
-            </td>
-
-            <!-- Тип -->
-            <td class="px-4 py-3">
-              <div
-                class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium"
-                :class="getType(mailing.type).cls"
-              >
-                <AppIcon :name="getTypeIcon(mailing.type)" :size="12" />
-                {{ getType(mailing.type).label }}
-              </div>
-            </td>
-
-            <!-- Статус -->
-            <td class="px-4 py-3">
-              <span
-                class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
-                :class="getStatus(mailing.status).cls"
-              >
-                {{ getStatus(mailing.status).label }}
-              </span>
-            </td>
-
-            <!-- Получатели -->
-            <td class="px-4 py-3">
-              <div class="text-sm font-medium text-gray-900">{{ mailing.recipients.toLocaleString() }}</div>
-              <div v-if="mailing.sent > 0" class="text-xs text-gray-400">
-                отправлено: {{ mailing.sent.toLocaleString() }}
-              </div>
-            </td>
-
-            <!-- Доставляемость -->
-            <td class="px-4 py-3 hidden md:table-cell">
-              <div v-if="mailing.sent > 0" class="text-sm">
-                <div class="font-medium text-gray-900">{{ getDeliveryRate(mailing) }}%</div>
-                <div v-if="mailing.opened" class="flex items-center gap-1 text-xs text-gray-400">
-                  <AppIcon name="mail-open" :size="11" />
-                  {{ mailing.opened }} открыли
-                </div>
-              </div>
-              <div v-else class="text-sm text-gray-400">—</div>
-            </td>
-
-            <!-- Дата -->
-            <td class="px-4 py-3 hidden lg:table-cell">
-              <div v-if="mailing.sentAt">
-                <div class="text-xs text-gray-600">
-                  {{ format(new Date(mailing.sentAt), "dd.MM.yyyy", { locale: ru }) }}
-                </div>
-                <div class="text-xs text-gray-400">
-                  {{ format(new Date(mailing.sentAt), "HH:mm", { locale: ru }) }}
-                </div>
-              </div>
-              <div v-else-if="mailing.scheduledAt">
-                <div class="text-xs text-orange-600 font-medium">
-                  {{ format(new Date(mailing.scheduledAt), "dd.MM.yyyy", { locale: ru }) }}
-                </div>
-                <div class="text-xs text-gray-400">запланировано</div>
-              </div>
-              <div v-else>
-                <div class="text-xs text-gray-600">
-                  {{ format(new Date(mailing.createdAt), "dd.MM.yyyy", { locale: ru }) }}
-                </div>
-                <div class="text-xs text-gray-400">создано</div>
-              </div>
-            </td>
-
-            <!-- Действие -->
-            <td class="px-4 py-3 text-right">
-              <div class="opacity-0 group-hover:opacity-100 transition-opacity">
-                <AppIcon name="chevron-right" :size="16" class="text-gray-400" />
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+    <!-- Loading -->
+    <div v-if="loading" class="py-10 flex items-center justify-center gap-2 text-gray-400">
+      <AppIcon name="refresh-cw" :size="16" class="animate-spin" />
+      <span class="text-sm">Загрузка...</span>
     </div>
+
+    <!-- Empty -->
+    <div v-else-if="mailings.length === 0" class="py-12 flex flex-col items-center gap-2">
+      <AppIcon name="send" :size="28" class="text-gray-300" />
+      <span class="text-sm text-gray-400">Рассылки не найдены</span>
+    </div>
+
+    <template v-else>
+      <!-- ── Мобильные карточки (< md) ── -->
+      <div class="md:hidden divide-y divide-gray-100">
+        <div
+          v-for="mailing in paginated"
+          :key="mailing.id"
+          class="px-4 py-3 cursor-pointer hover:bg-gray-50 active:bg-gray-100 transition-colors"
+          @click="emit('view-mailing', mailing)"
+        >
+          <div class="flex items-start gap-3">
+            <div class="min-w-0 flex-1">
+              <!-- Name -->
+              <div class="text-sm font-medium text-gray-900 truncate">{{ mailing.name }}</div>
+              <!-- Badges -->
+              <div class="flex items-center gap-1.5 flex-wrap mt-1">
+                <span
+                  class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-xs font-medium"
+                  :class="getType(mailing.type).cls"
+                >
+                  <AppIcon :name="getTypeIcon(mailing.type)" :size="10" />
+                  {{ getType(mailing.type).label }}
+                </span>
+                <span
+                  class="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium"
+                  :class="getStatus(mailing.status).cls"
+                >
+                  {{ getStatus(mailing.status).label }}
+                </span>
+              </div>
+              <!-- Meta -->
+              <div class="text-xs text-gray-400 mt-1">
+                {{ displayDate(mailing).sub }}: {{ displayDate(mailing).label }}
+                <template v-if="mailing.recipients > 0"> · {{ mailing.recipients.toLocaleString() }} чел.</template>
+              </div>
+            </div>
+            <AppIcon name="chevron-right" :size="16" class="text-gray-300 flex-shrink-0 mt-1" />
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Десктопная таблица (≥ md) ── -->
+      <div class="hidden md:block overflow-x-auto">
+        <table class="w-full">
+          <thead>
+            <tr class="border-b border-gray-100">
+              <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Рассылка</th>
+              <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Тип</th>
+              <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Статус</th>
+              <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Получатели</th>
+              <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Доставляемость</th>
+              <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Дата</th>
+              <th class="px-4 py-2.5 w-10"></th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-50">
+            <tr
+              v-for="mailing in paginated"
+              :key="mailing.id"
+              class="hover:bg-gray-50 cursor-pointer transition-colors group"
+              @click="emit('view-mailing', mailing)"
+            >
+              <td class="px-4 py-3">
+                <div class="min-w-0">
+                  <div class="text-sm font-medium text-gray-900 truncate max-w-[200px]">{{ mailing.name }}</div>
+                  <div v-if="mailing.subject" class="text-xs text-gray-500 truncate max-w-[200px]">{{ mailing.subject }}</div>
+                  <div v-if="mailing.createdBy || mailing.branch" class="text-xs text-gray-400">
+                    {{ [mailing.createdBy, mailing.branch].filter(Boolean).join(" · ") }}
+                  </div>
+                </div>
+              </td>
+              <td class="px-4 py-3">
+                <div
+                  class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium"
+                  :class="getType(mailing.type).cls"
+                >
+                  <AppIcon :name="getTypeIcon(mailing.type)" :size="12" />
+                  {{ getType(mailing.type).label }}
+                </div>
+              </td>
+              <td class="px-4 py-3">
+                <span
+                  class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                  :class="getStatus(mailing.status).cls"
+                >
+                  {{ getStatus(mailing.status).label }}
+                </span>
+              </td>
+              <td class="px-4 py-3">
+                <div class="text-sm font-medium text-gray-900">{{ mailing.recipients.toLocaleString() }}</div>
+                <div v-if="mailing.sent > 0" class="text-xs text-gray-400">
+                  отправлено: {{ mailing.sent.toLocaleString() }}
+                </div>
+              </td>
+              <td class="px-4 py-3">
+                <div v-if="mailing.sent > 0">
+                  <div class="text-sm font-medium text-gray-900">{{ getDeliveryRate(mailing) }}%</div>
+                  <div v-if="mailing.opened" class="flex items-center gap-1 text-xs text-gray-400">
+                    <AppIcon name="mail-open" :size="11" />
+                    {{ mailing.opened }} открыли
+                  </div>
+                </div>
+                <div v-else class="text-sm text-gray-400">—</div>
+              </td>
+              <td class="px-4 py-3">
+                <div
+                  class="text-xs"
+                  :class="displayDate(mailing).orange ? 'text-orange-600 font-medium' : 'text-gray-600'"
+                >
+                  {{ displayDate(mailing).label }}
+                </div>
+                <div class="text-xs text-gray-400">{{ displayDate(mailing).sub }}</div>
+              </td>
+              <td class="px-4 py-3 text-right">
+                <div class="opacity-0 group-hover:opacity-100 transition-opacity">
+                  <AppIcon name="chevron-right" :size="16" class="text-gray-400" />
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Пагинация -->
+      <div v-if="totalPages > 1" class="flex items-center justify-between px-4 py-3 border-t border-gray-100">
+        <button
+          @click="currentPage--"
+          :disabled="currentPage === 1"
+          class="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          <AppIcon name="chevron-left" :size="14" />
+          Назад
+        </button>
+        <span class="text-xs text-gray-500">Страница {{ currentPage }} из {{ totalPages }}</span>
+        <button
+          @click="currentPage++"
+          :disabled="currentPage === totalPages"
+          class="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          Вперёд
+          <AppIcon name="chevron-right" :size="14" />
+        </button>
+      </div>
+    </template>
   </div>
 </template>

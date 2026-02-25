@@ -33,7 +33,6 @@ const types = [
   { value: "all", label: "Все типы" },
   { value: "telegram", label: "Telegram" },
   { value: "max", label: "МАКС" },
-  { value: "email", label: "Email" },
 ];
 
 const statuses = [

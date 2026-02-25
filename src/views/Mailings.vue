@@ -16,12 +16,12 @@ import type { Analytics } from "@/services/mailingsApi";
 const mailings = ref<Mailing[]>([]);
 const isLoading = ref(false);
 const analytics = ref<Analytics | null>(null);
+const showStatsPanel = ref(true);
 
 /** Маппинг bot_type API → тип рассылки UI */
 function mapBotType(botType: string): Mailing["type"] {
   if (botType === "telegram") return "telegram";
-  if (botType === "max" || botType === "max_bot") return "max";
-  return "email";
+  return "max";
 }
 
 /** Маппинг статуса кампании API → статус UI */
@@ -206,6 +206,19 @@ const refresh = () => loadData();
 
         <div class="flex items-center gap-2 flex-shrink-0">
           <button
+            @click="showStatsPanel = !showStatsPanel"
+            class="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium border rounded-lg transition-colors"
+            :class="showStatsPanel
+              ? 'bg-blue-50 text-blue-600 border-blue-200'
+              : 'text-gray-700 border-gray-200 hover:bg-gray-50'"
+            title="Статистика"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+            </svg>
+            <span class="hidden sm:inline">Статистика</span>
+          </button>
+          <button
             @click="refresh"
             :disabled="isLoading"
             class="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
@@ -227,7 +240,11 @@ const refresh = () => loadData();
 
     <!-- Content -->
     <div class="flex-1 overflow-y-auto p-4 md:p-5 space-y-4">
-      <MailingsStats :stats="stats" />
+      <Transition name="fold">
+        <div v-if="showStatsPanel">
+          <MailingsStats :stats="stats" />
+        </div>
+      </Transition>
 
       <MailingsFilters
         :filters="filters"
@@ -255,3 +272,12 @@ const refresh = () => loadData();
     />
   </div>
 </template>
+
+<style scoped>
+.fold-enter-active { transition: all 200ms ease-out; overflow: hidden; }
+.fold-leave-active { transition: all 150ms ease-in;  overflow: hidden; }
+.fold-enter-from,
+.fold-leave-to   { opacity: 0; max-height: 0; }
+.fold-enter-to,
+.fold-leave-from { opacity: 1; max-height: 500px; }
+</style>

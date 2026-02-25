@@ -17,7 +17,7 @@ const emit = defineEmits<{
 
 const form = ref({
   name: "",
-  type: "telegram" as "telegram" | "email" | "max",
+  type: "telegram" as "telegram" | "max",
   subject: "",
   message: "",
   targetAudience: [] as string[],
@@ -42,14 +42,13 @@ const audienceOptions = [
 const branches = ["Главный офис", "Филиал №1", "Филиал №2", "Филиал №3"];
 
 const typeOptions: Array<{
-  value: "telegram" | "email" | "max";
+  value: "telegram" | "max";
   label: string;
   icon: IconName;
   color: string;
 }> = [
   { value: "telegram", label: "Telegram", icon: "send",           color: "text-blue-600"   },
   { value: "max",      label: "МАКС",     icon: "message-circle", color: "text-purple-600" },
-  { value: "email",    label: "Email",    icon: "mail",           color: "text-green-600"  },
 ];
 
 const showSubject = computed(() => true);
@@ -174,13 +173,11 @@ const toggleAudience = (value: string) => {
 
           <!-- Subject -->
           <div v-if="showSubject">
-            <label class="block text-sm font-medium text-gray-700 mb-1">
-              {{ form.type === "email" ? "Тема письма" : "Заголовок" }}
-            </label>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Заголовок</label>
             <input
               v-model="form.subject"
               type="text"
-              :placeholder="form.type === 'email' ? 'Введите тему письма' : 'Введите заголовок сообщения'"
+              placeholder="Введите заголовок сообщения"
               class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
             />
           </div>

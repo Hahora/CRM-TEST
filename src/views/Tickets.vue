@@ -137,6 +137,8 @@ const stats = computed(() => {
 
 const unreadCount = computed(() => tickets.value.filter((t) => t.isUnread).length);
 
+const showStatsPanel = ref(true);
+
 // ── Загрузка ─────────────────────────────────────────────────────────────────
 
 const loadTickets = async () => {
@@ -185,15 +187,24 @@ onMounted(loadTickets);
 
         <div class="flex items-center gap-2 flex-shrink-0">
           <button
+            @click="showStatsPanel = !showStatsPanel"
+            class="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium border rounded-lg transition-colors"
+            :class="showStatsPanel
+              ? 'bg-blue-50 text-blue-600 border-blue-200'
+              : 'text-gray-700 border-gray-200 hover:bg-gray-50'"
+            title="Статистика"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+            </svg>
+            <span class="hidden sm:inline">Статистика</span>
+          </button>
+          <button
             @click="refresh"
             :disabled="isLoading"
             class="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
           >
-            <AppIcon
-              name="refresh-cw"
-              :size="14"
-              :class="{ 'animate-spin': isLoading }"
-            />
+            <AppIcon name="refresh-cw" :size="14" :class="{ 'animate-spin': isLoading }" />
             <span class="hidden sm:inline">Обновить</span>
           </button>
         </div>
@@ -202,7 +213,11 @@ onMounted(loadTickets);
 
     <!-- Content -->
     <div class="flex-1 overflow-y-auto p-4 md:p-5 space-y-4">
-      <TicketsStats :stats="stats" />
+      <Transition name="fold">
+        <div v-if="showStatsPanel">
+          <TicketsStats :stats="stats" />
+        </div>
+      </Transition>
 
       <TicketsFilters
         :filters="filters"
@@ -217,3 +232,12 @@ onMounted(loadTickets);
     </div>
   </div>
 </template>
+
+<style scoped>
+.fold-enter-active { transition: all 200ms ease-out; overflow: hidden; }
+.fold-leave-active { transition: all 150ms ease-in;  overflow: hidden; }
+.fold-enter-from,
+.fold-leave-to   { opacity: 0; max-height: 0; }
+.fold-enter-to,
+.fold-leave-from { opacity: 1; max-height: 500px; }
+</style>
