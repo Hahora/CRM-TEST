@@ -16,7 +16,7 @@ import type { Analytics } from "@/services/mailingsApi";
 const mailings = ref<Mailing[]>([]);
 const isLoading = ref(false);
 const analytics = ref<Analytics | null>(null);
-const showStatsPanel = ref(true);
+const showStatsPanel = ref(false);
 
 /** Маппинг bot_type API → тип рассылки UI */
 function mapBotType(botType: string): Mailing["type"] {

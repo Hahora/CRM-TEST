@@ -137,7 +137,7 @@ const stats = computed(() => {
 
 const unreadCount = computed(() => tickets.value.filter((t) => t.isUnread).length);
 
-const showStatsPanel = ref(true);
+const showStatsPanel = ref(false);
 
 // ── Загрузка ─────────────────────────────────────────────────────────────────
 
