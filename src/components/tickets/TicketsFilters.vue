@@ -4,9 +4,7 @@ import AppIcon from "@/components/AppIcon.vue";
 
 export interface TicketsFilters {
   search: string;
-  status: string;
   source: string;
-  priority: string;
   assignedTo: string;
   dateFrom: string;
   dateTo: string;
@@ -30,26 +28,10 @@ watch(
   { deep: true }
 );
 
-const statuses = [
-  { value: "all", label: "Все статусы" },
-  { value: "active", label: "Активные" },
-  { value: "resolved", label: "Решены" },
-  { value: "unresolved", label: "Не решены" },
-  { value: "closed", label: "Закрыты" },
-];
-
 const sources = [
   { value: "all", label: "Все источники" },
   { value: "telegram", label: "Telegram" },
   { value: "max", label: "МАКС" },
-];
-
-const priorities = [
-  { value: "all", label: "Все приоритеты" },
-  { value: "urgent", label: "Срочный" },
-  { value: "high", label: "Высокий" },
-  { value: "medium", label: "Средний" },
-  { value: "low", label: "Низкий" },
 ];
 
 const hasActiveFilters = ref(false);
@@ -57,9 +39,7 @@ const hasActiveFilters = ref(false);
 const update = () => {
   hasActiveFilters.value =
     localFilters.value.search !== "" ||
-    localFilters.value.status !== "all" ||
     localFilters.value.source !== "all" ||
-    localFilters.value.priority !== "all" ||
     localFilters.value.assignedTo !== "all" ||
     localFilters.value.dateFrom !== "" ||
     localFilters.value.dateTo !== "";
@@ -69,9 +49,7 @@ const update = () => {
 const reset = () => {
   localFilters.value = {
     search: "",
-    status: "all",
     source: "all",
-    priority: "all",
     assignedTo: "all",
     dateFrom: "",
     dateTo: "",
@@ -100,17 +78,6 @@ const reset = () => {
         />
       </div>
 
-      <!-- Status -->
-      <select
-        v-model="localFilters.status"
-        @change="update"
-        class="px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white"
-      >
-        <option v-for="s in statuses" :key="s.value" :value="s.value">
-          {{ s.label }}
-        </option>
-      </select>
-
       <!-- Source -->
       <select
         v-model="localFilters.source"
@@ -119,17 +86,6 @@ const reset = () => {
       >
         <option v-for="s in sources" :key="s.value" :value="s.value">
           {{ s.label }}
-        </option>
-      </select>
-
-      <!-- Priority -->
-      <select
-        v-model="localFilters.priority"
-        @change="update"
-        class="px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white"
-      >
-        <option v-for="p in priorities" :key="p.value" :value="p.value">
-          {{ p.label }}
         </option>
       </select>
 

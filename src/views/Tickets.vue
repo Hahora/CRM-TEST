@@ -113,9 +113,7 @@ const error = ref("");
 
 const filters = ref<TFilters>({
   search: "",
-  status: "all",
   source: "all",
-  priority: "all",
   assignedTo: "all",
   dateFrom: "",
   dateTo: "",
@@ -135,14 +133,8 @@ const filteredTickets = computed(() => {
     );
   }
 
-  if (filters.value.status !== "all")
-    result = result.filter((t) => t.status === filters.value.status);
-
   if (filters.value.source !== "all")
     result = result.filter((t) => t.source === filters.value.source);
-
-  if (filters.value.priority !== "all")
-    result = result.filter((t) => t.priority === filters.value.priority);
 
   if (filters.value.dateFrom) {
     const from = new Date(filters.value.dateFrom).getTime();

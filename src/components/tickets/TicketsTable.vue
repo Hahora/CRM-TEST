@@ -48,24 +48,6 @@ const paginated = computed(() => {
   return props.tickets.slice(start, start + PAGE_SIZE);
 });
 
-const getStatus = (s: string): { label: string; cls: string } => {
-  switch (s) {
-    case "active":     return { label: "Активен",  cls: "bg-yellow-100 text-yellow-700" };
-    case "resolved":   return { label: "Решён",    cls: "bg-green-100 text-green-700"   };
-    case "unresolved": return { label: "Не решён", cls: "bg-red-100 text-red-700"       };
-    default:           return { label: "Закрыт",   cls: "bg-gray-100 text-gray-600"     };
-  }
-};
-
-const getPriority = (p: string): { label: string; dot: string } => {
-  switch (p) {
-    case "urgent": return { label: "Срочный", dot: "bg-red-500"    };
-    case "high":   return { label: "Высокий", dot: "bg-orange-500" };
-    case "medium": return { label: "Средний", dot: "bg-yellow-500" };
-    default:       return { label: "Низкий",  dot: "bg-green-500"  };
-  }
-};
-
 const getSource = (s: string): { label: string; cls: string } => {
   if (s === "telegram") return { label: "Telegram", cls: "text-blue-600 bg-blue-50"    };
   return                        { label: "МАКС",     cls: "text-purple-600 bg-purple-50" };
@@ -122,12 +104,6 @@ const getSourceIcon = (s: string): any => (s === "telegram" ? "send" : "message-
                   <AppIcon :name="getSourceIcon(ticket.source)" :size="10" />
                   {{ getSource(ticket.source).label }}
                 </span>
-                <span
-                  class="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium"
-                  :class="getStatus(ticket.status).cls"
-                >
-                  {{ getStatus(ticket.status).label }}
-                </span>
               </div>
               <!-- Subject -->
               <div class="text-sm font-medium text-gray-900 truncate">{{ ticket.subject }}</div>
@@ -152,8 +128,6 @@ const getSourceIcon = (s: string): any => (s === "telegram" ? "send" : "message-
               <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Тикет</th>
               <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Клиент</th>
               <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Источник</th>
-              <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Статус</th>
-              <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Приоритет</th>
               <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Назначен</th>
               <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Обновлён</th>
               <th class="px-4 py-2.5 w-10"></th>
@@ -197,20 +171,6 @@ const getSourceIcon = (s: string): any => (s === "telegram" ? "send" : "message-
                 >
                   <AppIcon :name="getSourceIcon(ticket.source)" :size="12" />
                   {{ getSource(ticket.source).label }}
-                </div>
-              </td>
-              <td class="px-4 py-3">
-                <span
-                  class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
-                  :class="getStatus(ticket.status).cls"
-                >
-                  {{ getStatus(ticket.status).label }}
-                </span>
-              </td>
-              <td class="px-4 py-3">
-                <div class="flex items-center gap-1.5">
-                  <div class="w-2 h-2 rounded-full flex-shrink-0" :class="getPriority(ticket.priority).dot" />
-                  <span class="text-xs text-gray-700">{{ getPriority(ticket.priority).label }}</span>
                 </div>
               </td>
               <td class="px-4 py-3">
