@@ -29,6 +29,14 @@ let wsUserId: number | null = null;
 /** Lead IDs currently marked as is_new=true (source of truth for badge). */
 const newLeadIdSet = new Set<number>();
 
+/**
+ * Time-based dedup guard for toast notifications.
+ * Persists across reconnect cycles (unlike newLeadIdSet which gets cleared on disconnect).
+ * Prevents the same lead_id from triggering a toast more than once per TOAST_TTL ms.
+ */
+const recentToastAt = new Map<number, number>();
+const TOAST_TTL = 30_000; // 30 seconds
+
 /** Page-level subscribers (Tickets.vue etc.) */
 const listeners = new Set<EventListener>();
 
@@ -45,9 +53,17 @@ function handleMsg(event: MessageEvent) {
     const { addToast } = useToast();
 
     if (data.type === "new_lead") {
+      const now = Date.now();
+      const lastToastAt = recentToastAt.get(data.lead_id) ?? 0;
+      const alreadyToasted = now - lastToastAt < TOAST_TTL;
+
       if (!newLeadIdSet.has(data.lead_id)) {
         newLeadIdSet.add(data.lead_id);
         badgeCount.value += 1;
+      }
+
+      if (!alreadyToasted) {
+        recentToastAt.set(data.lead_id, now);
         addToast({
           type: "info",
           title: "Новый тикет",
@@ -192,6 +208,7 @@ if (import.meta.hot) {
     wsUserId = null;
     wsAttempt = 0;
     newLeadIdSet.clear();
+    recentToastAt.clear();
     listeners.clear();
     connectedCallbacks.clear();
   });
