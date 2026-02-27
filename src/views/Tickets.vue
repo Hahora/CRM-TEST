@@ -36,7 +36,15 @@ const connectWs = () => {
           if (tickets.value.some((t) => t.id === String(data.lead_id))) return;
           try {
             const lead = await leadsApi.getById(data.lead_id);
-            tickets.value.unshift(leadToTicket(lead));
+            // В серверном режиме добавляем только на первой странице
+            if (page.value === 1) {
+              tickets.value.unshift(leadToTicket(lead));
+              // Сохраняем размер страницы
+              if (!isClientFiltered.value && tickets.value.length > PAGE_SIZE)
+                tickets.value.pop();
+            }
+            total.value += 1;
+            badgeNewCount.value += 1;
             addToast({
               type: "info",
               title: "Новый тикет",
@@ -174,24 +182,34 @@ const loadStats = async () => {
   } catch { /* ignore */ }
 };
 
-// ── Пагинация (клиентская) ────────────────────────────────────────────────────
+// ── Пагинация ─────────────────────────────────────────────────────────────────
 
 const PAGE_SIZE = 20;
-const page = ref(1);
+const page      = ref(1);
+const total     = ref(0); // total от сервера
+
+/** Поиск / фильтр источника активны → грузим 500 и режем на клиенте */
+const isClientFiltered = computed(() =>
+  filters.value.search !== "" || filters.value.source !== "all"
+);
+
+const displayTotal = computed(() =>
+  isClientFiltered.value ? filteredTickets.value.length : total.value
+);
 
 const totalPages = computed(() =>
-  Math.max(1, Math.ceil(filteredTickets.value.length / PAGE_SIZE))
+  Math.max(1, Math.ceil(displayTotal.value / PAGE_SIZE))
 );
 
 const paginatedTickets = computed(() => {
-  const start = (page.value - 1) * PAGE_SIZE;
-  return filteredTickets.value.slice(start, start + PAGE_SIZE);
+  if (isClientFiltered.value) {
+    const start = (page.value - 1) * PAGE_SIZE;
+    return filteredTickets.value.slice(start, start + PAGE_SIZE);
+  }
+  return tickets.value; // сервер уже вернул нужную страницу
 });
 
-// Сброс страницы при смене клиентских фильтров
-watch(filteredTickets, () => { page.value = 1; });
-
-// Счётчик «новых» — по всем загруженным тикетам
+// Счётчик «новых» — по загруженным тикетам
 const unreadCount = computed(
   () => tickets.value.filter((t) => t.isNew).length
 );
@@ -207,13 +225,25 @@ const loadTickets = async () => {
   isLoading.value = true;
   error.value = "";
   try {
-    const params: LeadsParams = { limit: 1000 };
-    if (filters.value.status === "active") params.is_closed = false;
+    const params: LeadsParams = {};
+    // Серверные фильтры
+    if (filters.value.status === "active")  params.is_closed = false;
     else if (filters.value.status === "closed") params.is_closed = true;
     if (filters.value.dateFrom) params.date_from = filters.value.dateFrom + "T00:00:00";
     if (filters.value.dateTo)   params.date_to   = filters.value.dateTo   + "T23:59:59";
+
+    if (isClientFiltered.value) {
+      // Клиентский поиск: грузим все подходящие (до 500) для фильтрации
+      params.limit = 500;
+    } else {
+      // Серверная пагинация
+      params.skip  = (page.value - 1) * PAGE_SIZE;
+      params.limit = PAGE_SIZE;
+    }
+
     const res = await leadsApi.getList(params);
     tickets.value = res.leads.map(leadToTicket);
+    total.value   = res.total;
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Ошибка загрузки";
   } finally {
@@ -221,11 +251,21 @@ const loadTickets = async () => {
   }
 };
 
-// При изменении серверных фильтров (статус, даты) → перезагружаем
+// Смена страницы в серверном режиме → перезагружаем
+watch(page, () => {
+  if (!isClientFiltered.value) loadTickets();
+});
+
+// Серверные фильтры (статус, даты) → сброс страницы + перезагрузка
 watch(
   () => [filters.value.status, filters.value.dateFrom, filters.value.dateTo] as const,
-  () => loadTickets(),
+  () => { page.value = 1; loadTickets(); },
 );
+
+// Клиентские фильтры (поиск, источник) → сброс страницы; при переключении в/из режима → перезагрузка
+watch(isClientFiltered, () => { page.value = 1; loadTickets(); });
+watch(() => filters.value.search,  () => { page.value = 1; });
+watch(() => filters.value.source,  () => { page.value = 1; });
 
 const refresh = () => loadTickets();
 
@@ -321,7 +361,7 @@ onUnmounted(disconnectWs);
         :loading="isLoading"
         :page="page"
         :total-pages="totalPages"
-        :total-count="filteredTickets.length"
+        :total-count="displayTotal"
         @view-ticket="openTicket"
         @update:page="page = $event"
       />
