@@ -60,6 +60,15 @@ export interface LeadsParams {
   source_id?: string;
 }
 
+export interface MessageAttachment {
+  type: string;         // "sticker" | "photo" | "document" | ...
+  file_id: string;
+  is_animated: boolean;
+  is_video: boolean;
+  emoji?: string;
+  mime_type?: string;
+}
+
 export interface LeadMessage {
   id: number;
   lead_id: number;
@@ -69,6 +78,7 @@ export interface LeadMessage {
   content: string;
   read_at: string | null;
   created_at: string;
+  attachments?: MessageAttachment[];
 }
 
 export interface LeadMessagesResponse {
@@ -241,6 +251,11 @@ class LeadsApiService {
   getWsUrl(userId: number): string {
     const wsBase = this.baseUrl.replace(/^http/, "ws");
     return `${wsBase}/api/v1/leads/ws/${userId}`;
+  }
+
+  /** Прокси-URL для получения файла из Telegram по file_id */
+  telegramFileUrl(fileId: string): string {
+    return `${this.baseUrl}/api/v1/telegram-files/${fileId}`;
   }
 }
 

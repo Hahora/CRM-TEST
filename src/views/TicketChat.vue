@@ -4,8 +4,9 @@ import { useRoute, useRouter } from "vue-router";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import AppIcon from "@/components/AppIcon.vue";
+import "@lottiefiles/lottie-player"; // Регистрирует <lottie-player> web component
 import { leadsApi } from "@/services/leadsApi";
-import type { LeadStatus, LeadMessage } from "@/services/leadsApi";
+import type { LeadStatus, LeadMessage, MessageAttachment } from "@/services/leadsApi";
 import { clientsApi } from "@/services/clientsApi";
 import ClientCreateModal from "@/components/clients/ClientCreateModal.vue";
 import type { NewClientData } from "@/components/clients/ClientCreateModal.vue";
@@ -40,7 +41,15 @@ interface Message {
   sender: "client" | "support";
   timestamp: string;
   isRead: boolean;
+  attachments?: MessageAttachment[];
 }
+
+// ── Telegram file proxy ───────────────────────────────────────────────────────
+const telegramFileUrl = (fileId: string) => leadsApi.telegramFileUrl(fileId);
+
+// Возвращает массив стикеров сообщения (обычно 0 или 1 элемент)
+const stickersOf = (msg: Message): MessageAttachment[] =>
+  msg.attachments?.filter((a) => a.type === "sticker") ?? [];
 
 // ── Состояние ─────────────────────────────────────────────────────────────────
 
@@ -105,11 +114,12 @@ const connectWs = () => {
             pendingTexts.delete(data.content);
           }
           messages.value.push({
-            id:        data.message_id ? String(data.message_id) : Date.now().toString(),
-            text:      data.content,
+            id:          data.message_id ? String(data.message_id) : Date.now().toString(),
+            text:        data.content,
             sender,
-            timestamp: data.timestamp || new Date().toISOString(),
-            isRead:    false,
+            timestamp:   data.timestamp || new Date().toISOString(),
+            isRead:      false,
+            attachments: data.attachments || [],
           });
           scrollToBottom();
         }
@@ -158,11 +168,12 @@ const resetTextarea = () => {
 const onVpResize = () => scrollToBottom();
 
 const mapMessage = (m: LeadMessage): Message => ({
-  id:        String(m.id),
-  text:      m.content,
-  sender:    m.direction === "outgoing" ? "support" : "client",
-  timestamp: m.created_at,
-  isRead:    m.read_at != null,
+  id:          String(m.id),
+  text:        m.content,
+  sender:      m.direction === "outgoing" ? "support" : "client",
+  timestamp:   m.created_at,
+  isRead:      m.read_at != null,
+  attachments: m.attachments || [],
 });
 
 const load = async () => {
@@ -548,7 +559,50 @@ onUnmounted(() => {
               class="flex"
               :class="msg.sender === 'support' ? 'justify-end' : 'justify-start'"
             >
+              <!-- Стикеры — без подложки, просто медиа + время -->
+              <template v-if="stickersOf(msg).length">
+                <div
+                  v-for="sticker in stickersOf(msg)"
+                  :key="sticker.file_id"
+                  class="flex flex-col gap-0.5"
+                  :class="msg.sender === 'support' ? 'items-end' : 'items-start'"
+                >
+                  <!-- Статический .webp -->
+                  <img
+                    v-if="!sticker.is_animated && !sticker.is_video"
+                    :src="telegramFileUrl(sticker.file_id)"
+                    class="tc-sticker"
+                    alt="Стикер"
+                    loading="lazy"
+                  />
+                  <!-- Анимированный Lottie (.tgs) -->
+                  <lottie-player
+                    v-else-if="sticker.is_animated && !sticker.is_video"
+                    :src="telegramFileUrl(sticker.file_id)"
+                    autoplay
+                    loop
+                    class="tc-sticker"
+                  />
+                  <!-- Видео-стикер (.webm) -->
+                  <video
+                    v-else-if="sticker.is_video"
+                    :src="telegramFileUrl(sticker.file_id)"
+                    autoplay
+                    loop
+                    muted
+                    playsinline
+                    class="tc-sticker"
+                  />
+                  <!-- Время под стикером -->
+                  <div class="text-[11px] text-gray-400 px-1">
+                    {{ format(new Date(msg.timestamp), "HH:mm", { locale: ru }) }}
+                  </div>
+                </div>
+              </template>
+
+              <!-- Обычное текстовое сообщение -->
               <div
+                v-else
                 class="max-w-[80%] sm:max-w-sm md:max-w-md px-3.5 py-2.5 rounded-2xl"
                 :class="
                   msg.sender === 'support'
@@ -753,6 +807,21 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+/* ── Стикеры ─────────────────────────────────── */
+.tc-sticker {
+  width: 160px;
+  height: 160px;
+  object-fit: contain;
+  /* Без фона — стикер отображается "на воздухе" */
+}
+
+@media (max-width: 640px) {
+  .tc-sticker {
+    width: 128px;
+    height: 128px;
+  }
+}
+
 /* ── Textarea auto-resize (как в Telegram) ─── */
 .tc-textarea {
   resize: none;
