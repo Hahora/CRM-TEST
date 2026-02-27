@@ -21,6 +21,7 @@ interface Ticket {
   clientPhone?: string;
   clientEmail?: string;
   telegramId?: string;
+  telegramUsername?: string | null;
   maxId?: string;
   status: "active" | "resolved" | "unresolved" | "closed";
   priority: "urgent" | "high" | "medium" | "low";
@@ -62,11 +63,13 @@ const ticket        = ref<Ticket | null>(null);
 const messages      = ref<Message[]>([]);
 const statuses      = ref<LeadStatus[]>([]);
 const newMessage    = ref("");
-const closeStatusId = ref<number | null>(null);
 const isLoading     = ref(true);
+const isLoadingMore = ref(false);
+const hasMore       = ref(false);
 const isSending     = ref(false);
 const isClosing     = ref(false);
 const showInfo      = ref(false);
+const showCloseConfirm = ref(false);
 const sendError     = ref("");
 const messagesEl    = ref<HTMLElement>();
 const textareaEl    = ref<HTMLTextAreaElement>();
@@ -89,9 +92,6 @@ const getStatus = (s: string): { label: string; cls: string } => {
 };
 
 const getSourceLabel = (s: string) => (s === "telegram" ? "Telegram" : "МАКС");
-
-// Только финальные статусы — для закрытия тикета
-const finalStatuses = computed(() => statuses.value.filter((s) => s.is_final));
 
 // ── WebSocket ─────────────────────────────────────────────────────────────────
 
@@ -183,7 +183,7 @@ const load = async () => {
     const [lead, leadStatuses, msgResponse] = await Promise.all([
       leadsApi.getById(Number(ticketId.value)),
       leadsApi.getStatuses(),
-      leadsApi.getMessages(Number(ticketId.value)),
+      leadsApi.getMessages(Number(ticketId.value), { limit: 50 }),
     ]);
     statuses.value = leadStatuses;
 
@@ -212,8 +212,9 @@ const load = async () => {
     const lastMsg = msgResponse.messages[msgResponse.messages.length - 1];
     ticket.value = {
       id: String(lead.id), number: lead.id, clientName,
-      clientPhone:  client?.phone,
-      telegramId:   client?.telegram_id ? String(client.telegram_id) : undefined,
+      clientPhone:      client?.phone,
+      telegramId:       client?.telegram_id ? String(client.telegram_id) : undefined,
+      telegramUsername: lead.source_username ?? null,
       status, priority: "medium",
       source:       lead.source_type === "telegram" ? "telegram" : "max",
       subject:      cleanNotes.slice(0, 60) || `Тикет #${lead.id}`,
@@ -226,7 +227,8 @@ const load = async () => {
       isUnread: !lead.status.is_final,
     };
 
-    messages.value = msgResponse.messages.map(mapMessage);
+    messages.value     = msgResponse.messages.map(mapMessage);
+    hasMore.value      = msgResponse.total > msgResponse.messages.length;
     clientLinked.value = lead.client_id != null;
 
     connectWs();
@@ -273,16 +275,51 @@ const send = async () => {
   }
 };
 
+// Статус "закрыт" — единственный финальный
+const closedStatus  = computed(() => statuses.value.find((s) => s.is_final));
+
 const closeTicket = async () => {
-  if (closeStatusId.value == null || isClosing.value) return;
+  if (!closedStatus.value || isClosing.value) return;
   isClosing.value = true;
+  showCloseConfirm.value = false;
   try {
-    await leadsApi.changeStatus(Number(ticketId.value), closeStatusId.value);
+    await leadsApi.changeStatus(Number(ticketId.value), closedStatus.value.id);
     router.push("/tickets");
   } catch {
     isClosing.value = false;
   }
 };
+
+// Подгрузка более старых сообщений (скролл вверх)
+const loadMore = async () => {
+  if (isLoadingMore.value || !hasMore.value || messages.value.length === 0) return;
+  isLoadingMore.value = true;
+  try {
+    const firstId   = Number(messages.value[0]?.id ?? 0);
+    const response  = await leadsApi.getMessages(Number(ticketId.value), { limit: 50, before_id: firstId });
+    const older     = response.messages.map(mapMessage);
+    const prevScrollH = messagesEl.value?.scrollHeight ?? 0;
+    messages.value  = [...older, ...messages.value];
+    hasMore.value   = (messages.value.length < response.total);
+    // Сохраняем позицию скролла после prepend
+    await nextTick();
+    if (messagesEl.value) {
+      messagesEl.value.scrollTop = messagesEl.value.scrollHeight - prevScrollH;
+    }
+  } finally {
+    isLoadingMore.value = false;
+  }
+};
+
+// TG-ссылка для текущего тикета
+const tgLink = computed(() => {
+  if (!ticket.value) return null;
+  const un = ticket.value.telegramUsername;
+  const id = ticket.value.telegramId;
+  if (un)  return { text: `@${un}`, href: `https://t.me/${un}` };
+  if (id)  return { text: id,      href: `https://t.me/${id}` };
+  return null;
+});
 
 const goBack = () => router.push("/tickets");
 
@@ -338,6 +375,12 @@ const touchStartY = ref(0);
 const onTouchStart = (e: TouchEvent) => { touchStartY.value = e.touches[0]?.clientY ?? 0; };
 const onTouchEnd   = (e: TouchEvent) => {
   if ((e.changedTouches[0]?.clientY ?? 0) - touchStartY.value > 80) showInfo.value = false;
+};
+
+// Автозагрузка при скролле к верху
+const onMessagesScroll = () => {
+  if (!messagesEl.value || !hasMore.value || isLoadingMore.value) return;
+  if (messagesEl.value.scrollTop < 80) loadMore();
 };
 
 onMounted(() => {
@@ -478,9 +521,10 @@ onUnmounted(() => {
                   class="text-sm text-blue-600 hover:underline break-all"
                 >{{ ticket.clientEmail }}</a>
               </div>
-              <div v-if="ticket.telegramId" class="flex items-start gap-2">
+              <div v-if="tgLink" class="flex items-start gap-2">
                 <AppIcon name="send" :size="14" class="text-blue-500 mt-0.5 flex-shrink-0" />
-                <span class="text-sm text-gray-700">{{ ticket.telegramId }}</span>
+                <a :href="tgLink.href" target="_blank" rel="noopener noreferrer"
+                   class="text-sm text-blue-600 hover:underline">{{ tgLink.text }}</a>
               </div>
               <div v-if="ticket.maxId" class="flex items-start gap-2">
                 <AppIcon name="message-circle" :size="14" class="text-purple-500 mt-0.5 flex-shrink-0" />
@@ -525,24 +569,14 @@ onUnmounted(() => {
 
           <!-- Actions -->
           <div class="p-4 mt-auto">
-            <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Закрыть тикет</h3>
-            <div class="space-y-2">
-              <select
-                v-model="closeStatusId"
-                class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white"
-              >
-                <option :value="null">Выберите статус</option>
-                <option v-for="s in finalStatuses" :key="s.id" :value="s.id">{{ s.name }}</option>
-              </select>
-              <button
-                @click="closeTicket"
-                :disabled="closeStatusId == null || isClosing"
-                class="w-full flex items-center justify-center gap-2 px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              >
-                <AppIcon v-if="isClosing" name="refresh-cw" :size="14" class="animate-spin" />
-                {{ isClosing ? "Закрываю..." : "Закрыть тикет" }}
-              </button>
-            </div>
+            <button
+              @click="showCloseConfirm = true"
+              :disabled="isClosing || ticket.status === 'closed'"
+              class="w-full flex items-center justify-center gap-2 px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <AppIcon v-if="isClosing" name="refresh-cw" :size="14" class="animate-spin" />
+              {{ isClosing ? "Закрываю..." : "Закрыть тикет" }}
+            </button>
           </div>
         </aside>
 
@@ -552,7 +586,12 @@ onUnmounted(() => {
           <div
             ref="messagesEl"
             class="tc-messages flex-1 overflow-y-auto px-4 py-4 space-y-3"
+            @scroll="onMessagesScroll"
           >
+            <!-- Индикатор загрузки старых сообщений -->
+            <div v-if="isLoadingMore" class="flex justify-center py-2">
+              <AppIcon name="refresh-cw" :size="16" class="animate-spin text-gray-400" />
+            </div>
             <div
               v-for="msg in messages"
               :key="msg.id"
@@ -741,9 +780,10 @@ onUnmounted(() => {
                       <AppIcon name="phone" :size="14" class="text-gray-400" />
                       <a :href="`tel:${ticket.clientPhone}`" class="text-sm text-blue-600">{{ ticket.clientPhone }}</a>
                     </div>
-                    <div v-if="ticket.telegramId" class="flex items-center gap-2">
+                    <div v-if="tgLink" class="flex items-center gap-2">
                       <AppIcon name="send" :size="14" class="text-blue-500" />
-                      <span class="text-sm text-gray-700">{{ ticket.telegramId }}</span>
+                      <a :href="tgLink.href" target="_blank" rel="noopener noreferrer"
+                         class="text-sm text-blue-600 hover:underline">{{ tgLink.text }}</a>
                     </div>
                     <div v-if="ticket.maxId" class="flex items-center gap-2">
                       <AppIcon name="message-circle" :size="14" class="text-purple-500" />
@@ -771,24 +811,14 @@ onUnmounted(() => {
 
                 <!-- Close action -->
                 <div>
-                  <h4 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Закрыть тикет</h4>
-                  <div class="space-y-2">
-                    <select
-                      v-model="closeStatusId"
-                      class="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
-                    >
-                      <option :value="null">Выберите статус</option>
-                      <option v-for="s in finalStatuses" :key="s.id" :value="s.id">{{ s.name }}</option>
-                    </select>
-                    <button
-                      @click="closeTicket"
-                      :disabled="closeStatusId == null || isClosing"
-                      class="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                    >
-                      <AppIcon v-if="isClosing" name="refresh-cw" :size="14" class="animate-spin" />
-                      {{ isClosing ? "Закрываю..." : "Закрыть тикет" }}
-                    </button>
-                  </div>
+                  <button
+                    @click="showInfo = false; showCloseConfirm = true"
+                    :disabled="isClosing || ticket.status === 'closed'"
+                    class="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <AppIcon v-if="isClosing" name="refresh-cw" :size="14" class="animate-spin" />
+                    {{ isClosing ? "Закрываю..." : "Закрыть тикет" }}
+                  </button>
                 </div>
               </div>
             </div>
@@ -803,6 +833,37 @@ onUnmounted(() => {
       @close="showCreateModal = false"
       @create="createAndLinkClient"
     />
+
+    <!-- ── Подтверждение закрытия тикета ── -->
+    <Transition name="fade">
+      <div
+        v-if="showCloseConfirm"
+        class="fixed inset-0 z-50 flex items-center justify-center px-4"
+        @click.self="showCloseConfirm = false"
+      >
+        <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="showCloseConfirm = false" />
+        <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 flex flex-col gap-4">
+          <div class="flex flex-col gap-1">
+            <h3 class="text-base font-semibold text-gray-900">Закрыть тикет?</h3>
+            <p class="text-sm text-gray-500">После закрытия тикет перейдёт в статус «Закрыт» и диалог будет завершён.</p>
+          </div>
+          <div class="flex gap-2 justify-end">
+            <button
+              @click="showCloseConfirm = false"
+              class="px-4 py-2 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              Отмена
+            </button>
+            <button
+              @click="closeTicket"
+              class="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
+            >
+              Да, закрыть
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -868,4 +929,8 @@ onUnmounted(() => {
 .tc-sheet {
   padding-bottom: env(safe-area-inset-bottom);
 }
+
+/* ── Fade для модального окна ── */
+.fade-enter-active, .fade-leave-active { transition: opacity 150ms ease; }
+.fade-enter-from, .fade-leave-to       { opacity: 0; }
 </style>
