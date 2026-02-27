@@ -150,7 +150,7 @@ const rowBg = (ticket: Ticket) => {
                 :href="getTgLink(ticket)?.href"
                 target="_blank"
                 rel="noopener noreferrer"
-                class="flex items-center gap-1 text-xs text-blue-500 mt-0.5 hover:underline"
+                class="inline-flex items-center gap-1 text-xs text-blue-500 mt-0.5 hover:underline"
                 @click.stop
                 @mousedown.stop
                 @touchstart.stop
@@ -223,7 +223,7 @@ const rowBg = (ticket: Ticket) => {
                   :href="getTgLink(ticket)?.href"
                   target="_blank"
                   rel="noopener noreferrer"
-                  class="flex items-center gap-1 text-xs text-blue-500 mt-0.5 hover:underline"
+                  class="inline-flex items-center gap-1 text-xs text-blue-500 mt-0.5 hover:underline"
                   @click.stop
                   @mousedown.stop
                   @touchstart.stop
