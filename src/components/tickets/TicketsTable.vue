@@ -174,7 +174,7 @@ const rowBg = (ticket: Ticket) => {
           <thead>
             <tr class="border-b border-gray-100">
               <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">№</th>
-              <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Клиент</th>
+              <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Отправитель</th>
               <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Источник</th>
               <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Статус</th>
               <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Создан</th>
