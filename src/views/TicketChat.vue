@@ -10,7 +10,8 @@ import type { LeadStatus, LeadMessage, MessageAttachment } from "@/services/lead
 import { clientsApi } from "@/services/clientsApi";
 import ClientCreateModal from "@/components/clients/ClientCreateModal.vue";
 import type { NewClientData } from "@/components/clients/ClientCreateModal.vue";
-import { useAuth } from "@/composables/useAuth";
+import { useGlobalWs } from "@/composables/useGlobalWs";
+import type { GwsEvent } from "@/composables/useGlobalWs";
 
 // ── Типы ─────────────────────────────────────────────────────────────────────
 
@@ -56,7 +57,7 @@ const stickersOf = (msg: Message): MessageAttachment[] =>
 
 const route  = useRoute();
 const router = useRouter();
-const { user } = useAuth();
+const { addListener, addConnectedListener, sendAction } = useGlobalWs();
 
 const ticketId      = computed(() => route.params.id as string);
 const ticket        = ref<Ticket | null>(null);
@@ -78,10 +79,6 @@ const textareaEl    = ref<HTMLTextAreaElement>();
 const clientLinked    = ref(true);
 const showCreateModal = ref(false);
 
-let ws: WebSocket | null = null;
-let wsAttempt = 0;
-let wsTimer: ReturnType<typeof setTimeout> | null = null;
-
 // ── Справочники ───────────────────────────────────────────────────────────────
 
 const getStatus = (s: string): { label: string; cls: string } => {
@@ -95,70 +92,41 @@ const getStatus = (s: string): { label: string; cls: string } => {
 
 const getSourceLabel = (s: string) => (s === "telegram" ? "Telegram" : "МАКС");
 
-// ── WebSocket ─────────────────────────────────────────────────────────────────
+// ── WebSocket (глобальный синглтон) ───────────────────────────────────────────
 
-const connectWs = () => {
-  if (!user.value?.id) return;
-  if (wsTimer) { clearTimeout(wsTimer); wsTimer = null; }
-  try {
-    ws = new WebSocket(leadsApi.getWsUrl(user.value.id));
+const handleWsEvent = (data: GwsEvent) => {
+  if (String(data.lead_id) !== ticketId.value) return;
 
-    ws.onopen = () => {
-      wsAttempt = 0;
-      ws?.send(JSON.stringify({ action: "subscribe", lead_id: Number(ticketId.value) }));
-    };
+  if (data.type === "new_message") {
+    const sender: "client" | "support" = data.direction === "outgoing" ? "support" : "client";
+    if (data.message_id && messages.value.some((m) => m.id === String(data.message_id))) return;
+    if (data.direction === "outgoing" && data.content) pendingTexts.delete(data.content);
+    messages.value.push({
+      id:          data.message_id ? String(data.message_id) : Date.now().toString(),
+      text:        data.content,
+      sender,
+      timestamp:   data.timestamp || new Date().toISOString(),
+      isRead:      false,
+      attachments: data.attachments || [],
+    });
+    scrollToBottom();
 
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-
-        if (data.type === "new_message" && String(data.lead_id) === ticketId.value) {
-          const sender: "client" | "support" = data.direction === "outgoing" ? "support" : "client";
-          if (data.message_id && messages.value.some((m) => m.id === String(data.message_id))) return;
-          if (data.direction === "outgoing" && data.content) pendingTexts.delete(data.content);
-          messages.value.push({
-            id:          data.message_id ? String(data.message_id) : Date.now().toString(),
-            text:        data.content,
-            sender,
-            timestamp:   data.timestamp || new Date().toISOString(),
-            isRead:      false,
-            attachments: data.attachments || [],
-          });
-          scrollToBottom();
-
-        } else if (data.type === "lead_status_changed" && String(data.lead_id) === ticketId.value) {
-          if (ticket.value && data.status) {
-            const n = data.status.name.toLowerCase();
-            if      (!data.status.is_final)                                    ticket.value.status = "active";
-            else if (n.includes("не реш") || n.includes("unresolved"))         ticket.value.status = "unresolved";
-            else if (n.includes("реш")    || n.includes("resolved"))           ticket.value.status = "resolved";
-            else                                                                ticket.value.status = "closed";
-          }
-
-        }
-      } catch { /* ignore */ }
-    };
-
-    ws.onerror = () => { ws = null; };
-    ws.onclose = (e) => {
-      ws = null;
-      if (e.code === 4001) return; // Unauthorized — не реконнектиться
-      const delay = Math.min(1000 * Math.pow(2, wsAttempt), 30000);
-      wsAttempt++;
-      wsTimer = setTimeout(connectWs, delay);
-    };
-  } catch { /* WS недоступен */ }
-};
-
-const disconnectWs = () => {
-  if (wsTimer) { clearTimeout(wsTimer); wsTimer = null; }
-  wsAttempt = 0;
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ action: "unsubscribe", lead_id: Number(ticketId.value) }));
+  } else if (data.type === "lead_status_changed") {
+    if (ticket.value && data.status) {
+      const n = data.status.name.toLowerCase();
+      if      (!data.status.is_final)                                    ticket.value.status = "active";
+      else if (n.includes("не реш") || n.includes("unresolved"))         ticket.value.status = "unresolved";
+      else if (n.includes("реш")    || n.includes("resolved"))           ticket.value.status = "resolved";
+      else                                                                ticket.value.status = "closed";
+    }
   }
-  ws?.close();
-  ws = null;
 };
+
+let removeWsListener:  (() => void) | null = null;
+let removeConnectedCb: (() => void) | null = null;
+
+const subscribeToLead = () =>
+  sendAction({ action: "subscribe", lead_id: Number(ticketId.value) });
 
 // ── Методы ────────────────────────────────────────────────────────────────────
 
@@ -199,7 +167,6 @@ const mapMessage = (m: LeadMessage): Message => ({
 });
 
 const load = async () => {
-  disconnectWs(); // Закрываем предыдущий WS перед переподключением
   isLoading.value = true;
   try {
     const [lead, leadStatuses, msgResponse] = await Promise.all([
@@ -253,7 +220,7 @@ const load = async () => {
     hasMore.value      = msgResponse.total > msgResponse.messages.length;
     clientLinked.value = lead.client_id != null;
 
-    connectWs();
+    subscribeToLead();
     scrollToBottom();
   } catch {
     router.push("/tickets");
@@ -437,12 +404,16 @@ const onMessagesScroll = () => {
 };
 
 onMounted(() => {
+  removeWsListener  = addListener(handleWsEvent);
+  removeConnectedCb = addConnectedListener(subscribeToLead);
   load();
   window.visualViewport?.addEventListener("resize", onVpResize);
 });
 
 onUnmounted(() => {
-  disconnectWs();
+  sendAction({ action: "unsubscribe", lead_id: Number(ticketId.value) });
+  removeWsListener?.();
+  removeConnectedCb?.();
   window.visualViewport?.removeEventListener("resize", onVpResize);
 });
 </script>
@@ -508,6 +479,15 @@ onUnmounted(() => {
             >
               {{ getStatus(ticket.status).label }}
             </span>
+            <!-- Обновить -->
+            <button
+              @click="load"
+              :disabled="isLoading"
+              class="tc-touch-btn text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-colors disabled:opacity-40"
+              title="Обновить"
+            >
+              <AppIcon name="refresh-cw" :size="16" :class="{ 'animate-spin': isLoading }" />
+            </button>
             <!-- Экспорт чата -->
             <button
               @click="exportChat"
@@ -521,6 +501,15 @@ onUnmounted(() => {
 
           <!-- Mobile actions -->
           <div class="sm:hidden flex items-center flex-shrink-0">
+            <!-- Обновить -->
+            <button
+              @click="load"
+              :disabled="isLoading"
+              class="tc-touch-btn text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-colors disabled:opacity-40"
+              title="Обновить"
+            >
+              <AppIcon name="refresh-cw" :size="18" :class="{ 'animate-spin': isLoading }" />
+            </button>
             <!-- Экспорт -->
             <button
               @click="exportChat"
