@@ -214,8 +214,8 @@ const unreadCount = computed(
   () => tickets.value.filter((t) => t.isNew).length
 );
 
-// Синхронизируем счётчик с сайдбаром
-watch(unreadCount, (v) => { badgeNewCount.value = v; }, { immediate: true });
+// Синхронизируем счётчик с сайдбаром (без immediate — чтобы не сбрасывать в 0 при монтировании с пустым массивом)
+watch(unreadCount, (v) => { badgeNewCount.value = v; });
 
 const showStatsPanel = ref(false);
 
@@ -244,6 +244,8 @@ const loadTickets = async () => {
     const res = await leadsApi.getList(params);
     tickets.value = res.leads.map(leadToTicket);
     total.value   = res.total;
+    // Обновляем бейдж после реальной загрузки данных
+    badgeNewCount.value = tickets.value.filter((t) => t.isNew).length;
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Ошибка загрузки";
   } finally {
