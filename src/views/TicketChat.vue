@@ -716,6 +716,16 @@ onUnmounted(() => {
           <!-- Input -->
           <div class="tc-input-bar border-t border-gray-100 px-3 pt-2 flex-shrink-0">
             <form @submit.prevent="send" class="flex items-end gap-2">
+              <!-- Кнопка скрыть клавиатуру (только мобайл) -->
+              <button
+                type="button"
+                class="md:hidden flex-shrink-0 tc-touch-btn text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
+                @click="textareaEl?.blur()"
+                tabindex="-1"
+              >
+                <AppIcon name="chevron-down" :size="20" />
+              </button>
+
               <textarea
                 ref="textareaEl"
                 v-model="newMessage"
@@ -723,6 +733,9 @@ onUnmounted(() => {
                 placeholder="Написать сообщение..."
                 :disabled="isSending"
                 enterkeyhint="send"
+                autocomplete="off"
+                autocorrect="on"
+                spellcheck="true"
                 class="tc-textarea flex-1 px-3.5 py-2.5 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
                 @input="autoResize"
                 @keydown.enter.exact.prevent="send"

@@ -13,4 +13,24 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
+
+  /*
+   * Предотвращаем авто-зум iOS/Android при фокусе на input/select/textarea.
+   * iOS Safari зумирует, если font-size элемента < 16px.
+   * Применяем только на touch-устройствах (hover:none + pointer:coarse),
+   * чтобы не трогать десктоп.
+   */
+  @media (hover: none) and (pointer: coarse) {
+    input,
+    input[type="text"],
+    input[type="search"],
+    input[type="email"],
+    input[type="number"],
+    input[type="tel"],
+    input[type="date"],
+    select,
+    textarea {
+      font-size: 16px !important;
+    }
+  }
 }

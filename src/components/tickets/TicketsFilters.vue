@@ -63,6 +63,8 @@ const update = () => {
   emit("update:filters", { ...localFilters.value });
 };
 
+const blurTarget = (e: Event) => (e.target as HTMLElement).blur();
+
 const reset = () => {
   localFilters.value = {
     search: "",
@@ -93,7 +95,13 @@ const reset = () => {
         <input
           v-model="localFilters.search"
           @input="update"
+          @keydown.enter.prevent="blurTarget"
           type="text"
+          enterkeyhint="done"
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="none"
+          spellcheck="false"
           placeholder="Имя, @username, TG ID, №..."
           class="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
         />
