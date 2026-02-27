@@ -10,6 +10,7 @@ import type { LeadStatus, LeadMessage, MessageAttachment } from "@/services/lead
 import { clientsApi } from "@/services/clientsApi";
 import ClientCreateModal from "@/components/clients/ClientCreateModal.vue";
 import type { NewClientData } from "@/components/clients/ClientCreateModal.vue";
+import ClientSearchModal from "@/components/clients/ClientSearchModal.vue";
 import { useGlobalWs } from "@/composables/useGlobalWs";
 import type { GwsEvent } from "@/composables/useGlobalWs";
 
@@ -77,7 +78,8 @@ const textareaEl    = ref<HTMLTextAreaElement>();
 
 // ── Привязка клиента ──────────────────────────────────────────────────────────
 const clientLinked    = ref(true);
-const showCreateModal = ref(false);
+const showSearchModal = ref(false); // поиск существующего клиента
+const showCreateModal = ref(false); // создание нового клиента
 
 // ── Справочники ───────────────────────────────────────────────────────────────
 
@@ -355,6 +357,16 @@ const goBack = () => router.push("/tickets");
 
 // ── Создание и привязка клиента ──────────────────────────────────────────────
 
+/** Привязать существующего клиента по id */
+const linkExistingClient = async (clientId: number) => {
+  try {
+    await leadsApi.update(Number(ticketId.value), { client_id: clientId });
+    showSearchModal.value = false;
+    await load();
+  } catch { /* ignore */ }
+};
+
+/** Создать нового клиента и привязать */
 const createAndLinkClient = async (data: NewClientData) => {
   try {
     const newClient = await clientsApi.createClient(data);
@@ -550,7 +562,7 @@ onUnmounted(() => {
               <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wide">Клиент</h3>
               <button
                 v-if="!clientLinked"
-                @click="showCreateModal = true"
+                @click="showSearchModal = true"
                 class="flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100 transition-colors"
               >
                 <AppIcon name="user-plus" :size="11" />
@@ -833,7 +845,7 @@ onUnmounted(() => {
                     <h4 class="text-xs font-semibold text-gray-400 uppercase tracking-wide">Клиент</h4>
                     <button
                       v-if="!clientLinked"
-                      @click="showInfo = false; showCreateModal = true"
+                      @click="showInfo = false; showSearchModal = true"
                       class="flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100 transition-colors"
                     >
                       <AppIcon name="user-plus" :size="11" />
@@ -895,6 +907,14 @@ onUnmounted(() => {
         </div>
       </Transition>
     </template>
+
+    <!-- ── Поиск существующего клиента ── -->
+    <ClientSearchModal
+      :open="showSearchModal"
+      @close="showSearchModal = false"
+      @select="linkExistingClient"
+      @create-new="showSearchModal = false; showCreateModal = true"
+    />
 
     <!-- ── Модальное окно создания клиента ── -->
     <ClientCreateModal
