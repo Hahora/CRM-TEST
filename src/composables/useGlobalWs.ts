@@ -99,7 +99,7 @@ function doConnect(userId: number) {
       for (const fn of connectedCallbacks) { try { fn(); } catch { /* ignore */ } }
     };
     ws.onmessage = handleMsg;
-    ws.onerror = () => { ws = null; };
+    ws.onerror = () => { /* no-op — onclose всегда срабатывает после error */ };
     ws.onclose = (e) => {
       ws = null;
       if (e.code === 4001) return; // Unauthorized — no reconnect
@@ -118,7 +118,7 @@ export function useGlobalWs() {
    * Should be called once when the user is authenticated.
    */
   const init = async (userId: number, router: Router) => {
-    if (wsUserId === userId && ws) return; // already initialised for this user
+    if (wsUserId === userId) return; // already initialised for this user
     wsRouter = router;
     wsUserId = userId;
 
