@@ -311,6 +311,37 @@ const loadMore = async () => {
   }
 };
 
+// ── Разделители по дате (Telegram-стиль) ─────────────────────────────────────
+
+const formatDayLabel = (d: Date): string => {
+  const today     = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  const dayKey      = format(d, "yyyy-MM-dd");
+  const todayKey    = format(today, "yyyy-MM-dd");
+  const yestKey     = format(yesterday, "yyyy-MM-dd");
+  if (dayKey === todayKey) return "Сегодня";
+  if (dayKey === yestKey)  return "Вчера";
+  return d.getFullYear() === today.getFullYear()
+    ? format(d, "d MMMM", { locale: ru })
+    : format(d, "d MMMM yyyy", { locale: ru });
+};
+
+/** Map: msg.id → метка дня (только для первого сообщения в группе дня) */
+const dayLabelOf = computed(() => {
+  const map = new Map<string | number, string>();
+  let lastDay = "";
+  for (const msg of messages.value) {
+    const d   = new Date(msg.timestamp);
+    const key = format(d, "yyyy-MM-dd");
+    if (key !== lastDay) {
+      lastDay = key;
+      map.set(msg.id, formatDayLabel(d));
+    }
+  }
+  return map;
+});
+
 // TG-ссылка для текущего тикета
 const tgLink = computed(() => {
   if (!ticket.value) return null;
@@ -585,82 +616,94 @@ onUnmounted(() => {
           <!-- Messages -->
           <div
             ref="messagesEl"
-            class="tc-messages flex-1 overflow-y-auto px-4 py-4 space-y-3"
+            class="tc-messages flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3"
             @scroll="onMessagesScroll"
           >
             <!-- Индикатор загрузки старых сообщений -->
             <div v-if="isLoadingMore" class="flex justify-center py-2">
               <AppIcon name="refresh-cw" :size="16" class="animate-spin text-gray-400" />
             </div>
+
+            <!-- Каждое сообщение оборачиваем — вставляем разделитель дня перед ним -->
             <div
               v-for="msg in messages"
               :key="msg.id"
-              class="flex"
-              :class="msg.sender === 'support' ? 'justify-end' : 'justify-start'"
+              class="flex flex-col gap-3"
             >
-              <!-- Стикеры — без подложки, просто медиа + время -->
-              <template v-if="stickersOf(msg).length">
-                <div
-                  v-for="sticker in stickersOf(msg)"
-                  :key="sticker.file_id"
-                  class="flex flex-col gap-0.5"
-                  :class="msg.sender === 'support' ? 'items-end' : 'items-start'"
-                >
-                  <!-- Статический .webp -->
-                  <img
-                    v-if="!sticker.is_animated && !sticker.is_video"
-                    :src="telegramFileUrl(sticker.file_id)"
-                    class="tc-sticker"
-                    alt="Стикер"
-                    loading="lazy"
-                  />
-                  <!-- Анимированный Lottie (.tgs) -->
-                  <lottie-player
-                    v-else-if="sticker.is_animated && !sticker.is_video"
-                    :src="telegramFileUrl(sticker.file_id)"
-                    autoplay
-                    loop
-                    class="tc-sticker"
-                  />
-                  <!-- Видео-стикер (.webm) -->
-                  <video
-                    v-else-if="sticker.is_video"
-                    :src="telegramFileUrl(sticker.file_id)"
-                    autoplay
-                    loop
-                    muted
-                    playsinline
-                    class="tc-sticker"
-                  />
-                  <!-- Время под стикером -->
-                  <div class="text-[11px] text-gray-400 px-1">
-                    {{ format(new Date(msg.timestamp), "HH:mm", { locale: ru }) }}
-                  </div>
-                </div>
-              </template>
+              <!-- Разделитель дня (Telegram-стиль) -->
+              <div v-if="dayLabelOf.get(msg.id)" class="flex items-center justify-center">
+                <span class="tc-day-pill">{{ dayLabelOf.get(msg.id) }}</span>
+              </div>
 
-              <!-- Обычное текстовое сообщение -->
+              <!-- Строка сообщения -->
               <div
-                v-else
-                class="max-w-[80%] sm:max-w-sm md:max-w-md px-3.5 py-2.5 rounded-2xl"
-                :class="
-                  msg.sender === 'support'
-                    ? 'bg-blue-600 text-white rounded-br-sm'
-                    : 'bg-gray-100 text-gray-900 rounded-bl-sm'
-                "
+                class="flex"
+                :class="msg.sender === 'support' ? 'justify-end' : 'justify-start'"
               >
-                <p class="text-sm leading-relaxed whitespace-pre-wrap break-words">{{ msg.text }}</p>
+                <!-- Стикеры — без подложки, просто медиа + время -->
+                <template v-if="stickersOf(msg).length">
+                  <div
+                    v-for="sticker in stickersOf(msg)"
+                    :key="sticker.file_id"
+                    class="flex flex-col gap-0.5"
+                    :class="msg.sender === 'support' ? 'items-end' : 'items-start'"
+                  >
+                    <!-- Статический .webp -->
+                    <img
+                      v-if="!sticker.is_animated && !sticker.is_video"
+                      :src="telegramFileUrl(sticker.file_id)"
+                      class="tc-sticker"
+                      alt="Стикер"
+                      loading="lazy"
+                    />
+                    <!-- Анимированный Lottie (.tgs) -->
+                    <lottie-player
+                      v-else-if="sticker.is_animated && !sticker.is_video"
+                      :src="telegramFileUrl(sticker.file_id)"
+                      autoplay
+                      loop
+                      class="tc-sticker"
+                    />
+                    <!-- Видео-стикер (.webm) -->
+                    <video
+                      v-else-if="sticker.is_video"
+                      :src="telegramFileUrl(sticker.file_id)"
+                      autoplay
+                      loop
+                      muted
+                      playsinline
+                      class="tc-sticker"
+                    />
+                    <!-- Время под стикером -->
+                    <div class="text-[11px] text-gray-400 px-1">
+                      {{ format(new Date(msg.timestamp), "HH:mm", { locale: ru }) }}
+                    </div>
+                  </div>
+                </template>
+
+                <!-- Обычное текстовое сообщение -->
                 <div
-                  class="text-[11px] mt-1 flex items-center gap-1"
-                  :class="msg.sender === 'support' ? 'text-blue-200 justify-end' : 'text-gray-400'"
+                  v-else
+                  class="max-w-[80%] sm:max-w-sm md:max-w-md px-3.5 py-2.5 rounded-2xl"
+                  :class="
+                    msg.sender === 'support'
+                      ? 'bg-blue-600 text-white rounded-br-sm'
+                      : 'bg-gray-100 text-gray-900 rounded-bl-sm'
+                  "
                 >
-                  {{ format(new Date(msg.timestamp), "HH:mm", { locale: ru }) }}
-                  <AppIcon
-                    v-if="msg.sender === 'support'"
-                    name="check"
-                    :size="12"
-                    class="text-blue-200"
-                  />
+                  <p class="text-sm leading-relaxed whitespace-pre-wrap break-words">{{ msg.text }}</p>
+                  <div
+                    class="text-[11px] mt-1 flex items-center gap-1"
+                    :class="msg.sender === 'support' ? 'text-blue-200 justify-end' : 'text-gray-400'"
+                  >
+                    {{ format(new Date(msg.timestamp), "HH:mm", { locale: ru }) }}
+                    <AppIcon
+                      v-if="msg.sender === 'support'"
+                      name="check"
+                      :size="12"
+                      class="text-blue-200"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -928,6 +971,21 @@ onUnmounted(() => {
 /* ── Bottom sheet: safe area ── */
 .tc-sheet {
   padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* ── Разделитель дня (Telegram-стиль) ── */
+.tc-day-pill {
+  display: inline-block;
+  padding: 3px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #6b7280;          /* gray-500 */
+  background: rgba(0, 0, 0, 0.06);
+  backdrop-filter: blur(4px);
+  user-select: none;
+  white-space: nowrap;
+  letter-spacing: 0.01em;
 }
 
 /* ── Fade для модального окна ── */

@@ -10,7 +10,8 @@ export interface Ticket {
   clientName: string;
   clientPhone?: string;
   clientEmail?: string;
-  telegramId?: string;
+  telegramId?: string;           // source_id (числовой ID)
+  telegramUsername?: string | null; // source_username (без @)
   maxId?: string;
   clientLinked: boolean;
   status: "active" | "resolved" | "unresolved" | "closed";
@@ -25,6 +26,17 @@ export interface Ticket {
   messagesCount: number;
   isUnread: boolean;
 }
+
+/** Вычисляет TG-ссылку и отображаемый текст */
+const getTgLink = (ticket: Pick<Ticket, "telegramUsername" | "telegramId">) => {
+  if (ticket.telegramUsername) {
+    return { text: `@${ticket.telegramUsername}`, href: `https://t.me/${ticket.telegramUsername}` };
+  }
+  if (ticket.telegramId) {
+    return { text: ticket.telegramId, href: `https://t.me/${ticket.telegramId}` };
+  }
+  return null;
+};
 
 interface Props {
   tickets: Ticket[];
@@ -133,11 +145,18 @@ const getStatus = (s: string): { label: string; cls: string } => {
                   нет в базе
                 </span>
               </div>
-              <!-- TG if not in DB -->
-              <div v-if="!ticket.clientLinked && ticket.telegramId" class="flex items-center gap-1 text-xs text-blue-500 mt-0.5">
+              <!-- TG if not in DB (мобайл) -->
+              <a
+                v-if="!ticket.clientLinked && getTgLink(ticket)"
+                :href="getTgLink(ticket)?.href"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="flex items-center gap-1 text-xs text-blue-500 mt-0.5 hover:underline"
+                @click.stop
+              >
                 <AppIcon name="send" :size="10" />
-                {{ ticket.telegramId }}
-              </div>
+                {{ getTgLink(ticket)?.text }}
+              </a>
               <!-- Date -->
               <div class="text-xs text-gray-400 mt-0.5">
                 {{ format(new Date(ticket.updatedAt), "dd.MM.yy · HH:mm", { locale: ru }) }}
@@ -200,10 +219,17 @@ const getStatus = (s: string): { label: string; cls: string } => {
                   </span>
                 </div>
                 <div v-if="ticket.clientLinked && ticket.clientPhone" class="text-xs text-gray-400 mt-0.5">{{ ticket.clientPhone }}</div>
-                <div v-else-if="ticket.telegramId" class="flex items-center gap-1 text-xs text-blue-500 mt-0.5">
+                <a
+                  v-else-if="getTgLink(ticket)"
+                  :href="getTgLink(ticket)?.href"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="flex items-center gap-1 text-xs text-blue-500 mt-0.5 hover:underline"
+                  @click.stop
+                >
                   <AppIcon name="send" :size="10" />
-                  {{ ticket.telegramId }}
-                </div>
+                  {{ getTgLink(ticket)?.text }}
+                </a>
               </td>
 
               <!-- Источник -->
