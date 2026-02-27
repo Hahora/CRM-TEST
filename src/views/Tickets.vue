@@ -174,6 +174,23 @@ const loadStats = async () => {
   } catch { /* ignore */ }
 };
 
+// ── Пагинация (клиентская) ────────────────────────────────────────────────────
+
+const PAGE_SIZE = 20;
+const page = ref(1);
+
+const totalPages = computed(() =>
+  Math.max(1, Math.ceil(filteredTickets.value.length / PAGE_SIZE))
+);
+
+const paginatedTickets = computed(() => {
+  const start = (page.value - 1) * PAGE_SIZE;
+  return filteredTickets.value.slice(start, start + PAGE_SIZE);
+});
+
+// Сброс страницы при смене клиентских фильтров
+watch(filteredTickets, () => { page.value = 1; });
+
 // Счётчик «новых» — по всем загруженным тикетам
 const unreadCount = computed(
   () => tickets.value.filter((t) => t.isNew).length
@@ -300,9 +317,13 @@ onUnmounted(disconnectWs);
       />
 
       <TicketsTable
-        :tickets="filteredTickets"
+        :tickets="paginatedTickets"
         :loading="isLoading"
+        :page="page"
+        :total-pages="totalPages"
+        :total-count="filteredTickets.length"
         @view-ticket="openTicket"
+        @update:page="page = $event"
       />
     </div>
   </div>
