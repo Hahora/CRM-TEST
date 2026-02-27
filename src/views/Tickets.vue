@@ -8,7 +8,7 @@ import TicketsTable from "@/components/tickets/TicketsTable.vue";
 import type { Ticket } from "@/components/tickets/TicketsTable.vue";
 import type { TicketsFilters as TFilters } from "@/components/tickets/TicketsFilters.vue";
 import { leadsApi } from "@/services/leadsApi";
-import type { Lead, LeadStatus, WsNewMessage, WsNewLead } from "@/services/leadsApi";
+import type { Lead, LeadStatus, LeadsParams, WsNewMessage, WsNewLead } from "@/services/leadsApi";
 import { useAuth } from "@/composables/useAuth";
 import { useToast } from "@/composables/useToast";
 import { useTicketsBadge } from "@/composables/useTicketsBadge";
@@ -136,6 +136,7 @@ const filters = ref<TFilters>({
   dateTo: "",
 });
 
+/** Клиентская фильтрация: только поиск и источник */
 const filteredTickets = computed(() => {
   let result = tickets.value;
 
@@ -151,89 +152,27 @@ const filteredTickets = computed(() => {
     );
   }
 
-  if (filters.value.status !== "all")
-    result = result.filter((t) => t.status === filters.value.status);
-
   if (filters.value.source !== "all")
     result = result.filter((t) => t.source === filters.value.source);
-
-  if (filters.value.dateFrom) {
-    const from = new Date(filters.value.dateFrom).getTime();
-    result = result.filter((t) => new Date(t.createdAt).getTime() >= from);
-  }
-
-  if (filters.value.dateTo) {
-    const to = new Date(filters.value.dateTo).getTime() + 86400000;
-    result = result.filter((t) => new Date(t.createdAt).getTime() <= to);
-  }
 
   return result;
 });
 
 // ── Статистика ───────────────────────────────────────────────────────────────
 
+const apiStats = ref<{ active: number; closed: number } | null>(null);
+
 const stats = computed(() => {
-  const all = tickets.value;
-  const resolved = all.filter((t) => t.status === "resolved");
-  const avgResponseTime =
-    resolved.length > 0
-      ? Math.round(
-          resolved.reduce((sum, t) => {
-            if (!t.resolvedAt) return sum;
-            return (
-              sum +
-              (new Date(t.resolvedAt).getTime() -
-                new Date(t.createdAt).getTime()) /
-                60000
-            );
-          }, 0) / resolved.length
-        )
-      : 0;
-
-  return {
-    total: all.length,
-    active: all.filter((t) => t.status === "active").length,
-    resolved: resolved.length,
-    unresolved: all.filter((t) => t.status === "unresolved").length,
-    closed: all.filter((t) => t.status === "closed").length,
-    urgent: all.filter((t) => t.priority === "urgent").length,
-    high: all.filter((t) => t.priority === "high").length,
-    avgResponseTime,
-  };
+  const a = apiStats.value?.active ?? 0;
+  const c = apiStats.value?.closed ?? 0;
+  return { total: a + c, active: a, closed: c };
 });
 
-// ── Пагинация ─────────────────────────────────────────────────────────────────
-
-const PAGE_SIZE = 10;
-const page      = ref(1);
-const total     = ref(0); // total от сервера
-
-/** Активен хотя бы один фильтр → грузим всё, режем на клиенте */
-const isFiltered = computed(() =>
-  filters.value.search    !== ""  ||
-  filters.value.status    !== "all" ||
-  filters.value.source    !== "all" ||
-  filters.value.dateFrom  !== ""  ||
-  filters.value.dateTo    !== ""
-);
-
-/** Видимый total (для пагинации) */
-const displayTotal = computed(() =>
-  isFiltered.value ? filteredTickets.value.length : total.value
-);
-
-const totalPages = computed(() =>
-  Math.max(1, Math.ceil(displayTotal.value / PAGE_SIZE))
-);
-
-/** Срез для таблицы */
-const paginatedForTable = computed(() => {
-  if (isFiltered.value) {
-    const start = (page.value - 1) * PAGE_SIZE;
-    return filteredTickets.value.slice(start, start + PAGE_SIZE);
-  }
-  return filteredTickets.value; // сервер уже вернул limit=10
-});
+const loadStats = async () => {
+  try {
+    apiStats.value = await leadsApi.getStats();
+  } catch { /* ignore */ }
+};
 
 // Счётчик «новых» — по всем загруженным тикетам
 const unreadCount = computed(
@@ -251,18 +190,13 @@ const loadTickets = async () => {
   isLoading.value = true;
   error.value = "";
   try {
-    if (isFiltered.value) {
-      // Фильтры активны → загружаем всё для клиентской фильтрации
-      const res = await leadsApi.getList({ limit: 500 });
-      tickets.value = res.leads.map(leadToTicket);
-      total.value   = res.total;
-    } else {
-      // Серверная пагинация: skip + limit=10
-      const skip = (page.value - 1) * PAGE_SIZE;
-      const res  = await leadsApi.getList({ skip, limit: PAGE_SIZE });
-      tickets.value = res.leads.map(leadToTicket);
-      total.value   = res.total;
-    }
+    const params: LeadsParams = { limit: 1000 };
+    if (filters.value.status === "active") params.is_closed = false;
+    else if (filters.value.status === "closed") params.is_closed = true;
+    if (filters.value.dateFrom) params.date_from = filters.value.dateFrom + "T00:00:00";
+    if (filters.value.dateTo)   params.date_to   = filters.value.dateTo   + "T23:59:59";
+    const res = await leadsApi.getList(params);
+    tickets.value = res.leads.map(leadToTicket);
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Ошибка загрузки";
   } finally {
@@ -270,28 +204,20 @@ const loadTickets = async () => {
   }
 };
 
-// При смене страницы (серверный режим) → перезагружаем
-watch(page, () => {
-  if (!isFiltered.value) loadTickets();
-});
+// При изменении серверных фильтров (статус, даты) → перезагружаем
+watch(
+  () => [filters.value.status, filters.value.dateFrom, filters.value.dateTo] as const,
+  () => loadTickets(),
+);
 
-// При изменении фильтров → сбрасываем страницу и перезагружаем если нужно
-watch(isFiltered, () => {
-  page.value = 1;
-  loadTickets();
-});
-
-const refresh = () => {
-  page.value = 1;
-  loadTickets();
-};
+const refresh = () => loadTickets();
 
 const openTicket = (ticket: Ticket) => {
   router.push(`/tickets/${ticket.id}`);
 };
 
 onMounted(async () => {
-  await loadTickets();
+  await Promise.all([loadTickets(), loadStats()]);
   connectWs();
 });
 
@@ -374,13 +300,9 @@ onUnmounted(disconnectWs);
       />
 
       <TicketsTable
-        :tickets="paginatedForTable"
+        :tickets="filteredTickets"
         :loading="isLoading"
-        :page="page"
-        :total-pages="totalPages"
-        :total-count="displayTotal"
         @view-ticket="openTicket"
-        @update:page="page = $event"
       />
     </div>
   </div>

@@ -60,6 +60,14 @@ export interface LeadsParams {
   client_id?: number;
   source_type?: string;
   source_id?: string;
+  is_closed?: boolean;
+  date_from?: string;
+  date_to?: string;
+}
+
+export interface LeadsStats {
+  active: number;
+  closed: number;
 }
 
 export interface MessageAttachment {
@@ -187,6 +195,10 @@ class LeadsApiService {
 
   // ── Статусы ────────────────────────────────────────────────────────────────
 
+  getStats(): Promise<LeadsStats> {
+    return this.request<LeadsStats>("/api/v1/leads/stats");
+  }
+
   getStatuses(): Promise<LeadStatus[]> {
     return this.request<LeadStatus[]>("/api/v1/leads/statuses");
   }
@@ -202,6 +214,9 @@ class LeadsApiService {
     if (params.client_id != null)      q.set("client_id",       String(params.client_id));
     if (params.source_type != null)    q.set("source_type",     params.source_type);
     if (params.source_id != null)      q.set("source_id",       params.source_id);
+    if (params.is_closed != null)      q.set("is_closed",       String(params.is_closed));
+    if (params.date_from != null)      q.set("date_from",       params.date_from);
+    if (params.date_to != null)        q.set("date_to",         params.date_to);
     const qs = q.toString();
     return this.request<LeadsResponse>(`/api/v1/leads/${qs ? "?" + qs : ""}`);
   }
