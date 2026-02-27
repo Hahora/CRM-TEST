@@ -169,6 +169,13 @@ const load = async () => {
           .filter(Boolean).join(" ") || lead.assigned_to.login
       : undefined;
 
+    // Убираем строки смены статуса из notes перед использованием как subject
+    const cleanNotes = (lead.notes || "")
+      .split("\n")
+      .filter((l: string) => !l.startsWith("[Status changed"))
+      .join("\n")
+      .trim();
+
     const lastMsg = msgResponse.messages[msgResponse.messages.length - 1];
     ticket.value = {
       id: String(lead.id), number: lead.id, clientName,
@@ -176,7 +183,7 @@ const load = async () => {
       telegramId:   client?.telegram_id ? String(client.telegram_id) : undefined,
       status, priority: "medium",
       source:       lead.source_type === "telegram" ? "telegram" : "max",
-      subject:      lead.notes?.slice(0, 60) || `Лид #${lead.id}`,
+      subject:      cleanNotes.slice(0, 60) || `Тикет #${lead.id}`,
       lastMessage:  lastMsg?.content || lead.notes || "—",
       assignedTo:   assignedName,
       createdAt:    lead.created_at,

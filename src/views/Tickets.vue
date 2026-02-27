@@ -99,7 +99,7 @@ function leadToTicket(lead: Lead): Ticket {
     status: mapStatus(lead.status),
     priority: "medium",
     source: lead.source_type === "telegram" ? "telegram" : "max",
-    subject: lead.notes?.slice(0, 60) || `Лид #${lead.id}`,
+    subject: (lead.notes || "").split("\n").filter((l: string) => !l.startsWith("[Status changed")).join("\n").trim().slice(0, 60) || `Тикет #${lead.id}`,
     lastMessage: lead.notes || "—",
     assignedTo: assignedName,
     createdAt: lead.created_at,
