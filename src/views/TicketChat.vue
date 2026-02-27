@@ -426,7 +426,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="h-full overflow-hidden flex flex-col bg-gray-50">
+  <div class="flex-1 min-h-0 overflow-hidden flex flex-col bg-gray-50">
     <!-- Loading -->
     <div v-if="isLoading" class="flex-1 flex items-center justify-center">
       <div class="flex items-center gap-2 text-gray-400">
