@@ -1,4 +1,5 @@
 import { leadsApi } from "@/services/leadsApi";
+import { authService } from "@/services/auth";
 import type {
   WsNewLead,
   WsNewMessage,
@@ -105,6 +106,8 @@ function doConnect(userId: number) {
     ws.onclose = (e) => {
       ws = null;
       if (e.code === 4001) return; // Unauthorized — no reconnect
+      // Если токены уже сброшены (logout / refresh failed) — не переподключаемся
+      if (!authService.getAccessToken()) return;
       const delay = Math.min(1000 * Math.pow(2, wsAttempt), 30000);
       wsAttempt++;
       wsTimer = setTimeout(() => doConnect(userId), delay);

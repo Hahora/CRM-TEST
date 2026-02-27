@@ -228,6 +228,8 @@ class LeadsApiService {
         response = await doFetch();
       } catch {
         authService.clearTokens();
+        // Refresh провалился — сессия недействительна, редиректим на логин
+        window.location.replace("/login");
         throw new Error("Сессия истекла");
       }
     }
