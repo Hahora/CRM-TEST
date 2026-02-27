@@ -31,7 +31,7 @@ const handleSidebarCollapse = (collapsed: boolean) => {
 </script>
 
 <template>
-  <div class="h-screen h-[100dvh] overflow-hidden bg-gray-50">
+  <div class="h-screen h-[100dvh] flex flex-col overflow-hidden bg-gray-50">
     <!-- Global Loading Overlay -->
     <LoadingOverlay
       :is-visible="loadingState.isVisible"
@@ -48,8 +48,14 @@ const handleSidebarCollapse = (collapsed: boolean) => {
       <AppSidebar @toggle-collapse="handleSidebarCollapse" />
       <MobileMenu :is-open="isMobileMenuOpen" @close="closeMobileMenu" />
 
+      <!--
+        Спейсер на мобайле под fixed AppHeader (h-14 = 56px).
+        На десктопе (md+) хедер скрыт, спейсер не нужен.
+      -->
+      <div class="h-14 flex-shrink-0 md:hidden" aria-hidden="true" />
+
       <main
-        class="pt-14 md:pt-0 transition-all duration-200 h-full overflow-hidden"
+        class="flex-1 min-h-0 transition-all duration-200 overflow-hidden md:pt-0"
         :class="isSidebarCollapsed ? 'md:ml-16' : 'md:ml-64'"
       >
         <RouterView v-slot="{ Component }">
