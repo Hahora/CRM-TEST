@@ -33,7 +33,7 @@ const getTgLink = (ticket: Pick<Ticket, "telegramUsername" | "telegramId">) => {
     return { text: `@${ticket.telegramUsername}`, href: `https://t.me/${ticket.telegramUsername}` };
   }
   if (ticket.telegramId) {
-    return { text: ticket.telegramId, href: `https://t.me/${ticket.telegramId}` };
+    return { text: `ID: ${ticket.telegramId}`, href: `tg://user?id=${ticket.telegramId}` };
   }
   return null;
 };
@@ -153,6 +153,8 @@ const getStatus = (s: string): { label: string; cls: string } => {
                 rel="noopener noreferrer"
                 class="flex items-center gap-1 text-xs text-blue-500 mt-0.5 hover:underline"
                 @click.stop
+                @mousedown.stop
+                @touchstart.stop
               >
                 <AppIcon name="send" :size="10" />
                 {{ getTgLink(ticket)?.text }}
@@ -226,6 +228,8 @@ const getStatus = (s: string): { label: string; cls: string } => {
                   rel="noopener noreferrer"
                   class="flex items-center gap-1 text-xs text-blue-500 mt-0.5 hover:underline"
                   @click.stop
+                  @mousedown.stop
+                  @touchstart.stop
                 >
                   <AppIcon name="send" :size="10" />
                   {{ getTgLink(ticket)?.text }}

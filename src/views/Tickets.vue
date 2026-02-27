@@ -96,6 +96,7 @@ function leadToTicket(lead: Lead): Ticket {
       : lead.source_type === "telegram" && lead.source_id
         ? lead.source_id
         : undefined,
+    telegramUsername: lead.source_username ?? null,
     status: mapStatus(lead.status),
     priority: "medium",
     source: lead.source_type === "telegram" ? "telegram" : "max",
@@ -136,8 +137,9 @@ const filteredTickets = computed(() => {
       (t) =>
         t.number.toString().includes(q) ||
         t.clientName.toLowerCase().includes(q) ||
-        t.subject.toLowerCase().includes(q) ||
-        t.lastMessage.toLowerCase().includes(q)
+        (t.telegramUsername ?? "").toLowerCase().includes(q.replace(/^@/, "")) ||
+        (t.telegramId ?? "").toLowerCase().includes(q) ||
+        t.subject.toLowerCase().includes(q)
     );
   }
 

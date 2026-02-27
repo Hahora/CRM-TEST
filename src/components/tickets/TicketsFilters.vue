@@ -30,11 +30,9 @@ watch(
 );
 
 const statuses = [
-  { value: "all", label: "Все статусы" },
+  { value: "all",    label: "Все статусы" },
   { value: "active", label: "Активные" },
-  { value: "resolved", label: "Решены" },
-  { value: "unresolved", label: "Не решены" },
-  { value: "closed", label: "Закрыты" },
+  { value: "closed", label: "Закрытые" },
 ];
 
 const sources = [
@@ -84,7 +82,7 @@ const reset = () => {
           v-model="localFilters.search"
           @input="update"
           type="text"
-          placeholder="Поиск по тикетам..."
+          placeholder="Имя, @username, TG ID, №..."
           class="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
         />
       </div>

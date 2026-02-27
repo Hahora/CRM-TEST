@@ -348,7 +348,7 @@ const tgLink = computed(() => {
   const un = ticket.value.telegramUsername;
   const id = ticket.value.telegramId;
   if (un)  return { text: `@${un}`, href: `https://t.me/${un}` };
-  if (id)  return { text: id,      href: `https://t.me/${id}` };
+  if (id)  return { text: `ID: ${id}`, href: `tg://user?id=${id}` };
   return null;
 });
 
