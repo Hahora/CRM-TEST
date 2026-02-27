@@ -166,6 +166,7 @@ const mapMessage = (m: LeadMessage): Message => ({
 });
 
 const load = async () => {
+  disconnectWs(); // Закрываем предыдущий WS перед переподключением
   isLoading.value = true;
   try {
     const [lead, leadStatuses, msgResponse] = await Promise.all([
@@ -237,10 +238,11 @@ const send = async () => {
   const backup = newMessage.value;
   newMessage.value = "";
   resetTextarea();
+  // Добавляем ДО await — WS-событие может прийти раньше HTTP-ответа
+  pendingTexts.add(text);
   try {
     await leadsApi.sendMessage(Number(ticketId.value), text);
     // Ждём WS-подтверждения; если оно не придёт за 3 с — добавляем сами
-    pendingTexts.add(text);
     setTimeout(() => {
       if (pendingTexts.has(text)) {
         pendingTexts.delete(text);
@@ -254,6 +256,7 @@ const send = async () => {
   } catch (e) {
     sendError.value  = e instanceof Error ? e.message : "Не удалось отправить";
     newMessage.value = backup;
+    pendingTexts.delete(text); // Очищаем при ошибке
   } finally {
     isSending.value = false;
   }
