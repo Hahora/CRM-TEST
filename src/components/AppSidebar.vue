@@ -131,7 +131,13 @@ const isActiveRoute = (routePath: string) => {
 
         <!-- Menu Items -->
         <ul class="space-y-1 px-2">
-          <li v-for="item in section.items" :key="item.id">
+          <li v-for="item in section.items" :key="item.id" class="relative">
+            <!-- Dot-бейдж при свёрнутом сайдбаре -->
+            <span
+              v-if="isCollapsed && item.id === 'tickets' && ticketsNewCount > 0"
+              class="absolute top-0.5 right-0.5 z-10 min-w-[14px] h-[14px] px-0.5 flex items-center justify-center rounded-full bg-red-500 text-white text-[9px] font-bold leading-none pointer-events-none"
+            >{{ ticketsNewCount > 99 ? '99+' : ticketsNewCount }}</span>
+
             <button
               @click="navigateTo(item.route)"
               class="w-full flex items-center py-2 text-sm font-medium rounded-lg transition-colors"
@@ -143,26 +149,17 @@ const isActiveRoute = (routePath: string) => {
               ]"
               :title="isCollapsed ? item.title : undefined"
             >
-              <!-- Иконка с точкой-индикатором при свёрнутом сайдбаре -->
-              <span class="relative flex-shrink-0">
-                <AppIcon
-                  :name="asIcon(item.icon)"
-                  :size="20"
-                  :class="isActiveRoute(item.route) ? 'text-blue-600' : 'text-gray-500'"
-                />
-                <span
-                  v-if="isCollapsed && item.id === 'tickets' && ticketsNewCount > 0"
-                  class="absolute -top-1 -right-1 min-w-[14px] h-[14px] px-0.5 flex items-center justify-center rounded-full bg-red-500 text-white text-[9px] font-bold leading-none"
-                >{{ ticketsNewCount > 99 ? '99+' : ticketsNewCount }}</span>
-              </span>
-              <!-- Название + бейдж при развёрнутом сайдбаре -->
-              <template v-if="!isCollapsed">
-                <span class="truncate flex-1">{{ item.title }}</span>
-                <span
-                  v-if="item.id === 'tickets' && ticketsNewCount > 0"
-                  class="ml-auto min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold leading-none flex-shrink-0"
-                >{{ ticketsNewCount > 99 ? '99+' : ticketsNewCount }}</span>
-              </template>
+              <AppIcon
+                :name="asIcon(item.icon)"
+                :size="20"
+                :class="isActiveRoute(item.route) ? 'text-blue-600' : 'text-gray-500'"
+              />
+              <span v-if="!isCollapsed" class="truncate">{{ item.title }}</span>
+              <!-- Бейдж-счётчик при развёрнутом сайдбаре -->
+              <span
+                v-if="!isCollapsed && item.id === 'tickets' && ticketsNewCount > 0"
+                class="ml-auto min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold leading-none flex-shrink-0"
+              >{{ ticketsNewCount > 99 ? '99+' : ticketsNewCount }}</span>
             </button>
           </li>
         </ul>
