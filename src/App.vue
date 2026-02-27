@@ -31,7 +31,7 @@ const handleSidebarCollapse = (collapsed: boolean) => {
 </script>
 
 <template>
-  <div class="h-screen h-[100dvh] flex flex-col overflow-hidden bg-gray-50">
+  <div class="h-[100dvh] flex flex-col overflow-hidden bg-gray-50">
     <!-- Global Loading Overlay -->
     <LoadingOverlay
       :is-visible="loadingState.isVisible"

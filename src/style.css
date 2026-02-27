@@ -6,11 +6,14 @@
   }
 
   html,
-  body,
-  #app {
+  body {
     height: 100%;
     overflow: hidden;
     overscroll-behavior: none;
+  }
+
+  #app {
+    height: 100%;
   }
 
   body {
