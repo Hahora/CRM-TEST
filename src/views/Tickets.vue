@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from "vue";
+import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
 import AppIcon from "@/components/AppIcon.vue";
 import TicketsStats from "@/components/tickets/TicketsStats.vue";
@@ -11,10 +11,12 @@ import { leadsApi } from "@/services/leadsApi";
 import type { Lead, LeadStatus, WsNewMessage, WsNewLead } from "@/services/leadsApi";
 import { useAuth } from "@/composables/useAuth";
 import { useToast } from "@/composables/useToast";
+import { useTicketsBadge } from "@/composables/useTicketsBadge";
 
 const router = useRouter();
 const { user } = useAuth();
 const { addToast } = useToast();
+const { newCount: badgeNewCount } = useTicketsBadge();
 
 // ── WebSocket ─────────────────────────────────────────────────────────────────
 
@@ -43,13 +45,18 @@ const connectWs = () => {
           } catch { /* не удалось загрузить лид — пропускаем */ }
 
         } else if (data.type === "new_message") {
-          // Показываем только входящие на странице списка
-          if (data.direction === "outgoing") return;
           const t = tickets.value.find((t) => t.id === String(data.lead_id));
-          if (t) {
-            t.isUnread = true;
-            t.lastMessage = data.content;
-            t.updatedAt = data.timestamp ?? new Date().toISOString();
+          if (data.direction === "outgoing") {
+            // Менеджер ответил — снимаем флаг «Новый»
+            if (t) t.isNew = false;
+          } else {
+            // Входящее — помечаем как новый/непрочитанный
+            if (t) {
+              t.isNew = true;
+              t.isUnread = true;
+              t.lastMessage = data.content;
+              t.updatedAt = data.timestamp ?? new Date().toISOString();
+            }
           }
         }
       } catch { /* игнорируем невалидные сообщения */ }
@@ -107,7 +114,8 @@ function leadToTicket(lead: Lead): Ticket {
     updatedAt: lead.updated_at,
     resolvedAt: lead.status.is_final ? lead.updated_at : undefined,
     messagesCount: 0,
-    isUnread: !lead.status.is_final,
+    isUnread: lead.is_new,
+    isNew: lead.is_new,
   };
 }
 
@@ -195,8 +203,11 @@ const stats = computed(() => {
 });
 
 const unreadCount = computed(
-  () => tickets.value.filter((t) => t.isUnread).length
+  () => tickets.value.filter((t) => t.isNew).length
 );
+
+// Синхронизируем счётчик с сайдбаром
+watch(unreadCount, (v) => { badgeNewCount.value = v; }, { immediate: true });
 
 const showStatsPanel = ref(false);
 

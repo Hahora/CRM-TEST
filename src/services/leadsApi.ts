@@ -36,8 +36,10 @@ export interface Lead {
   source_type: string;
   source_id: string | null;
   source_name: string | null;
+  source_username?: string | null; // Telegram @username без @
   appointment_datetime: string | null;
   notes: string | null;
+  is_new: boolean;               // true — менеджер ещё не ответил
   created_at: string;
   updated_at: string;
   status: LeadStatus;
@@ -67,6 +69,8 @@ export interface MessageAttachment {
   is_video: boolean;
   emoji?: string;
   mime_type?: string;
+  width?: number;
+  height?: number;
 }
 
 export interface LeadMessage {
@@ -240,9 +244,13 @@ class LeadsApiService {
     });
   }
 
-  getMessages(id: number, skip = 0, limit = 200): Promise<LeadMessagesResponse> {
-    const q = new URLSearchParams({ skip: String(skip), limit: String(limit) });
-    return this.request<LeadMessagesResponse>(`/api/v1/leads/${id}/messages?${q}`);
+  getMessages(
+    id: number,
+    options: { limit?: number; before_id?: number } = {},
+  ): Promise<LeadMessagesResponse> {
+    const params = new URLSearchParams({ limit: String(options.limit ?? 50) });
+    if (options.before_id != null) params.set("before_id", String(options.before_id));
+    return this.request<LeadMessagesResponse>(`/api/v1/leads/${id}/messages?${params}`);
   }
 
   // ── WebSocket ─────────────────────────────────────────────────────────────
@@ -253,9 +261,11 @@ class LeadsApiService {
     return `${wsBase}/api/v1/leads/ws/${userId}`;
   }
 
-  /** Прокси-URL для получения файла из Telegram по file_id */
+  /** Прокси-URL для получения файла из Telegram по file_id (с токеном) */
   telegramFileUrl(fileId: string): string {
-    return `${this.baseUrl}/api/v1/telegram-files/${fileId}`;
+    const token = authService.getAccessToken();
+    const base  = `${this.baseUrl}/api/v1/telegram-files/${fileId}`;
+    return token ? `${base}?token=${encodeURIComponent(token)}` : base;
   }
 }
 

@@ -4,10 +4,12 @@ import { useRouter, useRoute } from "vue-router";
 import AppIcon from "./AppIcon.vue";
 import type { IconName } from "@/components/icons";
 import { useAuth } from "@/composables/useAuth";
+import { useTicketsBadge } from "@/composables/useTicketsBadge";
 
 const router = useRouter();
 const route = useRoute();
 const { userRole } = useAuth();
+const { newCount: ticketsNewCount } = useTicketsBadge();
 
 interface Props {
   isOpen: boolean;
@@ -199,7 +201,11 @@ const getSectionIndex = (sectionIdx: number): number => {
                   :size="18"
                   :class="isActiveRoute(item.route!) ? 'text-blue-600' : 'text-gray-500'"
                 />
-                <span>{{ item.title }}</span>
+                <span class="flex-1">{{ item.title }}</span>
+                <span
+                  v-if="item.id === 'tickets' && ticketsNewCount > 0"
+                  class="ml-auto min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold leading-none flex-shrink-0"
+                >{{ ticketsNewCount > 99 ? '99+' : ticketsNewCount }}</span>
               </button>
             </div>
           </div>

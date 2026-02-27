@@ -25,6 +25,7 @@ export interface Ticket {
   resolvedAt?: string;
   messagesCount: number;
   isUnread: boolean;
+  isNew: boolean; // lead.is_new — менеджер ещё не ответил
 }
 
 /** Вычисляет TG-ссылку и отображаемый текст */
@@ -49,7 +50,7 @@ const emit = defineEmits<{
   "view-ticket": [ticket: Ticket];
 }>();
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 10;
 const currentPage = ref(1);
 
 watch(() => props.tickets.length, () => { currentPage.value = 1; });
@@ -116,7 +117,7 @@ const getStatus = (s: string): { label: string; cls: string } => {
               :class="ticket.isUnread ? 'bg-blue-500' : 'bg-transparent'"
             />
             <div class="min-w-0 flex-1">
-              <!-- Row 1: number + source + status -->
+              <!-- Row 1: number + source + status + NEW badge -->
               <div class="flex items-center gap-1.5 flex-wrap mb-1">
                 <span class="text-xs font-mono font-semibold text-gray-500">#{{ ticket.number }}</span>
                 <span
@@ -131,6 +132,12 @@ const getStatus = (s: string): { label: string; cls: string } => {
                   :class="getStatus(ticket.status).cls"
                 >
                   {{ getStatus(ticket.status).label }}
+                </span>
+                <span
+                  v-if="ticket.isNew"
+                  class="px-1.5 py-0.5 rounded-md text-xs font-semibold bg-green-100 text-green-700"
+                >
+                  Новый
                 </span>
               </div>
               <!-- Client -->
@@ -249,12 +256,20 @@ const getStatus = (s: string): { label: string; cls: string } => {
 
               <!-- Статус -->
               <td class="px-4 py-3">
-                <span
-                  class="px-2 py-1 rounded-lg text-xs font-medium"
-                  :class="getStatus(ticket.status).cls"
-                >
-                  {{ getStatus(ticket.status).label }}
-                </span>
+                <div class="flex items-center gap-1.5">
+                  <span
+                    class="px-2 py-1 rounded-lg text-xs font-medium"
+                    :class="getStatus(ticket.status).cls"
+                  >
+                    {{ getStatus(ticket.status).label }}
+                  </span>
+                  <span
+                    v-if="ticket.isNew"
+                    class="px-2 py-1 rounded-lg text-xs font-semibold bg-green-100 text-green-700"
+                  >
+                    Новый
+                  </span>
+                </div>
               </td>
 
               <!-- Создан -->

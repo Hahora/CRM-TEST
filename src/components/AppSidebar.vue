@@ -3,10 +3,12 @@ import { ref, computed, onMounted } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import AppIcon from "./AppIcon.vue";
 import { useAuth } from "@/composables/useAuth";
+import { useTicketsBadge } from "@/composables/useTicketsBadge";
 
 const router = useRouter();
 const route = useRoute();
 const { user, userRole, roleLabel, fullName, logout } = useAuth();
+const { newCount: ticketsNewCount } = useTicketsBadge();
 
 const emit = defineEmits<{ (e: "toggle-collapse", collapsed: boolean): void }>();
 
@@ -77,6 +79,9 @@ const menuSections = computed(() =>
   allSections.filter((s) => !s.roles || s.roles.includes(userRole.value))
 );
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const asIcon = (s: string): any => s;
+
 const navigateTo = (routePath: string) => {
   router.push(routePath);
 };
@@ -138,12 +143,26 @@ const isActiveRoute = (routePath: string) => {
               ]"
               :title="isCollapsed ? item.title : undefined"
             >
-              <AppIcon
-                :name="item.icon as any"
-                :size="20"
-                :class="isActiveRoute(item.route) ? 'text-blue-600' : 'text-gray-500'"
-              />
-              <span v-if="!isCollapsed" class="truncate">{{ item.title }}</span>
+              <!-- Иконка с точкой-индикатором при свёрнутом сайдбаре -->
+              <span class="relative flex-shrink-0">
+                <AppIcon
+                  :name="asIcon(item.icon)"
+                  :size="20"
+                  :class="isActiveRoute(item.route) ? 'text-blue-600' : 'text-gray-500'"
+                />
+                <span
+                  v-if="isCollapsed && item.id === 'tickets' && ticketsNewCount > 0"
+                  class="absolute -top-1 -right-1 min-w-[14px] h-[14px] px-0.5 flex items-center justify-center rounded-full bg-red-500 text-white text-[9px] font-bold leading-none"
+                >{{ ticketsNewCount > 99 ? '99+' : ticketsNewCount }}</span>
+              </span>
+              <!-- Название + бейдж при развёрнутом сайдбаре -->
+              <template v-if="!isCollapsed">
+                <span class="truncate flex-1">{{ item.title }}</span>
+                <span
+                  v-if="item.id === 'tickets' && ticketsNewCount > 0"
+                  class="ml-auto min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold leading-none flex-shrink-0"
+                >{{ ticketsNewCount > 99 ? '99+' : ticketsNewCount }}</span>
+              </template>
             </button>
           </li>
         </ul>

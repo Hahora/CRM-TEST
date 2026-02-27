@@ -715,7 +715,15 @@ onUnmounted(() => {
 
           <!-- Input -->
           <div class="tc-input-bar border-t border-gray-100 px-3 pt-2 flex-shrink-0">
-            <form @submit.prevent="send" class="flex items-end gap-2">
+            <!-- Баннер закрытого тикета -->
+            <div
+              v-if="ticket.status === 'closed'"
+              class="mb-2 flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-gray-100 text-gray-500 text-xs font-medium"
+            >
+              <AppIcon name="lock" :size="13" />
+              Тикет закрыт — отправка сообщений недоступна
+            </div>
+            <form v-else @submit.prevent="send" class="flex items-end gap-2">
               <textarea
                 ref="textareaEl"
                 v-model="newMessage"
