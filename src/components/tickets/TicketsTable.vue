@@ -124,7 +124,7 @@ const getStatus = (s: string): { label: string; cls: string } => {
               <!-- Client -->
               <div class="flex items-center gap-1.5">
                 <span class="text-sm font-medium text-gray-900 truncate">
-                  {{ ticket.clientLinked ? ticket.clientName : (ticket.telegramId || ticket.clientName) }}
+                  {{ ticket.clientName }}
                 </span>
                 <span
                   v-if="!ticket.clientLinked"
@@ -190,7 +190,7 @@ const getStatus = (s: string): { label: string; cls: string } => {
               <td class="px-4 py-3">
                 <div class="flex items-center gap-1.5 flex-wrap">
                   <span class="text-sm font-medium text-gray-900">
-                    {{ ticket.clientLinked ? ticket.clientName : (ticket.telegramId || ticket.clientName) }}
+                    {{ ticket.clientName }}
                   </span>
                   <span
                     v-if="!ticket.clientLinked"
