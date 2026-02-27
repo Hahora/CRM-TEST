@@ -60,6 +60,21 @@ function handleMsg(event: MessageEvent) {
           newLeadIdSet.add(data.lead_id);
           badgeCount.value += 1;
         }
+        // Show toast, but skip if manager is already inside this ticket's chat
+        const currentPath = wsRouter?.currentRoute.value.path ?? "";
+        if (!currentPath.startsWith(`/tickets/${data.lead_id}`)) {
+          const title = data.client_name ?? `Тикет #${data.lead_id}`;
+          const preview = data.content ? data.content.slice(0, 80) : undefined;
+          addToast({
+            type: "info",
+            title,
+            message: preview,
+            action: {
+              label: "Перейти",
+              onClick: () => wsRouter?.push(`/tickets/${data.lead_id}`),
+            },
+          });
+        }
       } else {
         // Outgoing (manager replied) → ticket no longer "new"
         if (newLeadIdSet.has(data.lead_id)) {
