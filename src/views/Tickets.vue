@@ -184,7 +184,7 @@ const loadStats = async () => {
 
 // ── Пагинация ─────────────────────────────────────────────────────────────────
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 10;
 const page      = ref(1);
 const total     = ref(0); // total от сервера
 
