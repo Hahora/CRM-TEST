@@ -47,7 +47,14 @@ function handleMsg(event: MessageEvent) {
       if (!newLeadIdSet.has(data.lead_id)) {
         newLeadIdSet.add(data.lead_id);
         badgeCount.value += 1;
-        // Тост не показываем — следом придёт new_message с именем клиента и превью
+        addToast({
+          type: "info",
+          title: "Новый тикет",
+          action: {
+            label: "Перейти",
+            onClick: () => wsRouter?.push(`/tickets/${data.lead_id}`),
+          },
+        });
       }
     } else if (data.type === "new_message") {
       if (data.direction === "incoming") {
@@ -55,21 +62,6 @@ function handleMsg(event: MessageEvent) {
         if (!newLeadIdSet.has(data.lead_id)) {
           newLeadIdSet.add(data.lead_id);
           badgeCount.value += 1;
-        }
-        // Show toast, but skip if manager is already inside this ticket's chat
-        const currentPath = wsRouter?.currentRoute.value.path ?? "";
-        if (!currentPath.startsWith(`/tickets/${data.lead_id}`)) {
-          const title = data.client_name ?? data.source_name ?? `Тикет #${data.lead_id}`;
-          const preview = data.content ? data.content.slice(0, 80) : undefined;
-          addToast({
-            type: "info",
-            title,
-            message: preview,
-            action: {
-              label: "Перейти",
-              onClick: () => wsRouter?.push(`/tickets/${data.lead_id}`),
-            },
-          });
         }
       } else {
         // Outgoing (manager replied) → ticket no longer "new"
