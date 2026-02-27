@@ -13,6 +13,8 @@ import type { NewClientData } from "@/components/clients/ClientCreateModal.vue";
 import ClientSearchModal from "@/components/clients/ClientSearchModal.vue";
 import { useGlobalWs } from "@/composables/useGlobalWs";
 import type { GwsEvent } from "@/composables/useGlobalWs";
+import EmojiPicker from "vue3-emoji-picker";
+import "vue3-emoji-picker/css";
 
 // ── Типы ─────────────────────────────────────────────────────────────────────
 
@@ -80,6 +82,28 @@ const textareaEl    = ref<HTMLTextAreaElement>();
 const clientLinked    = ref(true);
 const showSearchModal = ref(false); // поиск существующего клиента
 const showCreateModal = ref(false); // создание нового клиента
+
+// ── Эмодзи-пикер ─────────────────────────────────────────────────────────────
+const showEmojiPicker = ref(false);
+
+const insertEmoji = (emoji: { i: string }) => {
+  const el = textareaEl.value;
+  showEmojiPicker.value = false;
+  if (!el) {
+    newMessage.value += emoji.i;
+    nextTick(autoResize);
+    return;
+  }
+  const start = el.selectionStart ?? newMessage.value.length;
+  const end   = el.selectionEnd   ?? newMessage.value.length;
+  newMessage.value =
+    newMessage.value.slice(0, start) + emoji.i + newMessage.value.slice(end);
+  nextTick(() => {
+    el.selectionStart = el.selectionEnd = start + emoji.i.length;
+    el.focus();
+    autoResize();
+  });
+};
 
 // ── Справочники ───────────────────────────────────────────────────────────────
 
@@ -784,6 +808,21 @@ onUnmounted(() => {
                 @input="autoResize"
                 @keydown="onTextareaKeydown"
               />
+              <!-- Emoji picker -->
+              <div class="relative flex-shrink-0">
+                <button
+                  type="button"
+                  class="tc-touch-btn text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-colors text-xl leading-none"
+                  title="Эмодзи"
+                  @click.stop="showEmojiPicker = !showEmojiPicker"
+                >😊</button>
+                <template v-if="showEmojiPicker">
+                  <div class="fixed inset-0 z-40" @click="showEmojiPicker = false" />
+                  <div class="absolute bottom-full right-0 mb-2 z-50" @click.stop>
+                    <EmojiPicker native @select="insertEmoji" />
+                  </div>
+                </template>
+              </div>
               <button
                 type="submit"
                 :disabled="!newMessage.trim() || isSending"

@@ -2,6 +2,8 @@
 import { ref, computed, watch, nextTick } from "vue";
 import AppIcon from "@/components/AppIcon.vue";
 import { type IconName } from "@/components/icons";
+import EmojiPicker from "vue3-emoji-picker";
+import "vue3-emoji-picker/css";
 
 interface Props {
   isOpen: boolean;
@@ -28,6 +30,26 @@ const form = ref({
 
 const isSubmitting = ref(false);
 const textareaRef = ref<HTMLTextAreaElement | null>(null);
+const showEmojiPicker = ref(false);
+
+const insertEmoji = (emoji: { i: string }) => {
+  const el = textareaRef.value;
+  showEmojiPicker.value = false;
+  if (!el) {
+    form.value.message += emoji.i;
+    nextTick(autoResize);
+    return;
+  }
+  const start = el.selectionStart ?? form.value.message.length;
+  const end   = el.selectionEnd   ?? form.value.message.length;
+  form.value.message =
+    form.value.message.slice(0, start) + emoji.i + form.value.message.slice(end);
+  nextTick(() => {
+    el.selectionStart = el.selectionEnd = start + emoji.i.length;
+    el.focus();
+    autoResize();
+  });
+};
 
 const audienceOptions = [
   { value: "all",                   label: "Все клиенты"             },
@@ -75,6 +97,7 @@ const resetForm = () => {
     sendNow: false,
   };
   if (textareaRef.value) textareaRef.value.style.height = "auto";
+  showEmojiPicker.value = false;
 };
 
 const handleOverlay = (e: MouseEvent) => {
@@ -193,10 +216,27 @@ watch(() => form.value.message, () => nextTick(autoResize));
 
                 <!-- Текст сообщения -->
                 <div class="cm-section">
-                  <h3 class="cm-section-title">
-                    Текст сообщения
-                    <span v-if="form.message" class="cm-count">{{ form.message.length }} симв.</span>
-                  </h3>
+                  <div class="cm-section-row">
+                    <h3 class="cm-section-title">
+                      Текст сообщения
+                      <span v-if="form.message" class="cm-count">{{ form.message.length }} симв.</span>
+                    </h3>
+                    <!-- Emoji picker -->
+                    <div class="relative">
+                      <button
+                        type="button"
+                        class="cm-emoji-btn"
+                        title="Эмодзи"
+                        @click.stop="showEmojiPicker = !showEmojiPicker"
+                      >😊</button>
+                      <template v-if="showEmojiPicker">
+                        <div class="fixed inset-0 z-40" @click="showEmojiPicker = false" />
+                        <div class="absolute top-full right-0 mt-1 z-50" @click.stop>
+                          <EmojiPicker native @select="insertEmoji" />
+                        </div>
+                      </template>
+                    </div>
+                  </div>
                   <textarea
                     ref="textareaRef"
                     v-model="form.message"
@@ -375,16 +415,37 @@ watch(() => form.value.message, () => nextTick(autoResize));
   border-bottom: 1px solid #e2e8f0;
 }
 .cm-section:last-of-type { border-bottom: none; }
+.cm-section-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 0 12px;
+}
 .cm-section-title {
   font: 700 11px/1 var(--fn, sans-serif);
   color: #0f172a;
-  margin: 0 0 12px;
+  margin: 0;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   display: flex;
   align-items: center;
   gap: 6px;
 }
+.cm-emoji-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  cursor: pointer;
+  font-size: 17px;
+  line-height: 1;
+  transition: background 150ms;
+}
+.cm-emoji-btn:hover { background: #f1f5f9; }
 .cm-count {
   font: 500 11px/1 var(--fn, sans-serif);
   text-transform: none;
