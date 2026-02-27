@@ -157,6 +157,16 @@ const resetTextarea = () => {
 // iOS visual viewport — прокручиваем вниз когда открывается клавиатура
 const onVpResize = () => scrollToBottom();
 
+// Enter → отправить (только на десктопе, без Shift); Shift+Enter → абзац
+const onTextareaKeydown = (e: KeyboardEvent) => {
+  if (e.key !== "Enter" || e.shiftKey) return;
+  // На тач-устройствах оставляем стандартное поведение (виртуальная клавиатура)
+  if (window.matchMedia("(hover: hover) and (pointer: fine)").matches) {
+    e.preventDefault();
+    send();
+  }
+};
+
 const mapMessage = (m: LeadMessage): Message => ({
   id:          String(m.id),
   text:        m.content,
@@ -747,6 +757,7 @@ onUnmounted(() => {
                 spellcheck="true"
                 class="tc-textarea flex-1 px-3.5 py-2.5 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
                 @input="autoResize"
+                @keydown="onTextareaKeydown"
               />
               <button
                 type="submit"
