@@ -62,6 +62,7 @@ import {
   Banknote,
   ThumbsDown,
   Sunset,
+  Download,
 } from "lucide-vue-next";
 
 export const iconComponents = {
@@ -128,6 +129,7 @@ export const iconComponents = {
   banknote: Banknote,
   "thumbs-down": ThumbsDown,
   sunset: Sunset,
+  download: Download,
 };
 
 export type IconName = keyof typeof iconComponents;

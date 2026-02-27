@@ -12,6 +12,7 @@ export interface Ticket {
   clientEmail?: string;
   telegramId?: string;
   maxId?: string;
+  clientLinked: boolean;
   status: "active" | "resolved" | "unresolved" | "closed";
   priority: "urgent" | "high" | "medium" | "low";
   source: "telegram" | "max";
@@ -55,6 +56,15 @@ const getSource = (s: string): { label: string; cls: string } => {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const getSourceIcon = (s: string): any => (s === "telegram" ? "send" : "message-circle");
+
+const getStatus = (s: string): { label: string; cls: string } => {
+  switch (s) {
+    case "active":     return { label: "Активен",  cls: "bg-yellow-100 text-yellow-700" };
+    case "resolved":   return { label: "Решён",    cls: "bg-green-100 text-green-700"   };
+    case "unresolved": return { label: "Не решён", cls: "bg-red-100 text-red-700"       };
+    default:           return { label: "Закрыт",   cls: "bg-gray-100 text-gray-600"     };
+  }
+};
 </script>
 
 <template>
@@ -94,9 +104,9 @@ const getSourceIcon = (s: string): any => (s === "telegram" ? "send" : "message-
               :class="ticket.isUnread ? 'bg-blue-500' : 'bg-transparent'"
             />
             <div class="min-w-0 flex-1">
-              <!-- Badges -->
+              <!-- Row 1: number + source + status -->
               <div class="flex items-center gap-1.5 flex-wrap mb-1">
-                <span class="text-xs font-mono text-gray-400">#{{ ticket.number }}</span>
+                <span class="text-xs font-mono font-semibold text-gray-500">#{{ ticket.number }}</span>
                 <span
                   class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-xs font-medium"
                   :class="getSource(ticket.source).cls"
@@ -104,15 +114,33 @@ const getSourceIcon = (s: string): any => (s === "telegram" ? "send" : "message-
                   <AppIcon :name="getSourceIcon(ticket.source)" :size="10" />
                   {{ getSource(ticket.source).label }}
                 </span>
+                <span
+                  class="px-1.5 py-0.5 rounded-md text-xs font-medium"
+                  :class="getStatus(ticket.status).cls"
+                >
+                  {{ getStatus(ticket.status).label }}
+                </span>
               </div>
-              <!-- Subject -->
-              <div class="text-sm font-medium text-gray-900 truncate">{{ ticket.subject }}</div>
               <!-- Client -->
-              <div class="text-xs text-gray-600 truncate mt-0.5">{{ ticket.clientName }}</div>
-              <!-- Meta -->
+              <div class="flex items-center gap-1.5">
+                <span class="text-sm font-medium text-gray-900 truncate">
+                  {{ ticket.clientLinked ? ticket.clientName : (ticket.telegramId || ticket.clientName) }}
+                </span>
+                <span
+                  v-if="!ticket.clientLinked"
+                  class="flex-shrink-0 text-[10px] font-medium text-orange-600 bg-orange-50 border border-orange-100 px-1 py-0.5 rounded"
+                >
+                  нет в базе
+                </span>
+              </div>
+              <!-- TG if not in DB -->
+              <div v-if="!ticket.clientLinked && ticket.telegramId" class="flex items-center gap-1 text-xs text-blue-500 mt-0.5">
+                <AppIcon name="send" :size="10" />
+                {{ ticket.telegramId }}
+              </div>
+              <!-- Date -->
               <div class="text-xs text-gray-400 mt-0.5">
                 {{ format(new Date(ticket.updatedAt), "dd.MM.yy · HH:mm", { locale: ru }) }}
-                <span v-if="ticket.assignedTo"> · {{ ticket.assignedTo }}</span>
               </div>
             </div>
             <AppIcon name="chevron-right" :size="16" class="text-gray-300 flex-shrink-0 mt-1" />
@@ -125,10 +153,10 @@ const getSourceIcon = (s: string): any => (s === "telegram" ? "send" : "message-
         <table class="w-full">
           <thead>
             <tr class="border-b border-gray-100">
-              <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Тикет</th>
+              <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">№</th>
               <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Клиент</th>
               <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Источник</th>
-              <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Назначен</th>
+              <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Статус</th>
               <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Обновлён</th>
               <th class="px-4 py-2.5 w-10"></th>
             </tr>
@@ -141,33 +169,44 @@ const getSourceIcon = (s: string): any => (s === "telegram" ? "send" : "message-
               :class="{ 'bg-blue-50/50': ticket.isUnread }"
               @click="emit('view-ticket', ticket)"
             >
+              <!-- Номер -->
               <td class="px-4 py-3">
-                <div class="flex items-center gap-2.5">
+                <div class="flex items-center gap-2">
                   <div
                     class="w-1.5 h-1.5 rounded-full flex-shrink-0"
                     :class="ticket.isUnread ? 'bg-blue-500' : 'bg-transparent'"
                   />
-                  <div class="min-w-0">
-                    <div class="flex items-center gap-1.5">
-                      <span class="text-xs font-mono text-gray-400">#{{ ticket.number }}</span>
-                      <span v-if="ticket.messagesCount > 0" class="inline-flex items-center gap-1 text-xs text-gray-400">
-                        <AppIcon name="message-square" :size="11" />
-                        {{ ticket.messagesCount }}
-                      </span>
-                    </div>
-                    <div class="text-sm font-medium text-gray-900 truncate max-w-[180px]">{{ ticket.subject }}</div>
-                    <div class="text-xs text-gray-400 truncate max-w-[180px]">{{ ticket.lastMessage }}</div>
+                  <div class="flex items-center gap-1.5">
+                    <span class="text-sm font-mono font-semibold text-gray-700">#{{ ticket.number }}</span>
+                    <span v-if="ticket.messagesCount > 0" class="inline-flex items-center gap-1 text-xs text-gray-400">
+                      <AppIcon name="message-square" :size="11" />
+                      {{ ticket.messagesCount }}
+                    </span>
                   </div>
                 </div>
               </td>
+
+              <!-- Клиент -->
               <td class="px-4 py-3">
-                <div class="text-sm font-medium text-gray-900">{{ ticket.clientName }}</div>
-                <div v-if="ticket.clientPhone" class="text-xs text-gray-400">{{ ticket.clientPhone }}</div>
-                <div v-else-if="ticket.telegramId" class="flex items-center gap-1 text-xs text-blue-500">
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <span class="text-sm font-medium text-gray-900">
+                    {{ ticket.clientLinked ? ticket.clientName : (ticket.telegramId || ticket.clientName) }}
+                  </span>
+                  <span
+                    v-if="!ticket.clientLinked"
+                    class="text-[10px] font-medium text-orange-600 bg-orange-50 border border-orange-100 px-1.5 py-0.5 rounded-md"
+                  >
+                    нет в базе
+                  </span>
+                </div>
+                <div v-if="ticket.clientLinked && ticket.clientPhone" class="text-xs text-gray-400 mt-0.5">{{ ticket.clientPhone }}</div>
+                <div v-else-if="ticket.telegramId" class="flex items-center gap-1 text-xs text-blue-500 mt-0.5">
                   <AppIcon name="send" :size="10" />
                   {{ ticket.telegramId }}
                 </div>
               </td>
+
+              <!-- Источник -->
               <td class="px-4 py-3">
                 <div
                   class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium"
@@ -177,13 +216,23 @@ const getSourceIcon = (s: string): any => (s === "telegram" ? "send" : "message-
                   {{ getSource(ticket.source).label }}
                 </div>
               </td>
+
+              <!-- Статус -->
               <td class="px-4 py-3">
-                <span class="text-sm text-gray-600">{{ ticket.assignedTo || "—" }}</span>
+                <span
+                  class="px-2 py-1 rounded-lg text-xs font-medium"
+                  :class="getStatus(ticket.status).cls"
+                >
+                  {{ getStatus(ticket.status).label }}
+                </span>
               </td>
+
+              <!-- Обновлён -->
               <td class="px-4 py-3">
                 <div class="text-xs text-gray-600">{{ format(new Date(ticket.updatedAt), "dd.MM.yyyy", { locale: ru }) }}</div>
                 <div class="text-xs text-gray-400">{{ format(new Date(ticket.updatedAt), "HH:mm", { locale: ru }) }}</div>
               </td>
+
               <td class="px-4 py-3 text-right">
                 <div class="opacity-0 group-hover:opacity-100 transition-opacity">
                   <AppIcon name="chevron-right" :size="16" class="text-gray-400" />

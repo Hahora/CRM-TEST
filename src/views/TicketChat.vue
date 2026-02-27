@@ -256,6 +256,39 @@ const createAndLinkClient = async (data: NewClientData) => {
   } catch { /* ignore */ }
 };
 
+// ── Экспорт чата ─────────────────────────────────────────────────────────────
+
+const exportChat = () => {
+  if (!ticket.value || messages.value.length === 0) return;
+
+  const t = ticket.value;
+  const header = [
+    `Чат тикета #${t.number}`,
+    `Клиент: ${t.clientName}${t.clientPhone ? ` · ${t.clientPhone}` : ""}${t.telegramId ? ` · TG ${t.telegramId}` : ""}`,
+    `Статус: ${t.status}  Источник: ${t.source === "telegram" ? "Telegram" : "МАКС"}`,
+    `Дата выгрузки: ${new Date().toLocaleString("ru-RU")}`,
+    "─".repeat(50),
+    "",
+  ].join("\n");
+
+  const body = messages.value
+    .map((m) => {
+      const who = m.sender === "support" ? "Поддержка" : "Клиент    ";
+      const ts  = new Date(m.timestamp).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" });
+      return `[${ts}] ${who}: ${m.text}`;
+    })
+    .join("\n");
+
+  const content = header + body + `\n\n${"─".repeat(50)}\nВсего сообщений: ${messages.value.length}`;
+  const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href     = url;
+  a.download = `ticket-${t.number}-chat.txt`;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
 // ── Touch-swipe ───────────────────────────────────────────────────────────────
 
 const touchStartY = ref(0);
@@ -318,21 +351,11 @@ onUnmounted(disconnectWs);
             <div class="flex items-center gap-2">
               <span class="text-xs font-mono text-gray-400">#{{ ticket.number }}</span>
               <span class="text-sm font-semibold text-gray-900 truncate">{{ ticket.clientName }}</span>
-              <!-- Кнопка привязки клиента -->
-              <button
-                v-if="!clientLinked"
-                @click="showCreateModal = true"
-                class="flex-shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-md text-xs font-medium bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100 transition-colors"
-                title="Привязать клиента"
-              >
-                <AppIcon name="user-plus" :size="11" />
-                <span class="hidden sm:inline">Клиент</span>
-              </button>
             </div>
             <p class="text-xs text-gray-500 truncate">{{ ticket.subject }}</p>
           </div>
 
-          <!-- Badges (desktop) -->
+          <!-- Badges + actions (desktop) -->
           <div class="hidden sm:flex items-center gap-2 flex-shrink-0">
             <span
               class="px-2 py-0.5 rounded-full text-xs font-medium"
@@ -340,15 +363,36 @@ onUnmounted(disconnectWs);
             >
               {{ getStatus(ticket.status).label }}
             </span>
+            <!-- Экспорт чата -->
+            <button
+              @click="exportChat"
+              :disabled="messages.length === 0"
+              class="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-40"
+              title="Выгрузить чат"
+            >
+              <AppIcon name="download" :size="16" />
+            </button>
           </div>
 
-          <!-- Info button (mobile) -->
-          <button
-            @click="showInfo = true"
-            class="sm:hidden p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <AppIcon name="info" :size="18" />
-          </button>
+          <!-- Mobile actions -->
+          <div class="sm:hidden flex items-center gap-1 flex-shrink-0">
+            <!-- Экспорт -->
+            <button
+              @click="exportChat"
+              :disabled="messages.length === 0"
+              class="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-40"
+              title="Выгрузить чат"
+            >
+              <AppIcon name="download" :size="17" />
+            </button>
+            <!-- Инфо -->
+            <button
+              @click="showInfo = true"
+              class="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <AppIcon name="info" :size="17" />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -580,7 +624,17 @@ onUnmounted(disconnectWs);
 
                 <!-- Client -->
                 <div>
-                  <h4 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Клиент</h4>
+                  <div class="flex items-center justify-between mb-2">
+                    <h4 class="text-xs font-semibold text-gray-400 uppercase tracking-wide">Клиент</h4>
+                    <button
+                      v-if="!clientLinked"
+                      @click="showInfo = false; showCreateModal = true"
+                      class="flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100 transition-colors"
+                    >
+                      <AppIcon name="user-plus" :size="11" />
+                      Привязать
+                    </button>
+                  </div>
                   <div class="space-y-2">
                     <div class="flex items-center gap-2">
                       <AppIcon name="user" :size="14" class="text-gray-400" />

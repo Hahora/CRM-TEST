@@ -90,6 +90,7 @@ function leadToTicket(lead: Lead): Ticket {
     number: lead.id,
     clientName,
     clientPhone: client?.phone,
+    clientLinked: lead.client_id != null,
     telegramId: client?.telegram_id
       ? String(client.telegram_id)
       : lead.source_type === "telegram" && lead.source_id
