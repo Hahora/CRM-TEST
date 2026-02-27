@@ -361,9 +361,11 @@ const goBack = () => router.push("/tickets");
  *  1. PUT /api/v1/clients/{id}/full — обновляем telegram_id у клиента
  *  2. PUT /api/v1/leads/{id}       — привязываем client_id к лиду
  */
+const isLinking = ref(false);
+
 const linkExistingClient = async (clientId: number) => {
+  isLinking.value = true;
   try {
-    // Telegram-идентификатор из тикета (@username приоритетнее числового id)
     const telegramId = ticket.value?.telegramUsername
       ? `@${ticket.value.telegramUsername}`
       : ticket.value?.telegramId ?? undefined;
@@ -372,7 +374,9 @@ const linkExistingClient = async (clientId: number) => {
     await leadsApi.update(Number(ticketId.value), { client_id: clientId });
     showSearchModal.value = false;
     await load();
-  } catch { /* ignore */ }
+  } catch { /* ignore */ } finally {
+    isLinking.value = false;
+  }
 };
 
 /** Создать нового клиента и привязать */
@@ -920,6 +924,7 @@ onUnmounted(() => {
     <!-- ── Поиск существующего клиента ── -->
     <ClientSearchModal
       :open="showSearchModal"
+      :linking="isLinking"
       @close="showSearchModal = false"
       @select="linkExistingClient"
       @create-new="showSearchModal = false; showCreateModal = true"

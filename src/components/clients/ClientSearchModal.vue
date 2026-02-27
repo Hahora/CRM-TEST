@@ -5,6 +5,7 @@ import AppIcon from "@/components/AppIcon.vue";
 
 interface Props {
   open: boolean;
+  linking?: boolean; // true пока идёт привязка (показываем спиннер на кнопке)
 }
 
 const props = defineProps<Props>();
@@ -26,6 +27,7 @@ const query      = ref("");
 const results    = ref<ClientRow[]>([]);
 const isLoading  = ref(false);
 const noResults  = ref(false);
+const linkingId  = ref<number | null>(null); // id клиента, который сейчас привязывается
 let   searchTimer: ReturnType<typeof setTimeout> | null = null;
 
 const reset = () => {
@@ -33,11 +35,17 @@ const reset = () => {
   results.value   = [];
   noResults.value = false;
   isLoading.value = false;
+  linkingId.value = null;
   if (searchTimer) { clearTimeout(searchTimer); searchTimer = null; }
 };
 
 watch(() => props.open, (open) => {
   if (open) reset();
+});
+
+// Сбрасываем linkingId когда привязка завершилась (родитель убрал linking=true)
+watch(() => props.linking, (val) => {
+  if (!val) linkingId.value = null;
 });
 
 const doSearch = async (q: string) => {
@@ -71,6 +79,8 @@ const onInput = () => {
 };
 
 const select = (client: ClientRow) => {
+  if (props.linking) return; // не позволяем двойной клик
+  linkingId.value = client.id;
   emit("select", client.id);
 };
 </script>
@@ -161,9 +171,17 @@ const select = (client: ClientRow) => {
               </div>
               <button
                 @click="select(client)"
-                class="flex-shrink-0 px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+                :disabled="linking"
+                class="flex-shrink-0 px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100 inline-flex items-center gap-1.5"
+                :class="{ 'opacity-100': linkingId === client.id }"
               >
-                Выбрать
+                <AppIcon
+                  v-if="linkingId === client.id && linking"
+                  name="refresh-cw"
+                  :size="11"
+                  class="animate-spin"
+                />
+                {{ linkingId === client.id && linking ? 'Привязываю...' : 'Выбрать' }}
               </button>
             </li>
           </ul>
