@@ -90,7 +90,9 @@ function handleMsg(event: MessageEvent) {
 // ── Internal connect ───────────────────────────────────────────────────────────
 
 function doConnect(userId: number) {
-  if (ws) return; // already connected
+  // CONNECTING(0) или OPEN(1) — уже подключены
+  if (ws && ws.readyState < WebSocket.CLOSING) return;
+  ws = null; // сбросить stale CLOSED-ссылку если вдруг осталась
   if (wsTimer) { clearTimeout(wsTimer); wsTimer = null; }
   try {
     ws = new WebSocket(leadsApi.getWsUrl(userId));
@@ -175,4 +177,19 @@ export function useGlobalWs() {
   };
 
   return { init, disconnect, addListener, sendAction, addConnectedListener };
+}
+
+// ── Vite HMR cleanup ──────────────────────────────────────────────────────────
+// При горячей замене модуля (сохранение файла в dev-режиме) закрываем старый WS,
+// иначе ghost-соединение остаётся живым и дублирует handleMsg → дублируются тосты.
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    if (wsTimer) { clearTimeout(wsTimer); wsTimer = null; }
+    if (ws) { ws.onclose = null; ws.onerror = null; ws.onmessage = null; ws.close(); ws = null; }
+    wsUserId = null;
+    wsAttempt = 0;
+    newLeadIdSet.clear();
+    listeners.clear();
+    connectedCallbacks.clear();
+  });
 }
