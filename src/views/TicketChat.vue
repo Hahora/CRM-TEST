@@ -359,7 +359,6 @@ onUnmounted(disconnectWs);
               <span class="text-xs font-mono text-gray-400">#{{ ticket.number }}</span>
               <span class="text-sm font-semibold text-gray-900 truncate">{{ ticket.clientName }}</span>
             </div>
-            <p class="text-xs text-gray-500 truncate">{{ ticket.subject }}</p>
           </div>
 
           <!-- Badges + actions (desktop) -->
