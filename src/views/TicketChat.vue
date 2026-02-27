@@ -607,7 +607,7 @@ onUnmounted(() => {
           <div class="p-4 mt-auto">
             <button
               @click="showCloseConfirm = true"
-              :disabled="isClosing || ticket.status === 'closed'"
+              :disabled="isClosing || ticket.status !== 'active'"
               class="w-full flex items-center justify-center gap-2 px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               <AppIcon v-if="isClosing" name="refresh-cw" :size="14" class="animate-spin" />
@@ -728,11 +728,11 @@ onUnmounted(() => {
           <div class="tc-input-bar border-t border-gray-100 px-3 pt-2 flex-shrink-0">
             <!-- Баннер закрытого тикета -->
             <div
-              v-if="ticket.status === 'closed'"
+              v-if="ticket.status !== 'active'"
               class="mb-2 flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-gray-100 text-gray-500 text-xs font-medium"
             >
               <AppIcon name="lock" :size="13" />
-              Тикет закрыт — отправка сообщений недоступна
+              {{ ticket.status === 'resolved' ? 'Тикет решён' : ticket.status === 'unresolved' ? 'Тикет не решён' : 'Тикет закрыт' }} — отправка сообщений недоступна
             </div>
             <form v-else @submit.prevent="send" class="flex items-end gap-2">
               <textarea
@@ -871,7 +871,7 @@ onUnmounted(() => {
                 <div>
                   <button
                     @click="showInfo = false; showCloseConfirm = true"
-                    :disabled="isClosing || ticket.status === 'closed'"
+                    :disabled="isClosing || ticket.status !== 'active'"
                     class="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                   >
                     <AppIcon v-if="isClosing" name="refresh-cw" :size="14" class="animate-spin" />

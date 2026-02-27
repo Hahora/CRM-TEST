@@ -31,6 +31,9 @@ const newLeadIdSet = new Set<number>();
 /** Page-level subscribers (Tickets.vue etc.) */
 const listeners = new Set<EventListener>();
 
+/** Callbacks fired every time WS (re)connects — used by TicketChat to re-subscribe. */
+const connectedCallbacks = new Set<() => void>();
+
 const { newCount: badgeCount } = useTicketsBadge();
 
 // ── Internal message handler ───────────────────────────────────────────────────
@@ -63,7 +66,7 @@ function handleMsg(event: MessageEvent) {
         // Show toast, but skip if manager is already inside this ticket's chat
         const currentPath = wsRouter?.currentRoute.value.path ?? "";
         if (!currentPath.startsWith(`/tickets/${data.lead_id}`)) {
-          const title = data.client_name ?? `Тикет #${data.lead_id}`;
+          const title = data.client_name ?? data.source_name ?? `Тикет #${data.lead_id}`;
           const preview = data.content ? data.content.slice(0, 80) : undefined;
           addToast({
             type: "info",
@@ -106,7 +109,10 @@ function doConnect(userId: number) {
   if (wsTimer) { clearTimeout(wsTimer); wsTimer = null; }
   try {
     ws = new WebSocket(leadsApi.getWsUrl(userId));
-    ws.onopen = () => { wsAttempt = 0; };
+    ws.onopen = () => {
+      wsAttempt = 0;
+      for (const fn of connectedCallbacks) { try { fn(); } catch { /* ignore */ } }
+    };
     ws.onmessage = handleMsg;
     ws.onerror = () => { ws = null; };
     ws.onclose = (e) => {
@@ -163,5 +169,25 @@ export function useGlobalWs() {
     return () => listeners.delete(fn);
   };
 
-  return { init, disconnect, addListener };
+  /**
+   * Send an action over the global WS (e.g. subscribe/unsubscribe).
+   * Does nothing if the WS is not currently open.
+   */
+  const sendAction = (data: Record<string, unknown>): void => {
+    if (ws?.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify(data));
+    }
+  };
+
+  /**
+   * Register a callback that fires every time the WS (re)connects.
+   * Use this in TicketChat to re-subscribe after a reconnect.
+   * Returns a cleanup function.
+   */
+  const addConnectedListener = (fn: () => void): (() => void) => {
+    connectedCallbacks.add(fn);
+    return () => connectedCallbacks.delete(fn);
+  };
+
+  return { init, disconnect, addListener, sendAction, addConnectedListener };
 }

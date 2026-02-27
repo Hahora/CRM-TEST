@@ -127,8 +127,9 @@ export interface WsNewMessage {
   content: string;
   direction: "incoming" | "outgoing";
   sender: "client" | "manager";
-  senderName?: string | null;
+  sender_name?: string | null;
   client_name?: string;
+  source_name?: string | null;
   source_type?: string;
   attachments?: MessageAttachment[];
   timestamp: string;
