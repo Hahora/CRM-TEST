@@ -79,6 +79,12 @@ const clientLinked    = ref(true);
 const showCreateModal = ref(false);
 
 let ws: WebSocket | null = null;
+let wsAttempt   = 0;
+let wsTimer: ReturnType<typeof setTimeout> | null = null;
+let typingTimer: ReturnType<typeof setTimeout> | null = null;
+let lastTypingSent = 0;
+
+const peerTyping = ref<string | null>(null);
 
 // ── Справочники ───────────────────────────────────────────────────────────────
 
@@ -97,22 +103,23 @@ const getSourceLabel = (s: string) => (s === "telegram" ? "Telegram" : "МАКС
 
 const connectWs = () => {
   if (!user.value?.id) return;
+  if (wsTimer) { clearTimeout(wsTimer); wsTimer = null; }
   try {
     ws = new WebSocket(leadsApi.getWsUrl(user.value.id));
+
     ws.onopen = () => {
+      wsAttempt = 0;
       ws?.send(JSON.stringify({ action: "subscribe", lead_id: Number(ticketId.value) }));
     };
+
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
+
         if (data.type === "new_message" && String(data.lead_id) === ticketId.value) {
           const sender: "client" | "support" = data.direction === "outgoing" ? "support" : "client";
-          // Не дублируем — если уже есть по message_id
           if (data.message_id && messages.value.some((m) => m.id === String(data.message_id))) return;
-          // Снимаем pending-флаг для этого текста (если это наш исходящий)
-          if (data.direction === "outgoing" && data.content) {
-            pendingTexts.delete(data.content);
-          }
+          if (data.direction === "outgoing" && data.content) pendingTexts.delete(data.content);
           messages.value.push({
             id:          data.message_id ? String(data.message_id) : Date.now().toString(),
             text:        data.content,
@@ -122,20 +129,55 @@ const connectWs = () => {
             attachments: data.attachments || [],
           });
           scrollToBottom();
+
+        } else if (data.type === "lead_status_changed" && String(data.lead_id) === ticketId.value) {
+          if (ticket.value && data.status) {
+            const n = data.status.name.toLowerCase();
+            if      (!data.status.is_final)                                    ticket.value.status = "active";
+            else if (n.includes("не реш") || n.includes("unresolved"))         ticket.value.status = "unresolved";
+            else if (n.includes("реш")    || n.includes("resolved"))           ticket.value.status = "resolved";
+            else                                                                ticket.value.status = "closed";
+          }
+
+        } else if (data.type === "typing" && String(data.lead_id) === ticketId.value) {
+          if (data.user_name) {
+            peerTyping.value = data.user_name;
+            if (typingTimer) clearTimeout(typingTimer);
+            typingTimer = setTimeout(() => { peerTyping.value = null; }, 5000);
+          }
         }
       } catch { /* ignore */ }
     };
+
     ws.onerror = () => { ws = null; };
-    ws.onclose = () => { ws = null; };
+    ws.onclose = (e) => {
+      ws = null;
+      if (e.code === 4001) return; // Unauthorized — не реконнектиться
+      const delay = Math.min(1000 * Math.pow(2, wsAttempt), 30000);
+      wsAttempt++;
+      wsTimer = setTimeout(connectWs, delay);
+    };
   } catch { /* WS недоступен */ }
 };
 
 const disconnectWs = () => {
+  if (wsTimer) { clearTimeout(wsTimer); wsTimer = null; }
+  if (typingTimer) { clearTimeout(typingTimer); typingTimer = null; }
+  wsAttempt = 0;
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ action: "unsubscribe", lead_id: Number(ticketId.value) }));
   }
   ws?.close();
   ws = null;
+};
+
+/** Отправляем typing-событие (не чаще 1 раза в 3 сек) */
+const sendTyping = () => {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  const now = Date.now();
+  if (now - lastTypingSent < 3000) return;
+  lastTypingSent = now;
+  ws.send(JSON.stringify({ action: "typing", lead_id: Number(ticketId.value) }));
 };
 
 // ── Методы ────────────────────────────────────────────────────────────────────
@@ -702,6 +744,20 @@ onUnmounted(() => {
               </div>
             </div>
 
+            <!-- Typing indicator (другой менеджер набирает сообщение) -->
+            <Transition name="tc-fade">
+              <div v-if="peerTyping" class="flex justify-start">
+                <div class="bg-gray-100 text-gray-500 px-3.5 py-2 rounded-2xl rounded-bl-sm flex items-center gap-1.5">
+                  <span class="text-xs">{{ peerTyping }} печатает</span>
+                  <span class="flex gap-0.5 items-center">
+                    <span class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay:0ms" />
+                    <span class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay:150ms" />
+                    <span class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay:300ms" />
+                  </span>
+                </div>
+              </div>
+            </Transition>
+
             <!-- Sending indicator -->
             <div v-if="isSending" class="flex justify-end">
               <div class="bg-blue-600 text-white px-3.5 py-2.5 rounded-2xl rounded-br-sm">
@@ -736,6 +792,7 @@ onUnmounted(() => {
                 spellcheck="true"
                 class="tc-textarea flex-1 px-3.5 py-2.5 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
                 @input="autoResize"
+                @keydown="sendTyping"
               />
               <button
                 type="submit"
@@ -995,4 +1052,8 @@ onUnmounted(() => {
 /* ── Fade для модального окна ── */
 .fade-enter-active, .fade-leave-active { transition: opacity 150ms ease; }
 .fade-enter-from, .fade-leave-to       { opacity: 0; }
+
+/* ── Typing indicator ── */
+.tc-fade-enter-active, .tc-fade-leave-active { transition: all 200ms ease; }
+.tc-fade-enter-from, .tc-fade-leave-to       { opacity: 0; transform: translateY(6px); }
 </style>

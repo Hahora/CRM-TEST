@@ -8,7 +8,7 @@ import TicketsTable from "@/components/tickets/TicketsTable.vue";
 import type { Ticket } from "@/components/tickets/TicketsTable.vue";
 import type { TicketsFilters as TFilters } from "@/components/tickets/TicketsFilters.vue";
 import { leadsApi } from "@/services/leadsApi";
-import type { Lead, LeadStatus, LeadsParams, WsNewMessage, WsNewLead } from "@/services/leadsApi";
+import type { Lead, LeadStatus, LeadsParams, WsNewMessage, WsNewLead, WsLeadStatusChanged, WsLeadUpdated } from "@/services/leadsApi";
 import { useAuth } from "@/composables/useAuth";
 import { useToast } from "@/composables/useToast";
 import { useTicketsBadge } from "@/composables/useTicketsBadge";
@@ -21,25 +21,35 @@ const { newCount: badgeNewCount } = useTicketsBadge();
 // ── WebSocket ─────────────────────────────────────────────────────────────────
 
 let ws: WebSocket | null = null;
+let wsAttempt = 0;
+let wsTimer: ReturnType<typeof setTimeout> | null = null;
+
+const mapTicketStatus = (status: { name: string; is_final: boolean }): "active" | "resolved" | "unresolved" | "closed" => {
+  if (!status.is_final) return "active";
+  const n = status.name.toLowerCase();
+  if (n.includes("не реш") || n.includes("unresolved")) return "unresolved";
+  if (n.includes("реш")    || n.includes("resolved"))   return "resolved";
+  return "closed";
+};
 
 const connectWs = () => {
   if (!user.value?.id) return;
+  if (wsTimer) { clearTimeout(wsTimer); wsTimer = null; }
   try {
     ws = new WebSocket(leadsApi.getWsUrl(user.value.id));
 
+    ws.onopen = () => { wsAttempt = 0; };
+
     ws.onmessage = async (event: MessageEvent) => {
       try {
-        const data: WsNewLead | WsNewMessage = JSON.parse(event.data);
+        const data: WsNewLead | WsNewMessage | WsLeadStatusChanged | WsLeadUpdated = JSON.parse(event.data);
 
         if (data.type === "new_lead") {
-          // Не дублируем, если уже есть
           if (tickets.value.some((t) => t.id === String(data.lead_id))) return;
           try {
             const lead = await leadsApi.getById(data.lead_id);
-            // В серверном режиме добавляем только на первой странице
             if (page.value === 1) {
               tickets.value.unshift(leadToTicket(lead));
-              // Сохраняем размер страницы
               if (!isClientFiltered.value && tickets.value.length > PAGE_SIZE)
                 tickets.value.pop();
             }
@@ -50,15 +60,13 @@ const connectWs = () => {
               title: "Новый тикет",
               action: { label: "Перейти", onClick: () => router.push(`/tickets/${data.lead_id}`) },
             });
-          } catch { /* не удалось загрузить лид — пропускаем */ }
+          } catch { /* не удалось загрузить лид */ }
 
         } else if (data.type === "new_message") {
           const t = tickets.value.find((t) => t.id === String(data.lead_id));
           if (data.direction === "outgoing") {
-            // Менеджер ответил — снимаем флаг «Новый»
             if (t) t.isNew = false;
           } else {
-            // Входящее — помечаем как новый/непрочитанный
             if (t) {
               t.isNew = true;
               t.isUnread = true;
@@ -66,16 +74,35 @@ const connectWs = () => {
               t.updatedAt = data.timestamp ?? new Date().toISOString();
             }
           }
+
+        } else if (data.type === "lead_updated") {
+          const t = tickets.value.find((t) => t.id === String(data.lead_id));
+          if (t && data.is_new === false) t.isNew = false;
+
+        } else if (data.type === "lead_status_changed") {
+          const t = tickets.value.find((t) => t.id === String(data.lead_id));
+          if (t) {
+            t.status = mapTicketStatus(data.status);
+            if (data.is_new === false) t.isNew = false;
+          }
         }
       } catch { /* игнорируем невалидные сообщения */ }
     };
 
     ws.onerror = () => { ws = null; };
-    ws.onclose = () => { ws = null; };
+    ws.onclose = (e) => {
+      ws = null;
+      if (e.code === 4001) return; // Unauthorized — не реконнектиться
+      const delay = Math.min(1000 * Math.pow(2, wsAttempt), 30000);
+      wsAttempt++;
+      wsTimer = setTimeout(connectWs, delay);
+    };
   } catch { /* WS недоступен */ }
 };
 
 const disconnectWs = () => {
+  if (wsTimer) { clearTimeout(wsTimer); wsTimer = null; }
+  wsAttempt = 0;
   ws?.close();
   ws = null;
 };

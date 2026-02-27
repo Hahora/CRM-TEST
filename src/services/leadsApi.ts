@@ -123,23 +123,54 @@ export interface UpdateLeadData {
 export interface WsNewMessage {
   type: "new_message";
   lead_id: number;
+  message_id?: number;
   content: string;
   direction: "incoming" | "outgoing";
   sender: "client" | "manager";
+  senderName?: string | null;
   client_name?: string;
   source_type?: string;
+  attachments?: MessageAttachment[];
   timestamp: string;
-  message_id?: number;
-  senderName?: string;
 }
 
 export interface WsNewLead {
   type: "new_lead";
   lead_id: number;
+  is_new?: boolean;
   client_name?: string;
-  status?: string;
+  source_name?: string;
+  source_username?: string;
+  status?: LeadStatus;
   source_type?: string;
   created_at?: string;
+}
+
+export interface WsLeadStatusChanged {
+  type: "lead_status_changed";
+  lead_id: number;
+  status: LeadStatus;
+  is_new: boolean;
+  changed_by: string;
+}
+
+export interface WsLeadUpdated {
+  type: "lead_updated";
+  lead_id: number;
+  is_new: boolean;
+}
+
+export interface WsTyping {
+  type: "typing";
+  lead_id: number;
+  user_id: string;
+  user_name: string;
+}
+
+export interface WsSubscriptionConfirmed {
+  type: "subscription_confirmed";
+  lead_id: number;
+  status: "subscribed" | "unsubscribed";
 }
 
 // ── Service ───────────────────────────────────────────────────────────────────
@@ -270,10 +301,12 @@ class LeadsApiService {
 
   // ── WebSocket ─────────────────────────────────────────────────────────────
 
-  /** Возвращает URL для WebSocket соединения */
+  /** Возвращает URL для WebSocket соединения (с токеном в query) */
   getWsUrl(userId: number): string {
-    const wsBase = this.baseUrl.replace(/^http/, "ws");
-    return `${wsBase}/api/v1/leads/ws/${userId}`;
+    const wsBase  = this.baseUrl.replace(/^http/, "ws");
+    const token   = authService.getAccessToken();
+    const tokenQs = token ? `?token=${encodeURIComponent(token)}` : "";
+    return `${wsBase}/api/v1/leads/ws/${userId}${tokenQs}`;
   }
 
   /** Прокси-URL для получения файла из Telegram по file_id (с токеном) */
