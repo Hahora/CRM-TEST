@@ -60,6 +60,7 @@ const isClosing     = ref(false);
 const showInfo      = ref(false);
 const sendError     = ref("");
 const messagesEl    = ref<HTMLElement>();
+const textareaEl    = ref<HTMLTextAreaElement>();
 
 // ── Привязка клиента ──────────────────────────────────────────────────────────
 const clientLinked    = ref(true);
@@ -77,7 +78,6 @@ const getStatus = (s: string): { label: string; cls: string } => {
     default:           return { label: "Закрыт",   cls: "bg-gray-100 text-gray-600"     };
   }
 };
-
 
 const getSourceLabel = (s: string) => (s === "telegram" ? "Telegram" : "МАКС");
 
@@ -135,6 +135,27 @@ const scrollToBottom = () => {
     if (messagesEl.value) messagesEl.value.scrollTop = messagesEl.value.scrollHeight;
   });
 };
+
+// Auto-resize textarea (как в Telegram)
+const autoResize = () => {
+  const el = textareaEl.value;
+  if (!el) return;
+  el.style.height = "auto";
+  const maxH = 120; // ~4 строки
+  const newH = Math.min(el.scrollHeight, maxH);
+  el.style.height = newH + "px";
+  el.style.overflowY = el.scrollHeight > maxH ? "auto" : "hidden";
+};
+
+const resetTextarea = () => {
+  const el = textareaEl.value;
+  if (!el) return;
+  el.style.height = "auto";
+  el.style.overflowY = "hidden";
+};
+
+// iOS visual viewport — прокручиваем вниз когда открывается клавиатура
+const onVpResize = () => scrollToBottom();
 
 const mapMessage = (m: LeadMessage): Message => ({
   id:        String(m.id),
@@ -215,6 +236,7 @@ const send = async () => {
   sendError.value = "";
   const backup = newMessage.value;
   newMessage.value = "";
+  resetTextarea();
   try {
     await leadsApi.sendMessage(Number(ticketId.value), text);
     // Ждём WS-подтверждения; если оно не придёт за 3 с — добавляем сами
@@ -304,8 +326,15 @@ const onTouchEnd   = (e: TouchEvent) => {
   if ((e.changedTouches[0]?.clientY ?? 0) - touchStartY.value > 80) showInfo.value = false;
 };
 
-onMounted(load);
-onUnmounted(disconnectWs);
+onMounted(() => {
+  load();
+  window.visualViewport?.addEventListener("resize", onVpResize);
+});
+
+onUnmounted(() => {
+  disconnectWs();
+  window.visualViewport?.removeEventListener("resize", onVpResize);
+});
 </script>
 
 <template>
@@ -335,12 +364,12 @@ onUnmounted(disconnectWs);
     <!-- Main -->
     <template v-else>
       <!-- Header -->
-      <div class="bg-white border-b border-gray-200 px-4 py-3 flex-shrink-0">
-        <div class="flex items-center gap-3">
+      <div class="bg-white border-b border-gray-200 px-3 py-2 flex-shrink-0 tc-header">
+        <div class="flex items-center gap-2">
           <!-- Back -->
           <button
             @click="goBack"
-            class="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
+            class="tc-touch-btn text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-colors flex-shrink-0"
           >
             <AppIcon name="arrow-left" :size="18" />
           </button>
@@ -373,7 +402,7 @@ onUnmounted(disconnectWs);
             <button
               @click="exportChat"
               :disabled="messages.length === 0"
-              class="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-40"
+              class="tc-touch-btn text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-colors disabled:opacity-40"
               title="Выгрузить чат"
             >
               <AppIcon name="download" :size="16" />
@@ -381,22 +410,22 @@ onUnmounted(disconnectWs);
           </div>
 
           <!-- Mobile actions -->
-          <div class="sm:hidden flex items-center gap-1 flex-shrink-0">
+          <div class="sm:hidden flex items-center flex-shrink-0">
             <!-- Экспорт -->
             <button
               @click="exportChat"
               :disabled="messages.length === 0"
-              class="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-40"
+              class="tc-touch-btn text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-colors disabled:opacity-40"
               title="Выгрузить чат"
             >
-              <AppIcon name="download" :size="17" />
+              <AppIcon name="download" :size="18" />
             </button>
             <!-- Инфо -->
             <button
               @click="showInfo = true"
-              class="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              class="tc-touch-btn text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
             >
-              <AppIcon name="info" :size="17" />
+              <AppIcon name="info" :size="18" />
             </button>
           </div>
         </div>
@@ -508,7 +537,7 @@ onUnmounted(disconnectWs);
           <!-- Messages -->
           <div
             ref="messagesEl"
-            class="flex-1 overflow-y-auto px-4 py-4 space-y-3"
+            class="tc-messages flex-1 overflow-y-auto px-4 py-4 space-y-3"
           >
             <div
               v-for="msg in messages"
@@ -517,14 +546,14 @@ onUnmounted(disconnectWs);
               :class="msg.sender === 'support' ? 'justify-end' : 'justify-start'"
             >
               <div
-                class="max-w-[75%] sm:max-w-sm md:max-w-md px-3.5 py-2.5 rounded-2xl"
+                class="max-w-[80%] sm:max-w-sm md:max-w-md px-3.5 py-2.5 rounded-2xl"
                 :class="
                   msg.sender === 'support'
                     ? 'bg-blue-600 text-white rounded-br-sm'
                     : 'bg-gray-100 text-gray-900 rounded-bl-sm'
                 "
               >
-                <p class="text-sm leading-relaxed">{{ msg.text }}</p>
+                <p class="text-sm leading-relaxed whitespace-pre-wrap break-words">{{ msg.text }}</p>
                 <div
                   class="text-[11px] mt-1 flex items-center gap-1"
                   :class="msg.sender === 'support' ? 'text-blue-200 justify-end' : 'text-gray-400'"
@@ -552,24 +581,29 @@ onUnmounted(disconnectWs);
           </div>
 
           <!-- Input -->
-          <div class="border-t border-gray-100 px-4 py-3 flex-shrink-0">
-            <form @submit.prevent="send" class="flex items-center gap-2">
-              <input
+          <div class="tc-input-bar border-t border-gray-100 px-3 pt-2 flex-shrink-0">
+            <form @submit.prevent="send" class="flex items-end gap-2">
+              <textarea
+                ref="textareaEl"
                 v-model="newMessage"
-                type="text"
+                rows="1"
                 placeholder="Написать сообщение..."
                 :disabled="isSending"
-                class="flex-1 px-3.5 py-2 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
+                enterkeyhint="send"
+                class="tc-textarea flex-1 px-3.5 py-2.5 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
+                @input="autoResize"
                 @keydown.enter.exact.prevent="send"
               />
               <button
                 type="submit"
                 :disabled="!newMessage.trim() || isSending"
-                class="flex-shrink-0 w-9 h-9 bg-blue-600 text-white rounded-xl flex items-center justify-center hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                class="flex-shrink-0 tc-send-btn bg-blue-600 text-white rounded-xl flex items-center justify-center hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
-                <AppIcon name="send" :size="15" />
+                <AppIcon name="send" :size="16" />
               </button>
             </form>
+            <!-- Error -->
+            <p v-if="sendError" class="text-xs text-red-500 mt-1 px-1">{{ sendError }}</p>
           </div>
         </div>
       </div>
@@ -598,7 +632,7 @@ onUnmounted(disconnectWs);
           >
             <div
               v-if="showInfo"
-              class="bg-white rounded-t-2xl w-full max-h-[80vh] overflow-hidden flex flex-col"
+              class="tc-sheet bg-white rounded-t-2xl w-full max-h-[80vh] overflow-hidden flex flex-col"
               @click.stop
               @touchstart="onTouchStart"
               @touchend="onTouchEnd"
@@ -613,7 +647,7 @@ onUnmounted(disconnectWs);
                 <h3 class="text-base font-semibold text-gray-900">О тикете</h3>
                 <button
                   @click="showInfo = false"
-                  class="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
+                  class="tc-touch-btn text-gray-400 hover:text-gray-600 rounded-xl hover:bg-gray-100 transition-colors"
                 >
                   <AppIcon name="x" :size="18" />
                 </button>
@@ -665,10 +699,6 @@ onUnmounted(disconnectWs);
                 <div>
                   <h4 class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Детали</h4>
                   <div class="space-y-2">
-                    <div class="flex justify-between">
-                      <span class="text-sm text-gray-500">Тема</span>
-                      <span class="text-sm text-gray-900 text-right max-w-[60%]">{{ ticket.subject }}</span>
-                    </div>
                     <div v-if="ticket.assignedTo" class="flex justify-between">
                       <span class="text-sm text-gray-500">Назначен</span>
                       <span class="text-sm text-gray-900">{{ ticket.assignedTo }}</span>
@@ -696,7 +726,7 @@ onUnmounted(disconnectWs);
                     <button
                       @click="closeTicket"
                       :disabled="closeStatusId == null || isClosing"
-                      class="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      class="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                     >
                       <AppIcon v-if="isClosing" name="refresh-cw" :size="14" class="animate-spin" />
                       {{ isClosing ? "Закрываю..." : "Закрыть тикет" }}
@@ -718,3 +748,52 @@ onUnmounted(disconnectWs);
     />
   </div>
 </template>
+
+<style scoped>
+/* ── Textarea auto-resize (как в Telegram) ─── */
+.tc-textarea {
+  resize: none;
+  overflow-y: hidden;
+  line-height: 1.5;
+  min-height: 38px;
+  max-height: 120px;
+  display: block;
+  /* Убираем стандартный скроллбар — выглядит некрасиво */
+  scrollbar-width: none;
+}
+.tc-textarea::-webkit-scrollbar {
+  display: none;
+}
+
+/* ── Сенд-кнопка: минимум 44×44px (Apple HIG) ── */
+.tc-send-btn {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+}
+
+/* ── Touch-кнопки: минимум 44×44px ── */
+.tc-touch-btn {
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── Messages: momentum scroll + overscroll lock ── */
+.tc-messages {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+}
+
+/* ── Input bar: safe area для home indicator iPhone ── */
+.tc-input-bar {
+  padding-bottom: max(10px, env(safe-area-inset-bottom));
+}
+
+/* ── Bottom sheet: safe area ── */
+.tc-sheet {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+</style>
