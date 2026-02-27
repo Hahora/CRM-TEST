@@ -35,6 +35,7 @@ export interface Lead {
   assigned_to_id: number | null;
   source_type: string;
   source_id: string | null;
+  source_name: string | null;
   appointment_datetime: string | null;
   notes: string | null;
   created_at: string;

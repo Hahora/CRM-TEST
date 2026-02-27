@@ -163,7 +163,7 @@ const load = async () => {
 
     const client = lead.client;
     const clientName =
-      client?.full_name || client?.name || `Клиент #${lead.client_id ?? lead.id}`;
+      client?.full_name || client?.name || lead.source_name || `Клиент #${lead.client_id ?? lead.id}`;
     const assignedName = lead.assigned_to
       ? [lead.assigned_to.first_name, lead.assigned_to.last_name]
           .filter(Boolean).join(" ") || lead.assigned_to.login
