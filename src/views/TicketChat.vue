@@ -5,7 +5,7 @@ import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import AppIcon from "@/components/AppIcon.vue";
 import "@lottiefiles/lottie-player"; // Регистрирует <lottie-player> web component
-import { leadsApi } from "@/services/leadsApi";
+import { leadsApi, resolveClientName } from "@/services/leadsApi";
 import type { LeadStatus, LeadMessage, MessageAttachment } from "@/services/leadsApi";
 import { clientsApi } from "@/services/clientsApi";
 import ClientCreateModal from "@/components/clients/ClientCreateModal.vue";
@@ -220,8 +220,7 @@ const load = async () => {
     else                                                           status = "closed";
 
     const client = lead.client;
-    const clientName =
-      client?.full_name || client?.name || lead.source_name || `Клиент #${lead.client_id ?? lead.id}`;
+    const clientName = resolveClientName(client, lead.source_name, lead.client_id ?? lead.id);
     const assignedName = lead.assigned_to
       ? [lead.assigned_to.first_name, lead.assigned_to.last_name]
           .filter(Boolean).join(" ") || lead.assigned_to.login

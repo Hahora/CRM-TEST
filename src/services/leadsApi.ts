@@ -13,11 +13,34 @@ export interface LeadStatus {
 export interface LeadClient {
   id?: number;
   moysklad_id?: string | null;
-  full_name?: string;
-  name?: string;
-  phone?: string;
+  full_name?: string | null;
+  name?: string | null;
+  // Поля физ.лица / ИП (могут прийти от API)
+  legal_first_name?: string | null;
+  legal_last_name?: string | null;
+  legal_middle_name?: string | null;
+  phone?: string | null;
   email?: string | null;
   telegram_id?: string | number | null;
+  telegram_user_id?: string | null;
+  max_id?: string | null;
+  is_wedding?: boolean;
+  source?: string | null;
+  branch_moysklad_id?: string | null;
+}
+
+/** Собрать отображаемое имя клиента: full_name → name → ФИО → source_name → fallback */
+export function resolveClientName(
+  client: LeadClient | null,
+  sourceName: string | null,
+  fallbackId: number,
+): string {
+  if (!client) return sourceName || `Клиент #${fallbackId}`;
+  if (client.full_name) return client.full_name;
+  if (client.name)      return client.name;
+  const parts = [client.legal_last_name, client.legal_first_name, client.legal_middle_name].filter(Boolean);
+  if (parts.length)     return parts.join(" ");
+  return sourceName || `Клиент #${fallbackId}`;
 }
 
 export interface LeadUser {
