@@ -9,6 +9,7 @@ export interface Toast {
   message?: string;
   duration?: number;
   persistent?: boolean;
+  action?: { label: string; onClick: () => void };
 }
 
 interface Props {
@@ -106,6 +107,11 @@ onMounted(() => {
         <div class="ti-content">
           <p class="ti-title">{{ toast.title }}</p>
           <p v-if="toast.message" class="ti-message">{{ toast.message }}</p>
+          <button
+            v-if="toast.action"
+            class="ti-action"
+            @click="() => { toast.action?.onClick(); handleClose(); }"
+          >{{ toast.action.label }}</button>
         </div>
 
         <!-- Close -->
@@ -178,6 +184,21 @@ onMounted(() => {
   margin: 3px 0 0;
   line-height: 1.4;
 }
+
+.ti-action {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--t-color);
+  background: var(--t-color-light);
+  border: 1px solid var(--t-color);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: opacity 120ms;
+}
+.ti-action:hover { opacity: 0.8; }
 
 .ti-close {
   flex-shrink: 0;

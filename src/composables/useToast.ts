@@ -7,6 +7,7 @@ export interface Toast {
   message?: string;
   duration?: number;
   persistent?: boolean;
+  action?: { label: string; onClick: () => void };
 }
 
 const toasts = ref<Toast[]>([]);
