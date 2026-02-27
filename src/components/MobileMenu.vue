@@ -183,7 +183,7 @@ const getSectionIndex = (sectionIdx: number): number => {
                 v-for="(item, iIdx) in section.items"
                 :key="item.id"
                 @click="navigateTo(item.route!)"
-                class="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-400 ease-out active:scale-[0.98]"
+                class="w-full text-left flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-400 ease-out active:scale-[0.98]"
                 :style="{
                   transitionDelay: isAnimating
                     ? `${150 + getItemIndex(sIdx, iIdx) * 40}ms`
