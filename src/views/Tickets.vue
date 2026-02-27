@@ -202,6 +202,40 @@ const stats = computed(() => {
   };
 });
 
+// ── Пагинация ─────────────────────────────────────────────────────────────────
+
+const PAGE_SIZE = 10;
+const page      = ref(1);
+const total     = ref(0); // total от сервера
+
+/** Активен хотя бы один фильтр → грузим всё, режем на клиенте */
+const isFiltered = computed(() =>
+  filters.value.search    !== ""  ||
+  filters.value.status    !== "all" ||
+  filters.value.source    !== "all" ||
+  filters.value.dateFrom  !== ""  ||
+  filters.value.dateTo    !== ""
+);
+
+/** Видимый total (для пагинации) */
+const displayTotal = computed(() =>
+  isFiltered.value ? filteredTickets.value.length : total.value
+);
+
+const totalPages = computed(() =>
+  Math.max(1, Math.ceil(displayTotal.value / PAGE_SIZE))
+);
+
+/** Срез для таблицы */
+const paginatedForTable = computed(() => {
+  if (isFiltered.value) {
+    const start = (page.value - 1) * PAGE_SIZE;
+    return filteredTickets.value.slice(start, start + PAGE_SIZE);
+  }
+  return filteredTickets.value; // сервер уже вернул limit=10
+});
+
+// Счётчик «новых» — по всем загруженным тикетам
 const unreadCount = computed(
   () => tickets.value.filter((t) => t.isNew).length
 );
@@ -217,8 +251,18 @@ const loadTickets = async () => {
   isLoading.value = true;
   error.value = "";
   try {
-    const res = await leadsApi.getList({ limit: 200 });
-    tickets.value = res.leads.map(leadToTicket);
+    if (isFiltered.value) {
+      // Фильтры активны → загружаем всё для клиентской фильтрации
+      const res = await leadsApi.getList({ limit: 500 });
+      tickets.value = res.leads.map(leadToTicket);
+      total.value   = res.total;
+    } else {
+      // Серверная пагинация: skip + limit=10
+      const skip = (page.value - 1) * PAGE_SIZE;
+      const res  = await leadsApi.getList({ skip, limit: PAGE_SIZE });
+      tickets.value = res.leads.map(leadToTicket);
+      total.value   = res.total;
+    }
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Ошибка загрузки";
   } finally {
@@ -226,7 +270,21 @@ const loadTickets = async () => {
   }
 };
 
-const refresh = () => loadTickets();
+// При смене страницы (серверный режим) → перезагружаем
+watch(page, () => {
+  if (!isFiltered.value) loadTickets();
+});
+
+// При изменении фильтров → сбрасываем страницу и перезагружаем если нужно
+watch(isFiltered, () => {
+  page.value = 1;
+  loadTickets();
+});
+
+const refresh = () => {
+  page.value = 1;
+  loadTickets();
+};
 
 const openTicket = (ticket: Ticket) => {
   router.push(`/tickets/${ticket.id}`);
@@ -316,9 +374,13 @@ onUnmounted(disconnectWs);
       />
 
       <TicketsTable
-        :tickets="filteredTickets"
+        :tickets="paginatedForTable"
         :loading="isLoading"
+        :page="page"
+        :total-pages="totalPages"
+        :total-count="displayTotal"
         @view-ticket="openTicket"
+        @update:page="page = $event"
       />
     </div>
   </div>

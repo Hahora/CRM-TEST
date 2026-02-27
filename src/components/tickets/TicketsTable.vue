@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { ref, computed, watch } from "vue";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import AppIcon from "@/components/AppIcon.vue";
@@ -10,7 +9,7 @@ export interface Ticket {
   clientName: string;
   clientPhone?: string;
   clientEmail?: string;
-  telegramId?: string;           // source_id (числовой ID)
+  telegramId?: string;              // source_id (числовой ID)
   telegramUsername?: string | null; // source_username (без @)
   maxId?: string;
   clientLinked: boolean;
@@ -42,25 +41,17 @@ const getTgLink = (ticket: Pick<Ticket, "telegramUsername" | "telegramId">) => {
 interface Props {
   tickets: Ticket[];
   loading?: boolean;
+  page?: number;
+  totalPages?: number;
+  totalCount?: number;
 }
 
 const props = defineProps<Props>();
 
 const emit = defineEmits<{
   "view-ticket": [ticket: Ticket];
+  "update:page": [page: number];
 }>();
-
-const PAGE_SIZE = 10;
-const currentPage = ref(1);
-
-watch(() => props.tickets.length, () => { currentPage.value = 1; });
-
-const totalPages = computed(() => Math.max(1, Math.ceil(props.tickets.length / PAGE_SIZE)));
-
-const paginated = computed(() => {
-  const start = (currentPage.value - 1) * PAGE_SIZE;
-  return props.tickets.slice(start, start + PAGE_SIZE);
-});
 
 const getSource = (s: string): { label: string; cls: string } => {
   if (s === "telegram") return { label: "Telegram", cls: "text-blue-600 bg-blue-50"    };
@@ -78,6 +69,13 @@ const getStatus = (s: string): { label: string; cls: string } => {
     default:           return { label: "Закрыт",   cls: "bg-gray-100 text-gray-600"     };
   }
 };
+
+/** Класс подсветки строки: isNew — насыщенный синий, просто isUnread — бледный */
+const rowBg = (ticket: Ticket) => {
+  if (ticket.isNew)    return "bg-blue-50";
+  if (ticket.isUnread) return "bg-blue-50/30";
+  return "";
+};
 </script>
 
 <template>
@@ -85,7 +83,9 @@ const getStatus = (s: string): { label: string; cls: string } => {
     <!-- Header -->
     <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
       <h3 class="text-sm font-semibold text-gray-900">Список тикетов</h3>
-      <span class="text-xs text-gray-400 font-medium">{{ tickets.length }} тикетов</span>
+      <span class="text-xs text-gray-400 font-medium">
+        {{ totalCount != null ? totalCount : tickets.length }} тикетов
+      </span>
     </div>
 
     <!-- Loading -->
@@ -104,20 +104,20 @@ const getStatus = (s: string): { label: string; cls: string } => {
       <!-- ── Мобильные карточки (< md) ── -->
       <div class="md:hidden divide-y divide-gray-100">
         <div
-          v-for="ticket in paginated"
+          v-for="ticket in tickets"
           :key="ticket.id"
-          class="px-4 py-3 cursor-pointer hover:bg-gray-50 active:bg-gray-100 transition-colors"
-          :class="{ 'bg-blue-50/40': ticket.isUnread }"
+          class="px-4 py-3 cursor-pointer active:bg-gray-100 transition-colors"
+          :class="[rowBg(ticket), { 'hover:bg-blue-100': ticket.isNew, 'hover:bg-gray-50': !ticket.isNew }]"
           @click="emit('view-ticket', ticket)"
         >
           <div class="flex items-start gap-2">
-            <!-- Unread dot -->
+            <!-- Dot индикатор -->
             <div
               class="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-2"
-              :class="ticket.isUnread ? 'bg-blue-500' : 'bg-transparent'"
+              :class="ticket.isNew ? 'bg-blue-600' : ticket.isUnread ? 'bg-blue-400' : 'bg-transparent'"
             />
             <div class="min-w-0 flex-1">
-              <!-- Row 1: number + source + status + NEW badge -->
+              <!-- Row 1: number + source + status -->
               <div class="flex items-center gap-1.5 flex-wrap mb-1">
                 <span class="text-xs font-mono font-semibold text-gray-500">#{{ ticket.number }}</span>
                 <span
@@ -133,18 +133,10 @@ const getStatus = (s: string): { label: string; cls: string } => {
                 >
                   {{ getStatus(ticket.status).label }}
                 </span>
-                <span
-                  v-if="ticket.isNew"
-                  class="px-1.5 py-0.5 rounded-md text-xs font-semibold bg-green-100 text-green-700"
-                >
-                  Новый
-                </span>
               </div>
               <!-- Client -->
               <div class="flex items-center gap-1.5">
-                <span class="text-sm font-medium text-gray-900 truncate">
-                  {{ ticket.clientName }}
-                </span>
+                <span class="text-sm font-medium text-gray-900 truncate">{{ ticket.clientName }}</span>
                 <span
                   v-if="!ticket.clientLinked"
                   class="flex-shrink-0 text-[10px] font-medium text-orange-600 bg-orange-50 border border-orange-100 px-1 py-0.5 rounded"
@@ -152,7 +144,7 @@ const getStatus = (s: string): { label: string; cls: string } => {
                   нет в базе
                 </span>
               </div>
-              <!-- TG if not in DB (мобайл) -->
+              <!-- TG if not in DB -->
               <a
                 v-if="!ticket.clientLinked && getTgLink(ticket)"
                 :href="getTgLink(ticket)?.href"
@@ -191,10 +183,10 @@ const getStatus = (s: string): { label: string; cls: string } => {
           </thead>
           <tbody class="divide-y divide-gray-50">
             <tr
-              v-for="ticket in paginated"
+              v-for="ticket in tickets"
               :key="ticket.id"
-              class="hover:bg-gray-50 cursor-pointer transition-colors group"
-              :class="{ 'bg-blue-50/50': ticket.isUnread }"
+              class="cursor-pointer transition-colors group"
+              :class="[rowBg(ticket), { 'hover:bg-blue-100': ticket.isNew, 'hover:bg-gray-50': !ticket.isNew }]"
               @click="emit('view-ticket', ticket)"
             >
               <!-- Номер -->
@@ -202,7 +194,7 @@ const getStatus = (s: string): { label: string; cls: string } => {
                 <div class="flex items-center gap-2">
                   <div
                     class="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                    :class="ticket.isUnread ? 'bg-blue-500' : 'bg-transparent'"
+                    :class="ticket.isNew ? 'bg-blue-600' : ticket.isUnread ? 'bg-blue-400' : 'bg-transparent'"
                   />
                   <div class="flex items-center gap-1.5">
                     <span class="text-sm font-mono font-semibold text-gray-700">#{{ ticket.number }}</span>
@@ -217,9 +209,7 @@ const getStatus = (s: string): { label: string; cls: string } => {
               <!-- Клиент -->
               <td class="px-4 py-3">
                 <div class="flex items-center gap-1.5 flex-wrap">
-                  <span class="text-sm font-medium text-gray-900">
-                    {{ ticket.clientName }}
-                  </span>
+                  <span class="text-sm font-medium text-gray-900">{{ ticket.clientName }}</span>
                   <span
                     v-if="!ticket.clientLinked"
                     class="text-[10px] font-medium text-orange-600 bg-orange-50 border border-orange-100 px-1.5 py-0.5 rounded-md"
@@ -256,20 +246,12 @@ const getStatus = (s: string): { label: string; cls: string } => {
 
               <!-- Статус -->
               <td class="px-4 py-3">
-                <div class="flex items-center gap-1.5">
-                  <span
-                    class="px-2 py-1 rounded-lg text-xs font-medium"
-                    :class="getStatus(ticket.status).cls"
-                  >
-                    {{ getStatus(ticket.status).label }}
-                  </span>
-                  <span
-                    v-if="ticket.isNew"
-                    class="px-2 py-1 rounded-lg text-xs font-semibold bg-green-100 text-green-700"
-                  >
-                    Новый
-                  </span>
-                </div>
+                <span
+                  class="px-2 py-1 rounded-lg text-xs font-medium"
+                  :class="getStatus(ticket.status).cls"
+                >
+                  {{ getStatus(ticket.status).label }}
+                </span>
               </td>
 
               <!-- Создан -->
@@ -289,19 +271,22 @@ const getStatus = (s: string): { label: string; cls: string } => {
       </div>
 
       <!-- Пагинация -->
-      <div v-if="totalPages > 1" class="flex items-center justify-between px-4 py-3 border-t border-gray-100">
+      <div
+        v-if="(totalPages ?? 1) > 1"
+        class="flex items-center justify-between px-4 py-3 border-t border-gray-100"
+      >
         <button
-          @click="currentPage--"
-          :disabled="currentPage === 1"
+          @click="emit('update:page', (page ?? 1) - 1)"
+          :disabled="(page ?? 1) <= 1"
           class="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           <AppIcon name="chevron-left" :size="14" />
           Назад
         </button>
-        <span class="text-xs text-gray-500">Страница {{ currentPage }} из {{ totalPages }}</span>
+        <span class="text-xs text-gray-500">Страница {{ page ?? 1 }} из {{ totalPages }}</span>
         <button
-          @click="currentPage++"
-          :disabled="currentPage === totalPages"
+          @click="emit('update:page', (page ?? 1) + 1)"
+          :disabled="(page ?? 1) >= (totalPages ?? 1)"
           class="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           Вперёд
