@@ -48,7 +48,7 @@ const connectWs = () => {
             addToast({
               type: "info",
               title: "Новый тикет",
-              action: { label: "Перейти", onClick: () => router.push("/tickets") },
+              action: { label: "Перейти", onClick: () => router.push(`/tickets/${data.lead_id}`) },
             });
           } catch { /* не удалось загрузить лид — пропускаем */ }
 
