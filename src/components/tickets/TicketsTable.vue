@@ -159,7 +159,7 @@ const getStatus = (s: string): { label: string; cls: string } => {
               </a>
               <!-- Date -->
               <div class="text-xs text-gray-400 mt-0.5">
-                {{ format(new Date(ticket.updatedAt), "dd.MM.yy · HH:mm", { locale: ru }) }}
+                {{ format(new Date(ticket.createdAt), "dd.MM.yy · HH:mm", { locale: ru }) }}
               </div>
             </div>
             <AppIcon name="chevron-right" :size="16" class="text-gray-300 flex-shrink-0 mt-1" />
@@ -176,7 +176,7 @@ const getStatus = (s: string): { label: string; cls: string } => {
               <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Клиент</th>
               <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Источник</th>
               <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Статус</th>
-              <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Обновлён</th>
+              <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Создан</th>
               <th class="px-4 py-2.5 w-10"></th>
             </tr>
           </thead>
@@ -253,10 +253,10 @@ const getStatus = (s: string): { label: string; cls: string } => {
                 </span>
               </td>
 
-              <!-- Обновлён -->
+              <!-- Создан -->
               <td class="px-4 py-3">
-                <div class="text-xs text-gray-600">{{ format(new Date(ticket.updatedAt), "dd.MM.yyyy", { locale: ru }) }}</div>
-                <div class="text-xs text-gray-400">{{ format(new Date(ticket.updatedAt), "HH:mm", { locale: ru }) }}</div>
+                <div class="text-xs text-gray-600">{{ format(new Date(ticket.createdAt), "dd.MM.yyyy", { locale: ru }) }}</div>
+                <div class="text-xs text-gray-400">{{ format(new Date(ticket.createdAt), "HH:mm", { locale: ru }) }}</div>
               </td>
 
               <td class="px-4 py-3 text-right">

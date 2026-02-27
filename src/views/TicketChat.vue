@@ -589,12 +589,6 @@ onUnmounted(() => {
                   {{ format(new Date(ticket.createdAt), "dd.MM.yyyy HH:mm", { locale: ru }) }}
                 </span>
               </div>
-              <div class="flex justify-between items-start">
-                <span class="text-xs text-gray-500">Обновлён</span>
-                <span class="text-xs text-gray-700 text-right">
-                  {{ format(new Date(ticket.updatedAt), "dd.MM.yyyy HH:mm", { locale: ru }) }}
-                </span>
-              </div>
             </div>
           </div>
 
