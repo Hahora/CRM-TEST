@@ -1,17 +1,35 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
-import { RouterView, useRoute } from "vue-router";
+import { ref, computed, watch } from "vue";
+import { RouterView, useRoute, useRouter } from "vue-router";
 import AppHeader from "./components/AppHeader.vue";
 import AppSidebar from "./components/AppSidebar.vue";
 import MobileMenu from "./components/MobileMenu.vue";
 import ToastContainer from "./components/ToastContainer.vue";
 import LoadingOverlay from "./components/LoadingOverlay.vue";
 import { useLoading } from "./composables/useLoading";
+import { useAuth } from "./composables/useAuth";
+import { useGlobalWs } from "./composables/useGlobalWs";
 
 const route = useRoute();
+const router = useRouter();
 const isMobileMenuOpen = ref(false);
 const isSidebarCollapsed = ref(localStorage.getItem("sidebar-collapsed") === "true");
 const { loadingState } = useLoading();
+const { user } = useAuth();
+const { init: initGlobalWs, disconnect: disconnectGlobalWs } = useGlobalWs();
+
+// Initialise global WS when user is authenticated, disconnect on logout
+watch(
+  () => user.value?.id,
+  async (userId) => {
+    if (userId) {
+      await initGlobalWs(userId, router);
+    } else {
+      disconnectGlobalWs();
+    }
+  },
+  { immediate: true },
+);
 
 const showAppInterface = computed(() => {
   return route.name !== "login";

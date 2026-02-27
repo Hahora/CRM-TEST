@@ -8,104 +8,12 @@ import TicketsTable from "@/components/tickets/TicketsTable.vue";
 import type { Ticket } from "@/components/tickets/TicketsTable.vue";
 import type { TicketsFilters as TFilters } from "@/components/tickets/TicketsFilters.vue";
 import { leadsApi } from "@/services/leadsApi";
-import type { Lead, LeadStatus, LeadsParams, WsNewMessage, WsNewLead, WsLeadStatusChanged, WsLeadUpdated } from "@/services/leadsApi";
-import { useAuth } from "@/composables/useAuth";
-import { useToast } from "@/composables/useToast";
-import { useTicketsBadge } from "@/composables/useTicketsBadge";
+import type { Lead, LeadStatus, LeadsParams } from "@/services/leadsApi";
+import { useGlobalWs } from "@/composables/useGlobalWs";
+import type { GwsEvent } from "@/composables/useGlobalWs";
 
 const router = useRouter();
-const { user } = useAuth();
-const { addToast } = useToast();
-const { newCount: badgeNewCount } = useTicketsBadge();
-
-// ── WebSocket ─────────────────────────────────────────────────────────────────
-
-let ws: WebSocket | null = null;
-let wsAttempt = 0;
-let wsTimer: ReturnType<typeof setTimeout> | null = null;
-
-const mapTicketStatus = (status: { name: string; is_final: boolean }): "active" | "resolved" | "unresolved" | "closed" => {
-  if (!status.is_final) return "active";
-  const n = status.name.toLowerCase();
-  if (n.includes("не реш") || n.includes("unresolved")) return "unresolved";
-  if (n.includes("реш")    || n.includes("resolved"))   return "resolved";
-  return "closed";
-};
-
-const connectWs = () => {
-  if (!user.value?.id) return;
-  if (wsTimer) { clearTimeout(wsTimer); wsTimer = null; }
-  try {
-    ws = new WebSocket(leadsApi.getWsUrl(user.value.id));
-
-    ws.onopen = () => { wsAttempt = 0; };
-
-    ws.onmessage = async (event: MessageEvent) => {
-      try {
-        const data: WsNewLead | WsNewMessage | WsLeadStatusChanged | WsLeadUpdated = JSON.parse(event.data);
-
-        if (data.type === "new_lead") {
-          if (tickets.value.some((t) => t.id === String(data.lead_id))) return;
-          try {
-            const lead = await leadsApi.getById(data.lead_id);
-            if (page.value === 1) {
-              tickets.value.unshift(leadToTicket(lead));
-              if (!isClientFiltered.value && tickets.value.length > PAGE_SIZE)
-                tickets.value.pop();
-            }
-            total.value += 1;
-            badgeNewCount.value += 1;
-            addToast({
-              type: "info",
-              title: "Новый тикет",
-              action: { label: "Перейти", onClick: () => router.push(`/tickets/${data.lead_id}`) },
-            });
-          } catch { /* не удалось загрузить лид */ }
-
-        } else if (data.type === "new_message") {
-          const t = tickets.value.find((t) => t.id === String(data.lead_id));
-          if (data.direction === "outgoing") {
-            if (t) t.isNew = false;
-          } else {
-            if (t) {
-              t.isNew = true;
-              t.isUnread = true;
-              t.lastMessage = data.content;
-              t.updatedAt = data.timestamp ?? new Date().toISOString();
-            }
-          }
-
-        } else if (data.type === "lead_updated") {
-          const t = tickets.value.find((t) => t.id === String(data.lead_id));
-          if (t && data.is_new === false) t.isNew = false;
-
-        } else if (data.type === "lead_status_changed") {
-          const t = tickets.value.find((t) => t.id === String(data.lead_id));
-          if (t) {
-            t.status = mapTicketStatus(data.status);
-            if (data.is_new === false) t.isNew = false;
-          }
-        }
-      } catch { /* игнорируем невалидные сообщения */ }
-    };
-
-    ws.onerror = () => { ws = null; };
-    ws.onclose = (e) => {
-      ws = null;
-      if (e.code === 4001) return; // Unauthorized — не реконнектиться
-      const delay = Math.min(1000 * Math.pow(2, wsAttempt), 30000);
-      wsAttempt++;
-      wsTimer = setTimeout(connectWs, delay);
-    };
-  } catch { /* WS недоступен */ }
-};
-
-const disconnectWs = () => {
-  if (wsTimer) { clearTimeout(wsTimer); wsTimer = null; }
-  wsAttempt = 0;
-  ws?.close();
-  ws = null;
-};
+const { addListener } = useGlobalWs();
 
 // ── Маппинг Lead → Ticket ────────────────────────────────────────────────────
 
@@ -153,6 +61,55 @@ function leadToTicket(lead: Lead): Ticket {
     isNew: lead.is_new,
   };
 }
+
+// ── WS — обработчик обновлений списка (бейдж и тосты — в useGlobalWs) ─────────
+
+/** Предотвращает двойную обработку параллельных new_lead событий */
+const pendingNewLeadIds = new Set<number>();
+
+const handleWsEvent = async (data: GwsEvent) => {
+  if (data.type === "new_lead") {
+    if (tickets.value.some((t) => t.id === String(data.lead_id))) return;
+    if (pendingNewLeadIds.has(data.lead_id)) return;
+    pendingNewLeadIds.add(data.lead_id);
+    try {
+      const lead = await leadsApi.getById(data.lead_id);
+      // Повторная проверка после await — мог успеть добавиться параллельным вызовом
+      if (tickets.value.some((t) => t.id === String(data.lead_id))) return;
+      if (page.value === 1) {
+        tickets.value.unshift(leadToTicket(lead));
+        if (!isClientFiltered.value && tickets.value.length > PAGE_SIZE)
+          tickets.value.pop();
+      }
+      total.value += 1;
+    } catch { /* не удалось загрузить лид */ }
+    finally { pendingNewLeadIds.delete(data.lead_id); }
+
+  } else if (data.type === "new_message") {
+    const t = tickets.value.find((t) => t.id === String(data.lead_id));
+    if (data.direction === "outgoing") {
+      if (t) t.isNew = false;
+    } else {
+      if (t) {
+        t.isNew = true;
+        t.isUnread = true;
+        t.lastMessage = data.content;
+        t.updatedAt = data.timestamp ?? new Date().toISOString();
+      }
+    }
+
+  } else if (data.type === "lead_updated") {
+    const t = tickets.value.find((t) => t.id === String(data.lead_id));
+    if (t && data.is_new === false) t.isNew = false;
+
+  } else if (data.type === "lead_status_changed") {
+    const t = tickets.value.find((t) => t.id === String(data.lead_id));
+    if (t) {
+      t.status = mapStatus(data.status);
+      if (data.is_new === false) t.isNew = false;
+    }
+  }
+};
 
 // ── Данные ───────────────────────────────────────────────────────────────────
 
@@ -236,13 +193,10 @@ const paginatedTickets = computed(() => {
   return tickets.value; // сервер уже вернул нужную страницу
 });
 
-// Счётчик «новых» — по загруженным тикетам
+// Счётчик «новых» на текущей странице (для заголовка)
 const unreadCount = computed(
   () => tickets.value.filter((t) => t.isNew).length
 );
-
-// Синхронизируем счётчик с сайдбаром (без immediate — чтобы не сбрасывать в 0 при монтировании с пустым массивом)
-watch(unreadCount, (v) => { badgeNewCount.value = v; });
 
 const showStatsPanel = ref(false);
 
@@ -271,8 +225,6 @@ const loadTickets = async () => {
     const res = await leadsApi.getList(params);
     tickets.value = res.leads.map(leadToTicket);
     total.value   = res.total;
-    // Обновляем бейдж после реальной загрузки данных
-    badgeNewCount.value = tickets.value.filter((t) => t.isNew).length;
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Ошибка загрузки";
   } finally {
@@ -302,12 +254,16 @@ const openTicket = (ticket: Ticket) => {
   router.push(`/tickets/${ticket.id}`);
 };
 
+let removeWsListener: (() => void) | null = null;
+
 onMounted(async () => {
   await Promise.all([loadTickets(), loadStats()]);
-  connectWs();
+  removeWsListener = addListener(handleWsEvent);
 });
 
-onUnmounted(disconnectWs);
+onUnmounted(() => {
+  removeWsListener?.();
+});
 </script>
 
 <template>
