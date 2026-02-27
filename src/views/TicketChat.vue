@@ -357,9 +357,18 @@ const goBack = () => router.push("/tickets");
 
 // ── Создание и привязка клиента ──────────────────────────────────────────────
 
-/** Привязать существующего клиента по id */
+/** Привязать существующего клиента по id:
+ *  1. PUT /api/v1/clients/{id}/full — обновляем telegram_id у клиента
+ *  2. PUT /api/v1/leads/{id}       — привязываем client_id к лиду
+ */
 const linkExistingClient = async (clientId: number) => {
   try {
+    // Telegram-идентификатор из тикета (@username приоритетнее числового id)
+    const telegramId = ticket.value?.telegramUsername
+      ? `@${ticket.value.telegramUsername}`
+      : ticket.value?.telegramId ?? undefined;
+
+    await clientsApi.updateClient(clientId, { telegram_id: telegramId });
     await leadsApi.update(Number(ticketId.value), { client_id: clientId });
     showSearchModal.value = false;
     await load();
