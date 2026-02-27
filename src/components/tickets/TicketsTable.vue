@@ -144,9 +144,12 @@ const rowBg = (ticket: Ticket) => {
                   нет в базе
                 </span>
               </div>
-              <!-- TG if not in DB -->
+              <!-- Телефон (если привязан) или TG-ссылка -->
+              <div v-if="ticket.clientLinked && ticket.clientPhone" class="text-xs text-gray-400 mt-0.5">
+                {{ ticket.clientPhone }}
+              </div>
               <a
-                v-if="!ticket.clientLinked && getTgLink(ticket)"
+                v-else-if="getTgLink(ticket)"
                 :href="getTgLink(ticket)?.href"
                 target="_blank"
                 rel="noopener noreferrer"
