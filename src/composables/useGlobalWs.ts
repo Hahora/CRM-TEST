@@ -23,6 +23,7 @@ type EventListener = (data: GwsEvent) => void;
 let ws: WebSocket | null = null;
 let wsAttempt = 0;
 let wsTimer: ReturnType<typeof setTimeout> | null = null;
+let wsStabilityTimer: ReturnType<typeof setTimeout> | null = null;
 let wsRouter: Router | null = null;
 let wsUserId: number | null = null;
 
@@ -114,17 +115,23 @@ function doConnect(userId: number) {
   try {
     ws = new WebSocket(leadsApi.getWsUrl(userId));
     ws.onopen = () => {
-      wsAttempt = 0;
+      // Сбрасываем backoff только если соединение продержалось 30+ секунд.
+      // Это предотвращает flood тоннельных подключений при нестабильном канале.
+      if (wsStabilityTimer) clearTimeout(wsStabilityTimer);
+      wsStabilityTimer = setTimeout(() => { wsAttempt = 0; wsStabilityTimer = null; }, 30_000);
       for (const fn of connectedCallbacks) { try { fn(); } catch { /* ignore */ } }
     };
     ws.onmessage = handleMsg;
     ws.onerror = () => { /* no-op — onclose всегда срабатывает после error */ };
     ws.onclose = (e) => {
       ws = null;
+      // Отменяем таймер стабильности — соединение не было стабильным
+      if (wsStabilityTimer) { clearTimeout(wsStabilityTimer); wsStabilityTimer = null; }
       if (e.code === 4001) return; // Unauthorized — no reconnect
       // Если токены уже сброшены (logout / refresh failed) — не переподключаемся
       if (!authService.getAccessToken()) return;
-      const delay = Math.min(1000 * Math.pow(2, wsAttempt), 30000);
+      // Базовая задержка 3 с (было 1 с), макс 60 с (было 30 с) — меньше давления на тоннель
+      const delay = Math.min(3000 * Math.pow(2, wsAttempt), 60_000);
       wsAttempt++;
       wsTimer = setTimeout(() => doConnect(userId), delay);
     };
@@ -158,6 +165,7 @@ export function useGlobalWs() {
   /** Disconnect WS and reset badge state (on logout). */
   const disconnect = () => {
     if (wsTimer) { clearTimeout(wsTimer); wsTimer = null; }
+    if (wsStabilityTimer) { clearTimeout(wsStabilityTimer); wsStabilityTimer = null; }
     wsAttempt = 0;
     newLeadIdSet.clear();
     ws?.close();
@@ -204,6 +212,7 @@ export function useGlobalWs() {
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
     if (wsTimer) { clearTimeout(wsTimer); wsTimer = null; }
+    if (wsStabilityTimer) { clearTimeout(wsStabilityTimer); wsStabilityTimer = null; }
     if (ws) { ws.onclose = null; ws.onerror = null; ws.onmessage = null; ws.close(); ws = null; }
     wsUserId = null;
     wsAttempt = 0;
