@@ -47,14 +47,7 @@ function handleMsg(event: MessageEvent) {
       if (!newLeadIdSet.has(data.lead_id)) {
         newLeadIdSet.add(data.lead_id);
         badgeCount.value += 1;
-        addToast({
-          type: "info",
-          title: "Новый тикет",
-          action: {
-            label: "Перейти",
-            onClick: () => wsRouter?.push(`/tickets/${data.lead_id}`),
-          },
-        });
+        // Тост не показываем — следом придёт new_message с именем клиента и превью
       }
     } else if (data.type === "new_message") {
       if (data.direction === "incoming") {
