@@ -42,30 +42,64 @@ const onEditorInput = () => {
   form.value.message = el.innerHTML;
 };
 
-/** Формат через execCommand (bold/italic/underline/strikeThrough) */
+/** Формат через execCommand — встроенный toggle (bold/italic/underline/strikeThrough) */
 const applyFmt = (cmd: string) => {
   editorRef.value?.focus();
   document.execCommand(cmd, false);
   onEditorInput();
 };
 
-/** Оборачивает выделение произвольным HTML (code, spoiler) */
-const wrapInline = (open: string, close: string) => {
+/**
+ * Toggle-обёртка для произвольного тега (code, span.tg-spoiler).
+ * Если курсор/выделение уже внутри такого элемента — снимает форматирование (unwrap).
+ * Иначе — оборачивает выделение.
+ */
+const toggleInlineTag = (tagName: string, className?: string) => {
   editorRef.value?.focus();
   const sel = window.getSelection();
   if (!sel || !sel.rangeCount) return;
-  const text = sel.getRangeAt(0).toString();
-  document.execCommand("insertHTML", false, `${open}${text}${close}`);
+  const range = sel.getRangeAt(0);
+
+  // Ищем ближайший предок с нужным тегом (и классом)
+  let ancestor: Node | null = range.commonAncestorContainer;
+  let found: Element | null = null;
+  while (ancestor && ancestor !== editorRef.value) {
+    if (ancestor.nodeType === Node.ELEMENT_NODE) {
+      const el = ancestor as Element;
+      if (
+        el.tagName.toLowerCase() === tagName &&
+        (!className || el.classList.contains(className))
+      ) {
+        found = el;
+        break;
+      }
+    }
+    ancestor = ancestor.parentNode;
+  }
+
+  if (found) {
+    // Unwrap: вынимаем содержимое наружу
+    const parent = found.parentNode!;
+    const frag = document.createDocumentFragment();
+    while (found.firstChild) frag.appendChild(found.firstChild);
+    parent.replaceChild(frag, found);
+  } else {
+    // Wrap выделения
+    const text = range.toString();
+    if (!text) return;
+    const openTag = className ? `<${tagName} class="${className}">` : `<${tagName}>`;
+    document.execCommand("insertHTML", false, `${openTag}${text}</${tagName}>`);
+  }
   onEditorInput();
 };
 
 const fmtButtons: Array<{ label: string; title: string; cls?: string; action: () => void }> = [
-  { label: "B",   title: "Жирный",        cls: "fw-bold",   action: () => applyFmt("bold")        },
-  { label: "I",   title: "Курсив",         cls: "fw-italic", action: () => applyFmt("italic")      },
-  { label: "U",   title: "Подчёркнутый",  cls: "fw-under",  action: () => applyFmt("underline")   },
-  { label: "S",   title: "Зачёркнутый",   cls: "fw-strike", action: () => applyFmt("strikeThrough") },
-  { label: "< >", title: "Код",            cls: "fw-code",   action: () => wrapInline('<code>', '</code>') },
-  { label: "||",  title: "Спойлер",        cls: "fw-spoil",  action: () => wrapInline('<span class="tg-spoiler">', '</span>') },
+  { label: "B",   title: "Жирный",        cls: "fw-bold",   action: () => applyFmt("bold")                          },
+  { label: "I",   title: "Курсив",         cls: "fw-italic", action: () => applyFmt("italic")                        },
+  { label: "U",   title: "Подчёркнутый",  cls: "fw-under",  action: () => applyFmt("underline")                     },
+  { label: "S",   title: "Зачёркнутый",   cls: "fw-strike", action: () => applyFmt("strikeThrough")                 },
+  { label: "< >", title: "Код",            cls: "fw-code",   action: () => toggleInlineTag("code")                   },
+  { label: "||",  title: "Спойлер",        cls: "fw-spoil",  action: () => toggleInlineTag("span", "tg-spoiler")     },
 ];
 
 // ── Эмодзи ──────────────────────────────────────────────────────────────────
