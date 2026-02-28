@@ -31,6 +31,44 @@ const isEmpty      = ref(true);
 const charCount    = ref(0);
 const showEmojiPicker = ref(false);
 
+// ── Медиа ───────────────────────────────────────────────────────────────────
+
+const mediaFiles    = ref<File[]>([]);
+const mediaPreviews = ref<string[]>([]);
+const mediaInputRef = ref<HTMLInputElement | null>(null);
+const isDragging    = ref(false);
+
+const addFiles = (files: FileList | File[]) => {
+  for (const file of Array.from(files)) {
+    mediaFiles.value.push(file);
+    mediaPreviews.value.push(file.type.startsWith("image/") ? URL.createObjectURL(file) : "");
+  }
+};
+
+const onFileSelect = (e: Event) => {
+  const input = e.target as HTMLInputElement;
+  if (input.files) addFiles(input.files);
+  input.value = "";
+};
+
+const onDrop = (e: DragEvent) => {
+  isDragging.value = false;
+  if (e.dataTransfer?.files) addFiles(e.dataTransfer.files);
+};
+
+const removeMedia = (i: number) => {
+  const p = mediaPreviews.value[i];
+  if (p) URL.revokeObjectURL(p);
+  mediaFiles.value.splice(i, 1);
+  mediaPreviews.value.splice(i, 1);
+};
+
+const formatBytes = (b: number) => {
+  if (b < 1024) return `${b} Б`;
+  if (b < 1024 * 1024) return `${(b / 1024).toFixed(0)} КБ`;
+  return `${(b / (1024 * 1024)).toFixed(1)} МБ`;
+};
+
 // ── Редактор ────────────────────────────────────────────────────────────────
 
 const onEditorInput = () => {
@@ -49,10 +87,21 @@ const applyFmt = (cmd: string) => {
   onEditorInput();
 };
 
+/** Перемещает курсор сразу после элемента el */
+const moveCursorAfter = (el: Element) => {
+  const sel = window.getSelection();
+  if (!sel) return;
+  const range = document.createRange();
+  range.setStartAfter(el);
+  range.collapse(true);
+  sel.removeAllRanges();
+  sel.addRange(range);
+};
+
 /**
  * Toggle-обёртка для произвольного тега (code, span.tg-spoiler).
- * Если курсор/выделение уже внутри такого элемента — снимает форматирование (unwrap).
- * Иначе — оборачивает выделение.
+ * Если курсор уже внутри — снимает форматирование (unwrap).
+ * Иначе — оборачивает выделение и выносит курсор за элемент.
  */
 const toggleInlineTag = (tagName: string, className?: string) => {
   editorRef.value?.focus();
@@ -89,7 +138,34 @@ const toggleInlineTag = (tagName: string, className?: string) => {
     if (!text) return;
     const openTag = className ? `<${tagName} class="${className}">` : `<${tagName}>`;
     document.execCommand("insertHTML", false, `${openTag}${text}</${tagName}>`);
+    // Выносим курсор за вставленный элемент, чтобы следующий текст был снаружи
+    const editorEl = editorRef.value!;
+    const inserted = className
+      ? editorEl.querySelector(`.${className}:last-of-type`)
+      : editorEl.querySelectorAll(tagName)[editorEl.querySelectorAll(tagName).length - 1];
+    if (inserted) moveCursorAfter(inserted);
   }
+  onEditorInput();
+};
+
+/** Снимает всё форматирование с выделения */
+const clearFormat = () => {
+  editorRef.value?.focus();
+  // Снимаем нативное форматирование (bold/italic/u/s)
+  document.execCommand("removeFormat", false);
+  // Снимаем кастомные теги (code, tg-spoiler)
+  const sel = window.getSelection();
+  if (!sel || !sel.rangeCount) { onEditorInput(); return; }
+  const range = sel.getRangeAt(0);
+  const editorEl = editorRef.value!;
+  editorEl.querySelectorAll("code, .tg-spoiler").forEach((el) => {
+    if (range.intersectsNode(el)) {
+      const parent = el.parentNode!;
+      const frag = document.createDocumentFragment();
+      while (el.firstChild) frag.appendChild(el.firstChild);
+      parent.replaceChild(frag, el);
+    }
+  });
   onEditorInput();
 };
 
@@ -155,6 +231,9 @@ const resetForm = () => {
   charCount.value = 0;
   if (editorRef.value) editorRef.value.innerHTML = "";
   showEmojiPicker.value = false;
+  mediaPreviews.value.forEach((p) => { if (p) URL.revokeObjectURL(p); });
+  mediaFiles.value    = [];
+  mediaPreviews.value = [];
 };
 
 const handleOverlay = (e: MouseEvent) => {
@@ -183,6 +262,7 @@ const handleSubmit = async () => {
         : form.value.scheduledAt
         ? "scheduled"
         : "draft",
+      media:       mediaFiles.value,
       createdBy: "Текущий пользователь",
     };
     emit("create", mailingData);
@@ -290,7 +370,18 @@ watch(() => form.value.sendNow, () => {/* just reactive */});
                       @click="b.action()"
                     >{{ b.label }}</button>
                     <div class="cm-fmt-sep" />
-                    <span class="cm-fmt-hint">Выделите текст → применить стиль</span>
+                    <button
+                      type="button"
+                      title="Очистить форматирование"
+                      class="cm-fmt-btn cm-fmt-btn--clear"
+                      @mousedown.prevent
+                      @click="clearFormat"
+                    >
+                      <AppIcon name="x" :size="11" />
+                      <span>Сброс</span>
+                    </button>
+                    <div class="cm-fmt-sep" />
+                    <span class="cm-fmt-hint">Выделите текст → стиль</span>
                   </div>
 
                   <!-- WYSIWYG редактор -->
@@ -303,6 +394,76 @@ watch(() => form.value.sendNow, () => {/* just reactive */});
                     @input="onEditorInput"
                   />
                   <p class="cm-hint">Enter — новый абзац</p>
+                </div>
+
+                <!-- Медиа -->
+                <div class="cm-section">
+                  <h3 class="cm-section-title">
+                    Медиа
+                    <span v-if="mediaFiles.length" class="cm-count">{{ mediaFiles.length }}</span>
+                  </h3>
+
+                  <!-- Скрытый input -->
+                  <input
+                    ref="mediaInputRef"
+                    type="file"
+                    multiple
+                    accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx"
+                    style="display:none"
+                    @change="onFileSelect"
+                  />
+
+                  <!-- Drop zone -->
+                  <div
+                    class="cm-dropzone"
+                    :class="{ 'cm-dropzone--drag': isDragging }"
+                    @click="mediaInputRef?.click()"
+                    @dragover.prevent="isDragging = true"
+                    @dragleave.prevent="isDragging = false"
+                    @drop.prevent="onDrop"
+                  >
+                    <AppIcon name="paperclip" :size="18" />
+                    <span>Перетащите или <u>выберите файлы</u></span>
+                    <span class="cm-dropzone-sub">Фото, видео, PDF, документы</span>
+                  </div>
+
+                  <!-- Список прикреплённых файлов -->
+                  <div v-if="mediaFiles.length" class="cm-media-list">
+                    <div
+                      v-for="(f, i) in mediaFiles"
+                      :key="i"
+                      class="cm-media-item"
+                    >
+                      <!-- Превью изображения -->
+                      <img
+                        v-if="mediaPreviews[i]"
+                        :src="mediaPreviews[i]"
+                        class="cm-media-thumb"
+                        :alt="f.name"
+                      />
+                      <!-- Иконка для не-изображений -->
+                      <div v-else class="cm-media-icon">
+                        <AppIcon
+                          :name="f.type.startsWith('video/') ? 'play-circle' : 'file-text'"
+                          :size="16"
+                        />
+                      </div>
+
+                      <div class="cm-media-info">
+                        <span class="cm-media-name">{{ f.name }}</span>
+                        <span class="cm-media-size">{{ formatBytes(f.size) }}</span>
+                      </div>
+
+                      <button
+                        type="button"
+                        class="cm-media-rm"
+                        title="Удалить"
+                        @click="removeMedia(i)"
+                      >
+                        <AppIcon name="x" :size="12" />
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
                 <!-- Настройки -->
@@ -461,6 +622,13 @@ watch(() => form.value.sendNow, () => {/* just reactive */});
 .cm-fmt-btn.fw-strike { text-decoration: line-through; font-family: var(--fn, sans-serif); }
 .cm-fmt-btn.fw-code   { font-family: 'Courier New', monospace; font-size: 11px; color: #2563eb; }
 .cm-fmt-btn.fw-spoil  { letter-spacing: -0.5px; color: #7c3aed; }
+.cm-fmt-btn--clear {
+  display: flex; align-items: center; gap: 3px;
+  font: 500 11px/1 var(--fn, sans-serif);
+  color: #94a3b8;
+  padding: 0 7px;
+}
+.cm-fmt-btn--clear:hover { background: #fee2e2; color: #dc2626; }
 .cm-fmt-sep { width: 1px; height: 16px; background: #e2e8f0; margin: 0 5px; }
 .cm-fmt-hint { margin-left: auto; font: 400 10px/1 var(--fn, sans-serif); color: #94a3b8; white-space: nowrap; }
 

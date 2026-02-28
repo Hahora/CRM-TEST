@@ -63,6 +63,7 @@ import {
   ThumbsDown,
   Sunset,
   Download,
+  Paperclip,
 } from "lucide-vue-next";
 
 export const iconComponents = {
@@ -130,6 +131,7 @@ export const iconComponents = {
   "thumbs-down": ThumbsDown,
   sunset: Sunset,
   download: Download,
+  paperclip: Paperclip,
 };
 
 export type IconName = keyof typeof iconComponents;
