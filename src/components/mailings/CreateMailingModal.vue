@@ -20,10 +20,7 @@ const emit = defineEmits<{
 const form = ref({
   name: "",
   type: "telegram" as "telegram" | "max",
-  subject: "",
   message: "",
-  targetAudience: [] as string[],
-  branch: "Главный офис",
   scheduledAt: "",
   sendNow: false,
 });
@@ -51,48 +48,51 @@ const insertEmoji = (emoji: { i: string }) => {
   });
 };
 
-const audienceOptions = [
-  { value: "all",                   label: "Все клиенты"             },
-  { value: "active",                label: "Активные клиенты"        },
-  { value: "vip",                   label: "VIP клиенты"             },
-  { value: "new",                   label: "Новые клиенты"           },
-  { value: "inactive",              label: "Неактивные"              },
-  { value: "newsletter_subscribers",label: "Подписчики рассылки"     },
-  { value: "recent_clients",        label: "Недавние клиенты"        },
-  { value: "scheduled_visits",      label: "Запланированные визиты"  },
-];
+/** Оборачивает выделенный текст TG-разметкой */
+const wrapSelection = (before: string, after: string) => {
+  const el = textareaRef.value;
+  if (!el) {
+    form.value.message = before + form.value.message + after;
+    return;
+  }
+  const start    = el.selectionStart ?? 0;
+  const end      = el.selectionEnd   ?? 0;
+  const selected = form.value.message.slice(start, end);
+  form.value.message =
+    form.value.message.slice(0, start) +
+    before + selected + after +
+    form.value.message.slice(end);
+  nextTick(() => {
+    el.selectionStart = start + before.length;
+    el.selectionEnd   = start + before.length + selected.length;
+    el.focus();
+    autoResize();
+  });
+};
 
-const branches = ["Главный офис", "Филиал №1", "Филиал №2", "Филиал №3"];
+const fmtButtons: Array<{ label: string; before: string; after: string; title: string }> = [
+  { label: "B",  before: "*",  after: "*",  title: "Жирный"        },
+  { label: "I",  before: "_",  after: "_",  title: "Курсив"        },
+  { label: "U",  before: "__", after: "__", title: "Подчёркнутый"  },
+  { label: "S",  before: "~",  after: "~",  title: "Зачёркнутый"   },
+  { label: "` `",before: "`",  after: "`",  title: "Код"           },
+  { label: "||", before: "||", after: "||", title: "Спойлер"       },
+];
 
 const typeOptions: Array<{ value: "telegram" | "max"; label: string; icon: IconName }> = [
   { value: "telegram", label: "Telegram", icon: "send"           },
   { value: "max",      label: "МАКС",     icon: "message-circle" },
 ];
 
-const estimatedRecipients = computed(() => {
-  if (!form.value.targetAudience.length) return 0;
-  const baseCount = 1000;
-  let multiplier = 0.4;
-  if (form.value.targetAudience.includes("all"))      multiplier = 1;
-  else if (form.value.targetAudience.includes("vip")) multiplier = 0.1;
-  else if (form.value.targetAudience.includes("active")) multiplier = 0.6;
-  else if (form.value.targetAudience.includes("new")) multiplier = 0.2;
-  else if (form.value.targetAudience.includes("inactive")) multiplier = 0.3;
-  return Math.round(baseCount * multiplier * form.value.targetAudience.length);
-});
-
 const canSubmit = computed(() =>
-  !!form.value.name.trim() && !!form.value.message.trim() && form.value.targetAudience.length > 0
+  !!form.value.name.trim() && !!form.value.message.trim()
 );
 
 const resetForm = () => {
   form.value = {
     name: "",
     type: "telegram",
-    subject: "",
     message: "",
-    targetAudience: [],
-    branch: "Главный офис",
     scheduledAt: "",
     sendNow: false,
   };
@@ -130,12 +130,6 @@ const handleSubmit = async () => {
   }
 };
 
-const toggleAudience = (value: string) => {
-  const index = form.value.targetAudience.indexOf(value);
-  if (index > -1) form.value.targetAudience.splice(index, 1);
-  else form.value.targetAudience.push(value);
-};
-
 const autoResize = () => {
   const el = textareaRef.value;
   if (!el) return;
@@ -169,7 +163,7 @@ watch(() => form.value.message, () => nextTick(autoResize));
             <div class="cm-body">
               <form @submit.prevent="handleSubmit" class="cm-form">
 
-                <!-- Название -->
+                <!-- Основное -->
                 <div class="cm-section">
                   <h3 class="cm-section-title">Основное</h3>
                   <div class="cm-fields">
@@ -200,17 +194,6 @@ watch(() => form.value.message, () => nextTick(autoResize));
                         </button>
                       </div>
                     </div>
-
-                    <!-- Заголовок -->
-                    <div class="cm-field cm-field--full">
-                      <label>Заголовок <span class="cm-optional">необязательно</span></label>
-                      <input
-                        v-model="form.subject"
-                        type="text"
-                        placeholder="Заголовок сообщения"
-                        autocomplete="off"
-                      />
-                    </div>
                   </div>
                 </div>
 
@@ -237,56 +220,37 @@ watch(() => form.value.message, () => nextTick(autoResize));
                       </template>
                     </div>
                   </div>
+
+                  <!-- Панель форматирования TG -->
+                  <div class="cm-fmt-bar">
+                    <button
+                      v-for="b in fmtButtons"
+                      :key="b.label"
+                      type="button"
+                      class="cm-fmt-btn"
+                      :title="b.title"
+                      @click="wrapSelection(b.before, b.after)"
+                    >
+                      <span :class="'cm-fmt-' + b.title.toLowerCase().replace(/[^a-zа-я]/g, '')">{{ b.label }}</span>
+                    </button>
+                    <div class="cm-fmt-divider" />
+                    <span class="cm-fmt-hint">Markdown TG</span>
+                  </div>
+
                   <textarea
                     ref="textareaRef"
                     v-model="form.message"
                     class="cm-textarea"
-                    placeholder="Введите текст рассылки. Нажмите Enter для нового абзаца."
+                    placeholder="Введите текст рассылки..."
                     @input="autoResize"
                   />
-                  <p class="cm-hint">Enter — новый абзац</p>
+                  <p class="cm-hint">Выделите текст и нажмите кнопку форматирования</p>
                 </div>
 
-                <!-- Аудитория -->
-                <div class="cm-section">
-                  <h3 class="cm-section-title">
-                    Аудитория
-                    <span v-if="form.targetAudience.length" class="cm-count">
-                      ≈{{ estimatedRecipients }} получателей
-                    </span>
-                  </h3>
-                  <div class="cm-audience">
-                    <button
-                      v-for="opt in audienceOptions"
-                      :key="opt.value"
-                      type="button"
-                      class="cm-audience-btn"
-                      :class="{ 'cm-audience-btn--on': form.targetAudience.includes(opt.value) }"
-                      @click="toggleAudience(opt.value)"
-                    >
-                      <span class="cm-audience-check">
-                        <AppIcon
-                          v-if="form.targetAudience.includes(opt.value)"
-                          name="check"
-                          :size="10"
-                        />
-                      </span>
-                      {{ opt.label }}
-                    </button>
-                  </div>
-                </div>
-
-                <!-- Филиал + Отправка -->
+                <!-- Настройки -->
                 <div class="cm-section">
                   <h3 class="cm-section-title">Настройки</h3>
                   <div class="cm-fields">
-                    <div class="cm-field cm-field--full">
-                      <label>Филиал</label>
-                      <select v-model="form.branch">
-                        <option v-for="b in branches" :key="b" :value="b">{{ b }}</option>
-                      </select>
-                    </div>
-
                     <div class="cm-field cm-field--full">
                       <label class="cm-check-label">
                         <input type="checkbox" v-model="form.sendNow" />
@@ -411,7 +375,7 @@ watch(() => form.value.message, () => nextTick(autoResize));
 
 /* ── Section ─────────────────────────────────────────── */
 .cm-section {
-  padding: 16px 20px;
+  padding: 20px 20px;
   border-bottom: 1px solid #e2e8f0;
 }
 .cm-section:last-of-type { border-bottom: none; }
@@ -419,17 +383,21 @@ watch(() => form.value.message, () => nextTick(autoResize));
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin: 0 0 12px;
+  margin: 0 0 10px;
 }
 .cm-section-title {
   font: 700 11px/1 var(--fn, sans-serif);
   color: #0f172a;
-  margin: 0;
+  margin: 0 0 14px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   display: flex;
   align-items: center;
   gap: 6px;
+}
+/* Когда заголовок внутри cm-section-row — убираем его нижний отступ */
+.cm-section-row .cm-section-title {
+  margin-bottom: 0;
 }
 .cm-emoji-btn {
   width: 28px;
@@ -456,7 +424,7 @@ watch(() => form.value.message, () => nextTick(autoResize));
   border-radius: 20px;
 }
 .cm-hint {
-  margin: 5px 0 0;
+  margin: 6px 0 0;
   font: 400 11px/1.4 var(--fn, sans-serif);
   color: #94a3b8;
 }
@@ -468,16 +436,59 @@ watch(() => form.value.message, () => nextTick(autoResize));
   font-size: 10px;
 }
 
+/* ── Formatting bar ──────────────────────────────────── */
+.cm-fmt-bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 6px;
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+}
+.cm-fmt-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 26px;
+  padding: 0 6px;
+  border: none;
+  border-radius: 5px;
+  background: none;
+  cursor: pointer;
+  font: 600 12px/1 var(--fn, monospace);
+  color: #475569;
+  transition: background 120ms, color 120ms;
+}
+.cm-fmt-btn:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+.cm-fmt-divider {
+  width: 1px;
+  height: 16px;
+  background: #e2e8f0;
+  margin: 0 4px;
+}
+.cm-fmt-hint {
+  margin-left: auto;
+  font: 400 10px/1 var(--fn, sans-serif);
+  color: #94a3b8;
+  white-space: nowrap;
+}
+
 /* ── Fields ──────────────────────────────────────────── */
 .cm-fields {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  gap: 12px;
 }
 .cm-field {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
 }
 .cm-field--full { grid-column: 1 / -1; }
 .cm-field label {
@@ -555,10 +566,11 @@ watch(() => form.value.message, () => nextTick(autoResize));
 /* ── Textarea ─────────────────────────────────────────── */
 .cm-textarea {
   width: 100%;
-  min-height: 96px;
+  min-height: 110px;
   padding: 10px 12px;
   border: 1.5px solid #e2e8f0;
-  border-radius: 8px;
+  border-top: none;
+  border-radius: 0 0 8px 8px;
   font: 400 13px/1.6 var(--fn, sans-serif);
   background: #fff;
   color: #0f172a;
@@ -573,47 +585,6 @@ watch(() => form.value.message, () => nextTick(autoResize));
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
 }
 .cm-textarea::placeholder { color: #94a3b8; }
-
-/* ── Audience ─────────────────────────────────────────── */
-.cm-audience {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
-}
-.cm-audience-btn {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 8px 10px;
-  border: 1.5px solid #e2e8f0;
-  border-radius: 8px;
-  background: #fff;
-  color: #475569;
-  font: 500 12px/1.2 var(--fn, sans-serif);
-  cursor: pointer;
-  transition: all 150ms;
-  text-align: left;
-}
-.cm-audience-btn:hover { border-color: #cbd5e1; background: #f8fafc; color: #0f172a; }
-.cm-audience-btn--on { border-color: #2563eb; background: #eff6ff; color: #1d4ed8; }
-.cm-audience-btn--on:hover { background: #dbeafe; }
-.cm-audience-check {
-  width: 16px;
-  height: 16px;
-  border-radius: 4px;
-  border: 1.5px solid currentColor;
-  background: transparent;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  transition: background 150ms;
-}
-.cm-audience-btn--on .cm-audience-check {
-  background: #2563eb;
-  border-color: #2563eb;
-  color: #fff;
-}
 
 /* ── Footer ──────────────────────────────────────────── */
 .cm-footer {
@@ -665,7 +636,6 @@ watch(() => form.value.message, () => nextTick(autoResize));
 @media (max-width: 640px) {
   .cm-panel  { width: 100vw; }
   .cm-fields { grid-template-columns: 1fr; }
-  .cm-audience { grid-template-columns: 1fr; }
   .cm-types  { flex-direction: column; }
 }
 </style>
