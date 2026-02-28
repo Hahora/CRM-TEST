@@ -4,7 +4,7 @@ import { useRoute, useRouter } from "vue-router";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import AppIcon from "@/components/AppIcon.vue";
-import "@lottiefiles/lottie-player"; // Регистрирует <lottie-player> web component
+import "@lottiefiles/lottie-player/dist/tgs-player.js"; // Регистрирует <tgs-player> (поддерживает gzip TGS)
 import { leadsApi, resolveClientName } from "@/services/leadsApi";
 import type { LeadStatus, LeadMessage, MessageAttachment } from "@/services/leadsApi";
 import { clientsApi } from "@/services/clientsApi";
@@ -719,8 +719,8 @@ onUnmounted(() => {
                       alt="Стикер"
                       loading="lazy"
                     />
-                    <!-- Анимированный Lottie (.tgs) -->
-                    <lottie-player
+                    <!-- Анимированный TGS (gzip Lottie) — нужен tgs-player, lottie-player не умеет распаковывать gzip -->
+                    <tgs-player
                       v-else-if="sticker.is_animated && !sticker.is_video"
                       :src="telegramFileUrl(sticker.file_id)"
                       autoplay
