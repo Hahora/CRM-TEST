@@ -65,7 +65,6 @@ const fmtButtons: Array<{ label: string; title: string; cls?: string; action: ()
   { label: "U",   title: "Подчёркнутый",  cls: "fw-under",  action: () => applyFmt("underline")   },
   { label: "S",   title: "Зачёркнутый",   cls: "fw-strike", action: () => applyFmt("strikeThrough") },
   { label: "< >", title: "Код",            cls: "fw-code",   action: () => wrapInline('<code>', '</code>') },
-  { label: "||",  title: "Спойлер",        cls: "fw-spoil",  action: () => wrapInline('<span class="tg-spoiler">', '</span>') },
 ];
 
 // ── Эмодзи ──────────────────────────────────────────────────────────────────
@@ -478,14 +477,11 @@ watch(() => form.value.sendNow, () => {/* just reactive */});
 }
 .cm-editor :deep(.tg-spoiler) {
   background: #1e293b;
-  color: transparent;
+  color: #f8fafc;
   border-radius: 4px;
   padding: 0 3px;
-  cursor: pointer;
-  transition: color 200ms;
   user-select: text;
 }
-.cm-editor :deep(.tg-spoiler):hover { color: #f8fafc; }
 
 /* ── Fields ──────────────────────────────────────────── */
 .cm-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
