@@ -260,9 +260,11 @@ const load = async () => {
     router.push("/tickets");
   } finally {
     isLoading.value = false;
-    // Ждём следующего тика: v-if="isLoading" должен убраться и messagesEl появиться в DOM
+    // nextTick — Vue применяет DOM, requestAnimationFrame — браузер вычисляет flex-layout
     await nextTick();
-    scrollToBottom();
+    requestAnimationFrame(() => {
+      if (messagesEl.value) messagesEl.value.scrollTop = messagesEl.value.scrollHeight;
+    });
   }
 };
 
