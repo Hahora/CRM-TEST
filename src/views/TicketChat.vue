@@ -256,11 +256,13 @@ const load = async () => {
     clientLinked.value = lead.client_id != null;
 
     subscribeToLead();
-    scrollToBottom();
   } catch {
     router.push("/tickets");
   } finally {
     isLoading.value = false;
+    // Ждём следующего тика: v-if="isLoading" должен убраться и messagesEl появиться в DOM
+    await nextTick();
+    scrollToBottom();
   }
 };
 
