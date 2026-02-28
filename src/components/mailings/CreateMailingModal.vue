@@ -732,6 +732,105 @@ watch(() => form.value.sendNow, () => {/* just reactive */});
 .cm-type--on { border-color: #2563eb; background: #eff6ff; color: #2563eb; }
 .cm-type--on:hover { background: #eff6ff; }
 
+/* ── Media ───────────────────────────────────────────── */
+.cm-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 18px 16px;
+  border: 1.5px dashed #cbd5e1;
+  border-radius: 10px;
+  background: #f8fafc;
+  cursor: pointer;
+  transition: border-color 150ms, background 150ms, color 150ms;
+  color: #94a3b8;
+  text-align: center;
+  font: 400 13px/1.4 var(--fn, sans-serif);
+  user-select: none;
+}
+.cm-dropzone:hover,
+.cm-dropzone--drag {
+  border-color: #2563eb;
+  background: #eff6ff;
+  color: #2563eb;
+}
+.cm-dropzone-sub {
+  font: 400 11px/1 var(--fn, sans-serif);
+  color: #94a3b8;
+  margin-top: 2px;
+}
+.cm-dropzone--drag .cm-dropzone-sub { color: #93c5fd; }
+
+/* Сетка превью */
+.cm-media-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+.cm-media-item {
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1.5px solid #e2e8f0;
+  background: #f8fafc;
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+.cm-media-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.cm-media-icon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: #64748b;
+  padding: 8px 4px;
+  width: 100%;
+  height: 100%;
+}
+.cm-media-name {
+  font: 400 9px/1.2 var(--fn, sans-serif);
+  color: #64748b;
+  text-align: center;
+  word-break: break-all;
+  max-width: 100%;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  padding: 0 4px;
+}
+.cm-media-size { display: none; }
+/* Кнопка удаления — появляется при наведении */
+.cm-media-rm {
+  position: absolute;
+  top: 3px; right: 3px;
+  width: 18px; height: 18px;
+  display: flex; align-items: center; justify-content: center;
+  border: none; border-radius: 4px;
+  background: rgba(15,23,42,0.55);
+  color: #fff;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 150ms;
+  padding: 0;
+}
+.cm-media-item:hover .cm-media-rm { opacity: 1; }
+.cm-media-rm:hover { background: #dc2626; }
+
 /* ── Footer ──────────────────────────────────────────── */
 .cm-footer {
   display: flex; justify-content: flex-end; gap: 8px;
