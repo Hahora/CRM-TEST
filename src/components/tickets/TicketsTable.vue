@@ -33,7 +33,7 @@ const getTgLink = (ticket: Pick<Ticket, "telegramUsername" | "telegramId">) => {
     return { text: `@${ticket.telegramUsername}`, href: `https://t.me/${ticket.telegramUsername}` };
   }
   if (ticket.telegramId) {
-    return { text: `ID: ${ticket.telegramId}`, href: `tg://user?id=${ticket.telegramId}` };
+    return { text: `TG #${ticket.telegramId}`, href: `tg://user?id=${ticket.telegramId}` };
   }
   return null;
 };
