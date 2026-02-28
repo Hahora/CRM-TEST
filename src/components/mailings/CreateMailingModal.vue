@@ -65,6 +65,7 @@ const fmtButtons: Array<{ label: string; title: string; cls?: string; action: ()
   { label: "U",   title: "Подчёркнутый",  cls: "fw-under",  action: () => applyFmt("underline")   },
   { label: "S",   title: "Зачёркнутый",   cls: "fw-strike", action: () => applyFmt("strikeThrough") },
   { label: "< >", title: "Код",            cls: "fw-code",   action: () => wrapInline('<code>', '</code>') },
+  { label: "||",  title: "Спойлер",        cls: "fw-spoil",  action: () => wrapInline('<span class="tg-spoiler">', '</span>') },
 ];
 
 // ── Эмодзи ──────────────────────────────────────────────────────────────────
