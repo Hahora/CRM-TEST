@@ -11,8 +11,8 @@ export default defineConfig({
     vue({
       template: {
         compilerOptions: {
-          // lottie-player — нативный web component, не Vue-компонент
-          isCustomElement: (tag) => tag === "lottie-player",
+          // tgs-player / lottie-player — нативные web components, не Vue-компоненты
+          isCustomElement: (tag) => tag === "lottie-player" || tag === "tgs-player",
         },
       },
     }),
