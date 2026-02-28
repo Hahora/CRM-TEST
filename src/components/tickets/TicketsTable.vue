@@ -15,7 +15,7 @@ export interface Ticket {
   clientLinked: boolean;
   status: "active" | "resolved" | "unresolved" | "closed";
   priority: "urgent" | "high" | "medium" | "low";
-  source: "telegram" | "max";
+  source: "telegram" | "max" | "telegram_channel";
   subject: string;
   lastMessage: string;
   assignedTo?: string;
@@ -54,12 +54,14 @@ const emit = defineEmits<{
 }>();
 
 const getSource = (s: string): { label: string; cls: string } => {
-  if (s === "telegram") return { label: "Telegram", cls: "text-blue-600 bg-blue-50"    };
-  return                        { label: "МАКС",     cls: "text-purple-600 bg-purple-50" };
+  if (s === "telegram")         return { label: "Telegram", cls: "text-blue-600 bg-blue-50"    };
+  if (s === "telegram_channel") return { label: "TG Канал", cls: "text-blue-600 bg-blue-50"    };
+  return                               { label: "МАКС",     cls: "text-purple-600 bg-purple-50" };
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const getSourceIcon = (s: string): any => (s === "telegram" ? "send" : "message-circle");
+const getSourceIcon = (s: string): any =>
+  (s === "telegram" || s === "telegram_channel" ? "send" : "message-circle");
 
 const getStatus = (s: string): { label: string; cls: string } => {
   switch (s) {

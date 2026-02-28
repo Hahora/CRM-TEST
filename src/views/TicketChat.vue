@@ -29,7 +29,7 @@ interface Ticket {
   maxId?: string;
   status: "active" | "resolved" | "unresolved" | "closed";
   priority: "urgent" | "high" | "medium" | "low";
-  source: "telegram" | "max";
+  source: "telegram" | "max" | "telegram_channel";
   subject: string;
   lastMessage: string;
   assignedTo?: string;
@@ -116,7 +116,8 @@ const getStatus = (s: string): { label: string; cls: string } => {
   }
 };
 
-const getSourceLabel = (s: string) => (s === "telegram" ? "Telegram" : "МАКС");
+const getSourceLabel = (s: string) =>
+  s === "telegram" ? "Telegram" : s === "telegram_channel" ? "TG Канал" : "МАКС";
 
 // ── WebSocket (глобальный синглтон) ───────────────────────────────────────────
 
@@ -240,7 +241,9 @@ const load = async () => {
       telegramId:       client?.telegram_id ? String(client.telegram_id) : undefined,
       telegramUsername: lead.source_username ?? null,
       status, priority: "medium",
-      source:       lead.source_type === "telegram" ? "telegram" : "max",
+      source:       lead.source_type === "telegram" ? "telegram"
+                  : lead.source_type === "telegram_channel" ? "telegram_channel"
+                  : "max",
       subject:      cleanNotes.slice(0, 60) || `Тикет #${lead.id}`,
       lastMessage:  lastMsg?.content || lead.notes || "—",
       assignedTo:   assignedName,
@@ -312,8 +315,11 @@ const closeTicket = async () => {
   showCloseConfirm.value = false;
   try {
     await leadsApi.changeStatus(Number(ticketId.value), closedStatus.value.id);
-    router.push("/tickets");
+    // Обновляем статус сразу — WS-событие lead_status_changed подтвердит его
+    if (ticket.value) ticket.value.status = "closed";
   } catch {
+    /* ignore */
+  } finally {
     isClosing.value = false;
   }
 };

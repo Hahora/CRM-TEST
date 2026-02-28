@@ -36,9 +36,10 @@ const statuses = [
 ];
 
 const sources = [
-  { value: "all", label: "Все источники" },
-  { value: "telegram", label: "Telegram" },
-  { value: "max", label: "МАКС" },
+  { value: "all",              label: "Все источники" },
+  { value: "telegram",         label: "Telegram" },
+  { value: "telegram_channel", label: "TG Канал" },
+  { value: "max",              label: "МАКС" },
 ];
 
 // Расширенная панель (мобайл)

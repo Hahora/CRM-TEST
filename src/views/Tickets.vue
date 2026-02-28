@@ -27,7 +27,11 @@ function mapStatus(s: LeadStatus): Ticket["status"] {
 
 function leadToTicket(lead: Lead): Ticket {
   const client = lead.client;
-  const clientName = resolveClientName(client, lead.source_name, lead.client_id ?? lead.id);
+  const clientName = resolveClientName(
+    client,
+    lead.source_name,
+    lead.client_id ?? lead.id
+  );
   const assignedName = lead.assigned_to
     ? [lead.assigned_to.first_name, lead.assigned_to.last_name]
         .filter(Boolean)
@@ -42,14 +46,22 @@ function leadToTicket(lead: Lead): Ticket {
     clientLinked: lead.client_id != null,
     telegramId: client?.telegram_id
       ? String(client.telegram_id)
-      : lead.source_type === "telegram" && lead.source_id
-        ? lead.source_id
-        : undefined,
+      : (lead.source_type === "telegram" || lead.source_type === "telegram_channel") && lead.source_id
+      ? lead.source_id
+      : undefined,
     telegramUsername: lead.source_username ?? null,
     status: mapStatus(lead.status),
     priority: "medium",
-    source: lead.source_type === "telegram" ? "telegram" : "max",
-    subject: (lead.notes || "").split("\n").filter((l: string) => !l.startsWith("[Status changed")).join("\n").trim().slice(0, 60) || `Тикет #${lead.id}`,
+    source: lead.source_type === "telegram" ? "telegram"
+          : lead.source_type === "telegram_channel" ? "telegram_channel"
+          : "max",
+    subject:
+      (lead.notes || "")
+        .split("\n")
+        .filter((l: string) => !l.startsWith("[Status changed"))
+        .join("\n")
+        .trim()
+        .slice(0, 60) || `Тикет #${lead.id}`,
     lastMessage: lead.notes || "—",
     assignedTo: assignedName,
     createdAt: lead.created_at,
@@ -81,9 +93,11 @@ const handleWsEvent = async (data: GwsEvent) => {
           tickets.value.pop();
       }
       total.value += 1;
-    } catch { /* не удалось загрузить лид */ }
-    finally { pendingNewLeadIds.delete(data.lead_id); }
-
+    } catch {
+      /* не удалось загрузить лид */
+    } finally {
+      pendingNewLeadIds.delete(data.lead_id);
+    }
   } else if (data.type === "new_message") {
     const t = tickets.value.find((t) => t.id === String(data.lead_id));
     if (data.direction === "outgoing") {
@@ -96,11 +110,9 @@ const handleWsEvent = async (data: GwsEvent) => {
         t.updatedAt = data.timestamp ?? new Date().toISOString();
       }
     }
-
   } else if (data.type === "lead_updated") {
     const t = tickets.value.find((t) => t.id === String(data.lead_id));
     if (t && data.is_new === false) t.isNew = false;
-
   } else if (data.type === "lead_status_changed") {
     const t = tickets.value.find((t) => t.id === String(data.lead_id));
     if (t) {
@@ -137,7 +149,9 @@ const filteredTickets = computed(() => {
       (t) =>
         t.number.toString().includes(q) ||
         t.clientName.toLowerCase().includes(q) ||
-        (t.telegramUsername ?? "").toLowerCase().includes(q.replace(/^@/, "")) ||
+        (t.telegramUsername ?? "")
+          .toLowerCase()
+          .includes(q.replace(/^@/, "")) ||
         (t.telegramId ?? "").toLowerCase().includes(q) ||
         t.subject.toLowerCase().includes(q)
     );
@@ -162,18 +176,20 @@ const stats = computed(() => {
 const loadStats = async () => {
   try {
     apiStats.value = await leadsApi.getStats();
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 };
 
 // ── Пагинация ─────────────────────────────────────────────────────────────────
 
 const PAGE_SIZE = 10;
-const page      = ref(1);
-const total     = ref(0); // total от сервера
+const page = ref(1);
+const total = ref(0); // total от сервера
 
 /** Поиск / фильтр источника активны → грузим 500 и режем на клиенте */
-const isClientFiltered = computed(() =>
-  filters.value.search !== "" || filters.value.source !== "all"
+const isClientFiltered = computed(
+  () => filters.value.search !== "" || filters.value.source !== "all"
 );
 
 const displayTotal = computed(() =>
@@ -193,9 +209,7 @@ const paginatedTickets = computed(() => {
 });
 
 // Счётчик «новых» на текущей странице (для заголовка)
-const unreadCount = computed(
-  () => tickets.value.filter((t) => t.isNew).length
-);
+const unreadCount = computed(() => tickets.value.filter((t) => t.isNew).length);
 
 const showStatsPanel = ref(false);
 
@@ -207,23 +221,25 @@ const loadTickets = async () => {
   try {
     const params: LeadsParams = {};
     // Серверные фильтры
-    if (filters.value.status === "active")  params.is_closed = false;
+    if (filters.value.status === "active") params.is_closed = false;
     else if (filters.value.status === "closed") params.is_closed = true;
-    if (filters.value.dateFrom) params.date_from = filters.value.dateFrom + "T00:00:00";
-    if (filters.value.dateTo)   params.date_to   = filters.value.dateTo   + "T23:59:59";
+    if (filters.value.dateFrom)
+      params.date_from = filters.value.dateFrom + "T00:00:00";
+    if (filters.value.dateTo)
+      params.date_to = filters.value.dateTo + "T23:59:59";
 
     if (isClientFiltered.value) {
       // Клиентский поиск: грузим все подходящие (до 500) для фильтрации
       params.limit = 500;
     } else {
       // Серверная пагинация
-      params.skip  = (page.value - 1) * PAGE_SIZE;
+      params.skip = (page.value - 1) * PAGE_SIZE;
       params.limit = PAGE_SIZE;
     }
 
     const res = await leadsApi.getList(params);
     tickets.value = res.leads.map(leadToTicket);
-    total.value   = res.total;
+    total.value = res.total;
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Ошибка загрузки";
   } finally {
@@ -238,14 +254,35 @@ watch(page, () => {
 
 // Серверные фильтры (статус, даты) → сброс страницы + перезагрузка
 watch(
-  () => [filters.value.status, filters.value.dateFrom, filters.value.dateTo] as const,
-  () => { page.value = 1; loadTickets(); },
+  () =>
+    [
+      filters.value.status,
+      filters.value.dateFrom,
+      filters.value.dateTo,
+    ] as const,
+  () => {
+    page.value = 1;
+    loadTickets();
+  }
 );
 
 // Клиентские фильтры (поиск, источник) → сброс страницы; при переключении в/из режима → перезагрузка
-watch(isClientFiltered, () => { page.value = 1; loadTickets(); });
-watch(() => filters.value.search,  () => { page.value = 1; });
-watch(() => filters.value.source,  () => { page.value = 1; });
+watch(isClientFiltered, () => {
+  page.value = 1;
+  loadTickets();
+});
+watch(
+  () => filters.value.search,
+  () => {
+    page.value = 1;
+  }
+);
+watch(
+  () => filters.value.source,
+  () => {
+    page.value = 1;
+  }
+);
 
 const refresh = () => loadTickets();
 
