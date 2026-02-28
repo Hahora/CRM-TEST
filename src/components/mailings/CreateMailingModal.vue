@@ -137,16 +137,22 @@ const toggleInlineTag = (tagName: string, className?: string) => {
     const text = range.toString();
     if (!text) return;
     const openTag = className ? `<${tagName} class="${className}">` : `<${tagName}>`;
-    // Вставляем маркер после закрывающего тега, по нему точно ставим курсор
-    const markerId = "__cm_anchor__";
-    document.execCommand(
-      "insertHTML", false,
-      `${openTag}${text}</${tagName}><span id="${markerId}"></span>`
-    );
-    const marker = editorRef.value!.querySelector(`#${markerId}`);
-    if (marker) {
-      moveCursorAfter(marker);
-      marker.parentNode?.removeChild(marker);
+    document.execCommand("insertHTML", false, `${openTag}${text}</${tagName}>`);
+    // После insertHTML курсор внутри вставленного тега — поднимаемся до него и выходим
+    const sel2 = window.getSelection();
+    if (sel2 && sel2.rangeCount) {
+      let n: Node | null = sel2.getRangeAt(0).commonAncestorContainer;
+      while (n && n !== editorRef.value) {
+        if (
+          n.nodeType === Node.ELEMENT_NODE &&
+          (n as Element).tagName.toLowerCase() === tagName &&
+          (!className || (n as Element).classList.contains(className))
+        ) {
+          moveCursorAfter(n as Element);
+          break;
+        }
+        n = n.parentNode;
+      }
     }
   }
   onEditorInput();
