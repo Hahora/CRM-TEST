@@ -137,13 +137,17 @@ const toggleInlineTag = (tagName: string, className?: string) => {
     const text = range.toString();
     if (!text) return;
     const openTag = className ? `<${tagName} class="${className}">` : `<${tagName}>`;
-    document.execCommand("insertHTML", false, `${openTag}${text}</${tagName}>`);
-    // Выносим курсор за вставленный элемент, чтобы следующий текст был снаружи
-    const editorEl = editorRef.value!;
-    const inserted = className
-      ? editorEl.querySelector(`.${className}:last-of-type`)
-      : editorEl.querySelectorAll(tagName)[editorEl.querySelectorAll(tagName).length - 1];
-    if (inserted) moveCursorAfter(inserted);
+    // Вставляем маркер после закрывающего тега, по нему точно ставим курсор
+    const markerId = "__cm_anchor__";
+    document.execCommand(
+      "insertHTML", false,
+      `${openTag}${text}</${tagName}><span id="${markerId}"></span>`
+    );
+    const marker = editorRef.value!.querySelector(`#${markerId}`);
+    if (marker) {
+      moveCursorAfter(marker);
+      marker.parentNode?.removeChild(marker);
+    }
   }
   onEditorInput();
 };
