@@ -238,7 +238,10 @@ const load = async () => {
     ticket.value = {
       id: String(lead.id), number: lead.id, clientName,
       clientPhone:      client?.phone,
-      telegramId:       client?.telegram_id ? String(client.telegram_id) : undefined,
+      telegramId:       client?.telegram_id ? String(client.telegram_id)
+                      : (lead.source_type === "telegram" || lead.source_type === "telegram_channel") && lead.source_id
+                      ? lead.source_id
+                      : undefined,
       telegramUsername: lead.source_username ?? null,
       status, priority: "medium",
       source:       lead.source_type === "telegram" ? "telegram"
