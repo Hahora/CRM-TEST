@@ -9,6 +9,7 @@ import type { Ticket } from "@/components/tickets/TicketsTable.vue";
 import type { TicketsFilters as TFilters } from "@/components/tickets/TicketsFilters.vue";
 import { leadsApi, resolveClientName } from "@/services/leadsApi";
 import type { Lead, LeadStatus, LeadsParams } from "@/services/leadsApi";
+import { mailingsApi } from "@/services/mailingsApi";
 import { useGlobalWs } from "@/composables/useGlobalWs";
 import type { GwsEvent } from "@/composables/useGlobalWs";
 import { useToast } from "@/composables/useToast";
@@ -16,6 +17,27 @@ import { useToast } from "@/composables/useToast";
 const router = useRouter();
 const { addListener } = useGlobalWs();
 const { showSuccess, showError } = useToast();
+
+// ── Заблокированные ───────────────────────────────────────────────────────────
+const blockedIds = ref<Set<string>>(new Set());
+
+const loadBlocked = async () => {
+  try {
+    const list = await mailingsApi.getBlocked();
+    blockedIds.value = new Set(list.map((u) => u.telegram_user_id));
+  } catch { /* ignore */ }
+};
+
+const applyBlockedStatus = (list: Ticket[]) => {
+  for (const t of list) {
+    t.isBlocked = !!(t.telegramId && blockedIds.value.has(t.telegramId));
+  }
+};
+
+// Модальное подтверждение блокировки
+const ticketToBlock = ref<Ticket | null>(null);
+const showBlockConfirm = ref(false);
+const isBlocking = ref(false);
 
 // ── Маппинг Lead → Ticket ────────────────────────────────────────────────────
 
@@ -241,6 +263,7 @@ const loadTickets = async () => {
 
     const res = await leadsApi.getList(params);
     tickets.value = res.leads.map(leadToTicket);
+    applyBlockedStatus(tickets.value);
     total.value = res.total;
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Ошибка загрузки";
@@ -292,19 +315,50 @@ const openTicket = (ticket: Ticket) => {
   router.push(`/tickets/${ticket.id}`);
 };
 
-const blockTicket = async (ticket: Ticket) => {
+const blockTicket = (ticket: Ticket) => {
+  ticketToBlock.value = ticket;
+  showBlockConfirm.value = true;
+};
+
+const confirmBlock = async () => {
+  const ticket = ticketToBlock.value;
+  if (!ticket) return;
+  isBlocking.value = true;
   try {
     await leadsApi.blockClient(Number(ticket.id));
+    // Обновляем локальный Set и флаг тикета
+    if (ticket.telegramId) {
+      blockedIds.value = new Set([...blockedIds.value, ticket.telegramId]);
+    }
+    ticket.isBlocked = true;
     showSuccess("Заблокировано", `Пользователь из тикета #${ticket.number} заблокирован`);
+    showBlockConfirm.value = false;
+    ticketToBlock.value = null;
   } catch (e) {
     showError("Ошибка", e instanceof Error ? e.message : "Не удалось заблокировать");
+  } finally {
+    isBlocking.value = false;
+  }
+};
+
+const unblockTicket = async (ticket: Ticket) => {
+  if (!ticket.telegramId) return;
+  try {
+    await mailingsApi.unblockByTelegramUserId(ticket.telegramId);
+    const s = new Set(blockedIds.value);
+    s.delete(ticket.telegramId);
+    blockedIds.value = s;
+    ticket.isBlocked = false;
+    showSuccess("Разблокировано", `Пользователь из тикета #${ticket.number} разблокирован`);
+  } catch (e) {
+    showError("Ошибка", e instanceof Error ? e.message : "Не удалось разблокировать");
   }
 };
 
 let removeWsListener: (() => void) | null = null;
 
 onMounted(async () => {
-  await Promise.all([loadTickets(), loadStats()]);
+  await Promise.all([loadTickets(), loadStats(), loadBlocked()]);
   removeWsListener = addListener(handleWsEvent);
 });
 
@@ -396,13 +450,61 @@ onUnmounted(() => {
         :total-count="displayTotal"
         @view-ticket="openTicket"
         @block-ticket="blockTicket"
+        @unblock-ticket="unblockTicket"
         @update:page="page = $event"
       />
     </div>
+
+    <!-- Модальное окно подтверждения блокировки -->
+    <Teleport to="body">
+      <Transition name="fade">
+        <div v-if="showBlockConfirm" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div class="absolute inset-0 bg-black/40" @click="showBlockConfirm = false; ticketToBlock = null" />
+          <div class="relative bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm z-10">
+            <div class="flex items-center gap-3 mb-4">
+              <div class="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
+                <AppIcon name="ban" :size="20" class="text-orange-600" />
+              </div>
+              <div>
+                <h3 class="text-base font-semibold text-gray-900">Заблокировать?</h3>
+                <p class="text-sm text-gray-500 mt-0.5">{{ ticketToBlock?.clientName }}</p>
+              </div>
+            </div>
+            <p class="text-sm text-gray-600 mb-5">
+              Пользователь не сможет писать боту. Разблокировать можно будет позже.
+            </p>
+            <div class="flex gap-2">
+              <button
+                @click="showBlockConfirm = false; ticketToBlock = null"
+                class="flex-1 px-4 py-2 text-sm font-medium text-gray-700 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
+              >
+                Отмена
+              </button>
+              <button
+                @click="confirmBlock"
+                :disabled="isBlocking"
+                class="flex-1 px-4 py-2 text-sm font-medium text-white bg-orange-500 rounded-xl hover:bg-orange-600 disabled:opacity-50 transition-colors"
+              >
+                {{ isBlocking ? 'Блокировка...' : 'Заблокировать' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
 <style scoped>
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 150ms ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
 .fold-enter-active {
   transition: all 200ms ease-out;
   overflow: hidden;

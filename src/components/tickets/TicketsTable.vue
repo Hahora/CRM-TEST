@@ -25,6 +25,7 @@ export interface Ticket {
   messagesCount: number;
   isUnread: boolean;
   isNew: boolean; // lead.is_new — менеджер ещё не ответил
+  isBlocked?: boolean; // пользователь заблокирован в боте
 }
 
 /** Вычисляет TG-ссылку и отображаемый текст */
@@ -51,6 +52,7 @@ const props = defineProps<Props>();
 const emit = defineEmits<{
   "view-ticket": [ticket: Ticket];
   "block-ticket": [ticket: Ticket];
+  "unblock-ticket": [ticket: Ticket];
   "update:page": [page: number];
 }>();
 
@@ -138,13 +140,19 @@ const rowBg = (ticket: Ticket) => {
                 </span>
               </div>
               <!-- Client -->
-              <div class="flex items-center gap-1.5">
+              <div class="flex items-center gap-1.5 flex-wrap">
                 <span class="text-sm font-medium text-gray-900 truncate">{{ ticket.clientName }}</span>
                 <span
                   v-if="!ticket.clientLinked"
                   class="flex-shrink-0 text-[10px] font-medium text-orange-600 bg-orange-50 border border-orange-100 px-1 py-0.5 rounded"
                 >
                   нет в базе
+                </span>
+                <span
+                  v-if="ticket.isBlocked"
+                  class="flex-shrink-0 text-[10px] font-medium text-red-600 bg-red-50 border border-red-100 px-1 py-0.5 rounded"
+                >
+                  заблокирован
                 </span>
               </div>
               <!-- Телефон (если привязан) или TG-ссылка -->
@@ -170,11 +178,12 @@ const rowBg = (ticket: Ticket) => {
               </div>
             </div>
             <button
-              class="flex-shrink-0 p-1.5 rounded-lg text-orange-500 hover:bg-orange-50 transition-colors"
-              title="Заблокировать"
-              @click.stop="emit('block-ticket', ticket)"
+              class="flex-shrink-0 p-1.5 rounded-lg transition-colors"
+              :class="ticket.isBlocked ? 'text-green-600 hover:bg-green-50' : 'text-orange-500 hover:bg-orange-50'"
+              :title="ticket.isBlocked ? 'Разблокировать' : 'Заблокировать'"
+              @click.stop="ticket.isBlocked ? emit('unblock-ticket', ticket) : emit('block-ticket', ticket)"
             >
-              <AppIcon name="ban" :size="16" />
+              <AppIcon :name="ticket.isBlocked ? 'user-check' : 'ban'" :size="16" />
             </button>
             <AppIcon name="chevron-right" :size="16" class="text-gray-300 flex-shrink-0 mt-1" />
           </div>
@@ -229,6 +238,12 @@ const rowBg = (ticket: Ticket) => {
                   >
                     нет в базе
                   </span>
+                  <span
+                    v-if="ticket.isBlocked"
+                    class="text-[10px] font-medium text-red-600 bg-red-50 border border-red-100 px-1.5 py-0.5 rounded-md"
+                  >
+                    заблокирован
+                  </span>
                 </div>
                 <div v-if="ticket.clientLinked && ticket.clientPhone" class="text-xs text-gray-400 mt-0.5">{{ ticket.clientPhone }}</div>
                 <a
@@ -276,11 +291,12 @@ const rowBg = (ticket: Ticket) => {
               <td class="px-4 py-3 text-right">
                 <div class="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
-                    class="p-1.5 rounded-lg text-orange-500 hover:bg-orange-50 transition-colors"
-                    title="Заблокировать"
-                    @click.stop="emit('block-ticket', ticket)"
+                    class="p-1.5 rounded-lg transition-colors"
+                    :class="ticket.isBlocked ? 'text-green-600 hover:bg-green-50' : 'text-orange-500 hover:bg-orange-50'"
+                    :title="ticket.isBlocked ? 'Разблокировать' : 'Заблокировать'"
+                    @click.stop="ticket.isBlocked ? emit('unblock-ticket', ticket) : emit('block-ticket', ticket)"
                   >
-                    <AppIcon name="ban" :size="14" />
+                    <AppIcon :name="ticket.isBlocked ? 'user-check' : 'ban'" :size="14" />
                   </button>
                   <AppIcon name="chevron-right" :size="16" class="text-gray-400" />
                 </div>
