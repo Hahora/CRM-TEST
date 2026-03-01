@@ -9,7 +9,7 @@ import type { Mailing } from "@/components/mailings/MailingsTable.vue";
 import CreateMailingModal from "@/components/mailings/CreateMailingModal.vue";
 import MailingDetailsModal from "@/components/mailings/MailingDetailsModal.vue";
 import { mailingsApi } from "@/services/mailingsApi";
-import type { Analytics, Campaign } from "@/services/mailingsApi";
+import type { Campaign } from "@/services/mailingsApi";
 
 // ── Данные ──────────────────────────────────────────────────────────────────
 
@@ -18,7 +18,6 @@ const currentPage = ref(1);
 const totalMailings = ref(0);
 const mailings = ref<Mailing[]>([]);
 const isLoading = ref(false);
-const analytics = ref<Analytics | null>(null);
 const showStatsPanel = ref(false);
 
 /** Маппинг bot_type API → тип рассылки UI */
@@ -68,42 +67,33 @@ function toApiStatus(s: string): string | undefined {
 const loadData = async () => {
   isLoading.value = true;
   try {
-    const [campaigns, analyticsData] = await Promise.allSettled([
-      mailingsApi.getCampaigns({
-        skip:     (currentPage.value - 1) * PAGE_SIZE,
-        limit:    PAGE_SIZE,
-        status:   toApiStatus(filters.value.status),
-        bot_type: filters.value.type !== "all" ? filters.value.type : undefined,
-        search:   filters.value.search || undefined,
-      }),
-      mailingsApi.getAnalytics("month"),
-    ]);
+    const campaigns = await mailingsApi.getCampaigns({
+      skip:     (currentPage.value - 1) * PAGE_SIZE,
+      limit:    PAGE_SIZE,
+      status:   toApiStatus(filters.value.status),
+      bot_type: filters.value.type !== "all" ? filters.value.type : undefined,
+      search:   filters.value.search || undefined,
+    });
 
-    if (campaigns.status === "fulfilled") {
-      totalMailings.value = campaigns.value.total;
-      mailings.value = campaigns.value.campaigns.map((c) => ({
-        id:           String(c.id),
-        campaignId:   c.id,
-        name:         c.name,
-        type:         mapBotType(c.bot_type),
-        status:       mapStatus(c.status),
-        message:      c.template?.content ?? "",
-        templateName: c.template?.name,
-        mediaUrl:     c.template?.media_url,
-        mediaType:    c.template?.media_type,
-        recipients:   0,
-        sent:         0,
-        delivered:    0,
-        failed:       0,
-        scheduledAt:  c.scheduled_at ?? undefined,
-        sentAt:       c.sent_at ?? undefined,
-        createdAt:    c.created_at ?? new Date().toISOString(),
-      }));
-    }
-
-    if (analyticsData.status === "fulfilled") {
-      analytics.value = analyticsData.value;
-    }
+    totalMailings.value = campaigns.total;
+    mailings.value = campaigns.campaigns.map((c) => ({
+      id:           String(c.id),
+      campaignId:   c.id,
+      name:         c.name,
+      type:         mapBotType(c.bot_type),
+      status:       mapStatus(c.status),
+      message:      c.template?.content ?? "",
+      templateName: c.template?.name,
+      mediaUrl:     c.template?.media_url,
+      mediaType:    c.template?.media_type,
+      recipients:   0,
+      sent:         0,
+      delivered:    0,
+      failed:       0,
+      scheduledAt:  c.scheduled_at ?? undefined,
+      sentAt:       c.sent_at ?? undefined,
+      createdAt:    c.created_at ?? new Date().toISOString(),
+    }));
   } finally {
     isLoading.value = false;
   }
@@ -118,31 +108,12 @@ const onPageChange = (page: number) => { currentPage.value = page; loadData(); }
 
 const stats = computed(() => {
   const all = mailings.value;
-  const a = analytics.value;
-
-  const totalSent = a?.total_sent ?? all.reduce((s, m) => s + m.sent, 0);
-  const totalDelivered =
-    a?.total_delivered ?? all.reduce((s, m) => s + m.delivered, 0);
-  const totalOpened = a?.total_opened ?? 0;
-
   return {
-    total: totalMailings.value,
-    draft: all.filter((m) => m.status === "draft").length,
+    total:     totalMailings.value,
+    draft:     all.filter((m) => m.status === "draft").length,
     scheduled: all.filter((m) => m.status === "scheduled").length,
-    sent: all.filter((m) => m.status === "sent").length,
-    failed: all.filter((m) => m.status === "failed").length,
-    totalRecipients: all.reduce((s, m) => s + m.recipients, 0),
-    totalSent,
-    totalDelivered,
-    totalOpened,
-    deliveryRate:
-      a?.delivery_rate ??
-      (totalSent > 0 ? Math.round((totalDelivered / totalSent) * 100) : 0),
-    openRate:
-      a?.open_rate ??
-      (totalDelivered > 0
-        ? Math.round((totalOpened / totalDelivered) * 100)
-        : 0),
+    sent:      all.filter((m) => m.status === "sent").length,
+    failed:    all.filter((m) => m.status === "failed").length,
   };
 });
 
