@@ -228,6 +228,18 @@ const htmlToTgMd = (html: string): string => {
 
 // ── Форма ───────────────────────────────────────────────────────────────────
 
+// ── Часовой пояс (МСК, UTC+3) ────────────────────────────────────────────────
+
+const _mosOpts: Intl.DateTimeFormatOptions = {
+  timeZone: "Europe/Moscow",
+  year: "numeric", month: "2-digit", day: "2-digit",
+  hour: "2-digit", minute: "2-digit", hour12: false,
+};
+const getMoscowNow    = (): string => new Intl.DateTimeFormat("sv-SE", _mosOpts).format(new Date()).replace(" ", "T");
+const moscowLocalToUtc = (local: string): string => new Date(local + ":00+03:00").toISOString();
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 const typeOptions: Array<{ value: "telegram" | "max"; label: string; icon: IconName }> = [
   { value: "telegram", label: "Telegram", icon: "send"           },
   { value: "max",      label: "МАКС",     icon: "message-circle" },
@@ -272,6 +284,12 @@ const closeModal = () => {
 
 const handleSubmit = async () => {
   if (!canSubmit.value || isSubmitting.value) return;
+  if (!form.value.sendNow && form.value.scheduledAt) {
+    if (new Date(form.value.scheduledAt + ":00+03:00").getTime() <= Date.now()) {
+      submitError.value = "Нельзя запланировать на прошедшее время (МСК)";
+      return;
+    }
+  }
   isSubmitting.value = true;
   submitError.value  = "";
 
@@ -303,12 +321,13 @@ const handleSubmit = async () => {
 
     // 3. Создание кампании
     submitStep.value = "Создание кампании...";
+    const scheduledUtc = form.value.scheduledAt ? moscowLocalToUtc(form.value.scheduledAt) : null;
     const campaign = await mailingsApi.createCampaign({
       name:           form.value.name,
       template_id:    template.id,
       bot_type:       form.value.type,
       segment_filter: { has_telegram: form.value.type === "telegram" },
-      scheduled_at:   form.value.scheduledAt || null,
+      scheduled_at:   scheduledUtc,
     });
 
     // 4. Запуск / планирование
@@ -317,7 +336,7 @@ const handleSubmit = async () => {
       await mailingsApi.scheduleCampaign(campaign.id, { send_immediately: true });
     } else if (form.value.scheduledAt) {
       submitStep.value = "Планирование рассылки...";
-      await mailingsApi.scheduleCampaign(campaign.id, { scheduled_at: form.value.scheduledAt });
+      await mailingsApi.scheduleCampaign(campaign.id, { scheduled_at: scheduledUtc! });
     }
 
     const result: Campaign = { ...campaign, template };
@@ -535,7 +554,7 @@ const handleSubmit = async () => {
 
                     <div v-if="!form.sendNow" class="cm-field cm-field--full">
                       <label>Запланировать отправку <span class="cm-optional">необязательно</span></label>
-                      <input v-model="form.scheduledAt" type="datetime-local" />
+                      <input v-model="form.scheduledAt" type="datetime-local" :min="getMoscowNow()" />
                       <span class="cm-hint">Оставьте пустым — будет сохранено как черновик</span>
                     </div>
                   </div>

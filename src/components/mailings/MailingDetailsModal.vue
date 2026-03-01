@@ -85,7 +85,7 @@ const startEditing = () => {
   if (!props.mailing) return;
   editForm.value = {
     name: props.mailing.name, type: props.mailing.type,
-    message: props.mailing.message, scheduledAt: props.mailing.scheduledAt ?? "", sendNow: false,
+    message: props.mailing.message, scheduledAt: props.mailing.scheduledAt ? utcToMoscowLocal(props.mailing.scheduledAt) : "", sendNow: false,
   };
   isEmpty.value = !props.mailing.message.trim();
   charCount.value = props.mailing.message.length;
@@ -232,6 +232,12 @@ const htmlToTgMd = (html: string): string => {
 
 const handleSave = async () => {
   if (!canSave.value || isSubmitting.value || !props.mailing) return;
+  if (!editForm.value.sendNow && editForm.value.scheduledAt) {
+    if (new Date(editForm.value.scheduledAt + ":00+03:00").getTime() <= Date.now()) {
+      submitError.value = "Нельзя запланировать на прошедшее время (МСК)";
+      return;
+    }
+  }
   isSubmitting.value = true; submitError.value = "";
   try {
     const content = htmlToTgMd(editForm.value.message);
@@ -254,15 +260,16 @@ const handleSave = async () => {
       });
     }
     submitStep.value = "Сохранение...";
+    const scheduledUtc = editForm.value.scheduledAt ? moscowLocalToUtc(editForm.value.scheduledAt) : null;
     const updated = await mailingsApi.updateCampaign(props.mailing.campaignId, {
-      name: editForm.value.name, scheduled_at: editForm.value.scheduledAt || null,
+      name: editForm.value.name, scheduled_at: scheduledUtc,
     });
     if (editForm.value.sendNow) {
       submitStep.value = "Запуск рассылки...";
       await mailingsApi.scheduleCampaign(props.mailing.campaignId, { send_immediately: true });
     } else if (editForm.value.scheduledAt) {
       submitStep.value = "Планирование...";
-      await mailingsApi.scheduleCampaign(props.mailing.campaignId, { scheduled_at: editForm.value.scheduledAt });
+      await mailingsApi.scheduleCampaign(props.mailing.campaignId, { scheduled_at: scheduledUtc! });
     }
     emit("updated", {
       ...props.mailing,
@@ -306,6 +313,17 @@ const fileIcon = (mime: string): IconName =>
 const handleOverlay = (e: MouseEvent) => {
   if ((e.target as HTMLElement).classList.contains("dm-overlay") && !isSubmitting.value && !isSending.value) emit("close");
 };
+
+// ── Часовой пояс (МСК, UTC+3) ────────────────────────────────────────────────
+
+const _mosOpts: Intl.DateTimeFormatOptions = {
+  timeZone: "Europe/Moscow",
+  year: "numeric", month: "2-digit", day: "2-digit",
+  hour: "2-digit", minute: "2-digit", hour12: false,
+};
+const getMoscowNow    = (): string => new Intl.DateTimeFormat("sv-SE", _mosOpts).format(new Date()).replace(" ", "T");
+const utcToMoscowLocal = (iso: string): string => new Intl.DateTimeFormat("sv-SE", _mosOpts).format(new Date(iso)).replace(" ", "T");
+const moscowLocalToUtc = (local: string): string => new Date(local + ":00+03:00").toISOString();
 </script>
 
 <template>
@@ -439,7 +457,7 @@ const handleOverlay = (e: MouseEvent) => {
                       <div class="dm-field"><label class="dm-check-label"><input type="checkbox" v-model="editForm.sendNow" /><span>Отправить сейчас</span></label></div>
                       <div v-if="!editForm.sendNow" class="dm-field">
                         <label>Запланировать <span class="dm-optional">необязательно</span></label>
-                        <input v-model="editForm.scheduledAt" type="datetime-local" />
+                        <input v-model="editForm.scheduledAt" type="datetime-local" :min="getMoscowNow()" />
                         <span class="dm-hint">Оставьте пустым — сохранится как черновик</span>
                       </div>
                     </div>
