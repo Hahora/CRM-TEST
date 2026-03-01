@@ -453,18 +453,13 @@ onMounted(loadData);
 
     <!-- MODAL -->
     <Teleport to="body">
-      <Transition
-        enter-active-class="transition-opacity duration-200 ease-out"
-        enter-from-class="opacity-0"
-        leave-active-class="transition-opacity duration-150 ease-in"
-        leave-to-class="opacity-0"
-      >
         <div
           v-if="showModal"
-          class="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+          class="fixed inset-0 z-[1000] flex justify-end bg-black/40 backdrop-blur-sm"
           @click.self="closeModal"
         >
-          <div class="bg-white rounded-2xl shadow-2xl w-full max-w-[520px] flex flex-col max-h-[calc(100dvh-32px)] overflow-hidden border border-gray-200">
+          <Transition name="up-slide">
+          <div v-if="showModal" class="up-mpanel">
 
             <!-- Header -->
             <div class="flex items-center justify-between px-5 py-4 border-b border-gray-200 flex-shrink-0">
@@ -622,8 +617,8 @@ onMounted(loadData);
               </button>
             </div>
           </div>
+          </Transition>
         </div>
-      </Transition>
     </Teleport>
   </div>
 </template>
@@ -947,6 +942,22 @@ onMounted(loadData);
   cursor: pointer; padding: 2px; border-radius: 4px; transition: color var(--tr);
 }
 .up-pw-eye:hover { color: var(--tx2); }
+
+/* ── Right panel ── */
+.up-mpanel {
+  width: min(480px, 100vw);
+  height: 100%;
+  background: var(--sf);
+  display: flex;
+  flex-direction: column;
+  box-shadow: -8px 0 40px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+}
+
+.up-slide-enter-active { transition: transform 250ms cubic-bezier(0.4, 0, 0.2, 1); }
+.up-slide-leave-active { transition: transform 200ms cubic-bezier(0.4, 0, 1, 1); }
+.up-slide-enter-from,
+.up-slide-leave-to     { transform: translateX(100%); }
 
 /* ── Responsive ── */
 @media (max-width: 768px) {
