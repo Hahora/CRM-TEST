@@ -76,7 +76,7 @@ const loadData = async () => {
         bot_type: filters.value.type !== "all" ? filters.value.type : undefined,
         search:   filters.value.search || undefined,
       }),
-      mailingsApi.getAnalytics("all"),
+      mailingsApi.getAnalytics("month"),
     ]);
 
     if (analyticsRes.status === "fulfilled") {
