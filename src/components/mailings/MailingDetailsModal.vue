@@ -3,6 +3,7 @@ import { ref, watch, computed } from "vue";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import AppIcon from "@/components/AppIcon.vue";
+import { type IconName } from "@/components/icons";
 import EmojiPicker from "vue3-emoji-picker";
 import "vue3-emoji-picker/css";
 import type { Mailing } from "@/components/mailings/MailingsTable.vue";
@@ -90,7 +91,7 @@ const startEditing = () => {
   isEmpty.value = !props.mailing.message.trim();
   charCount.value = props.mailing.message.length;
   isEditing.value = true;
-  setTimeout(() => { if (editorRef.value) editorRef.value.innerHTML = props.mailing!.message; }, 50);
+  setTimeout(() => { if (editorRef.value) editorRef.value.innerHTML = tgMdToHtml(props.mailing!.message); }, 50);
 };
 
 const cancelEditing = () => {
@@ -191,6 +192,19 @@ const formatBytes = (b: number) => b < 1024 ? `${b} Б` : b < 1048576 ? `${(b/10
 const getMediaType = (f: File): "photo" | "video" | "document" | "audio" =>
   f.type.startsWith("image/") ? "photo" : f.type.startsWith("video/") ? "video" : f.type.startsWith("audio/") ? "audio" : "document";
 
+// ── TG MD → HTML (для отображения и заполнения редактора) ───────────────────
+
+const tgMdToHtml = (text: string): string =>
+  text
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/\|\|(.+?)\|\|/gs, '<span class="tg-spoiler">$1</span>')
+    .replace(/`(.+?)`/gs, "<code>$1</code>")
+    .replace(/\*(.+?)\*/gs, "<b>$1</b>")
+    .replace(/__(.+?)__/gs, "<u>$1</u>")
+    .replace(/_(.+?)_/gs, "<i>$1</i>")
+    .replace(/~(.+?)~/gs, "<s>$1</s>")
+    .replace(/\n/g, "<br>");
+
 // ── HTML → TG MD ─────────────────────────────────────────────────────────────
 
 const htmlToTgMd = (html: string): string => {
@@ -271,10 +285,14 @@ const getType = (t: string) =>
   t === "telegram" ? { label: "Telegram", cls: "text-blue-600 bg-blue-50" } : { label: "МАКС", cls: "text-purple-600 bg-purple-50" };
 const getTypeIcon = (t: string) => t === "telegram" ? "send" : "message-circle";
 const fmt = (iso: string) => format(new Date(iso), "dd.MM.yyyy HH:mm", { locale: ru });
-const typeOptions = [
-  { value: "telegram" as const, label: "Telegram", icon: "send"           },
-  { value: "max"      as const, label: "МАКС",     icon: "message-circle" },
+const typeOptions: Array<{ value: "telegram" | "max"; label: string; icon: IconName }> = [
+  { value: "telegram", label: "Telegram", icon: "send"           },
+  { value: "max",      label: "МАКС",     icon: "message-circle" },
 ];
+const mediaIcon = (mt: string): IconName =>
+  mt === "photo" ? "package" : mt === "video" ? "play-circle" : "file-text";
+const fileIcon = (mime: string): IconName =>
+  mime.startsWith("video/") ? "play-circle" : "file-text";
 const handleOverlay = (e: MouseEvent) => {
   if ((e.target as HTMLElement).classList.contains("dm-overlay") && !isSubmitting.value && !isSending.value) emit("close");
 };
@@ -313,9 +331,9 @@ const handleOverlay = (e: MouseEvent) => {
               <template v-if="!isEditing">
                 <div class="dm-section">
                   <h3 class="dm-section-title">Содержание</h3>
-                  <div class="dm-message">{{ mailing.message || '—' }}</div>
+                  <div class="dm-message" v-html="tgMdToHtml(mailing.message || '—')" />
                   <div v-if="mailing.mediaType" class="dm-media-badge">
-                    <AppIcon :name="mailing.mediaType === 'photo' ? 'package' : mailing.mediaType === 'video' ? 'play-circle' : 'file-text'" :size="13" />
+                    <AppIcon :name="mediaIcon(mailing.mediaType)" :size="13" />
                     {{ mailing.mediaType === 'photo' ? 'Фото' : mailing.mediaType === 'video' ? 'Видео' : 'Документ' }}
                     <span class="dm-media-badge-sub">(Telegram file_id)</span>
                   </div>
@@ -391,13 +409,13 @@ const handleOverlay = (e: MouseEvent) => {
                       <AppIcon name="paperclip" :size="16" /><span>Перетащите или <u>выберите файлы</u></span><span class="dm-dropzone-sub">Фото, видео, документы</span>
                     </div>
                     <div v-if="mailing.mediaType && !mediaFiles.length" class="dm-existing-media">
-                      <AppIcon :name="mailing.mediaType === 'photo' ? 'package' : mailing.mediaType === 'video' ? 'play-circle' : 'file-text'" :size="13" />
+                      <AppIcon :name="mediaIcon(mailing.mediaType)" :size="13" />
                       <span>Прикреплено: {{ mailing.mediaType === 'photo' ? 'Фото' : mailing.mediaType === 'video' ? 'Видео' : 'Документ' }}</span>
                     </div>
                     <div v-if="mediaFiles.length" class="dm-media-list">
                       <div v-for="(f, i) in mediaFiles" :key="i" class="dm-media-item">
                         <img v-if="mediaPreviews[i]" :src="mediaPreviews[i]" class="dm-media-thumb" :alt="f.name" />
-                        <div v-else class="dm-media-icon"><AppIcon :name="f.type.startsWith('video/') ? 'play-circle' : 'file-text'" :size="15" /><span class="dm-media-fname">{{ f.name }}</span><span class="dm-media-sz">{{ formatBytes(f.size) }}</span></div>
+                        <div v-else class="dm-media-icon"><AppIcon :name="fileIcon(f.type)" :size="15" /><span class="dm-media-fname">{{ f.name }}</span><span class="dm-media-sz">{{ formatBytes(f.size) }}</span></div>
                         <button type="button" class="dm-media-rm" @click="removeMedia(i)"><AppIcon name="x" :size="11" /></button>
                       </div>
                     </div>
@@ -431,7 +449,7 @@ const handleOverlay = (e: MouseEvent) => {
               <template v-if="!isEditing">
                 <div v-if="sendError" class="dm-footer-error"><AppIcon name="alert-circle" :size="13" /> {{ sendError }}</div>
                 <button v-if="mailing.status === 'draft'" class="dm-btn dm-btn--ghost" :disabled="isSending" @click="startEditing">
-                  <AppIcon name="edit-2" :size="13" /> Редактировать
+                  <AppIcon name="edit-3" :size="13" /> Редактировать
                 </button>
                 <button v-if="mailing.status === 'draft'" class="dm-btn dm-btn--green" :disabled="isSending" @click="sendNow">
                   <AppIcon v-if="isSending" name="refresh-cw" :size="13" class="dm-spin" /><AppIcon v-else name="send" :size="13" />
@@ -490,7 +508,13 @@ const handleOverlay = (e: MouseEvent) => {
 .dm-optional { font-weight: 400; text-transform: none; letter-spacing: 0; color: #94a3b8; font-size: 10px; }
 
 /* View */
-.dm-message { font: 400 13px/1.7 var(--fn, sans-serif); color: #0f172a; white-space: pre-wrap; word-break: break-word; }
+.dm-message { font: 400 13px/1.7 var(--fn, sans-serif); color: #0f172a; word-break: break-word; }
+.dm-message :deep(b), .dm-message :deep(strong) { font-weight: 700; }
+.dm-message :deep(i), .dm-message :deep(em)     { font-style: italic; }
+.dm-message :deep(u) { text-decoration: underline; }
+.dm-message :deep(s), .dm-message :deep(del)    { text-decoration: line-through; }
+.dm-message :deep(code) { font-family: 'Courier New', monospace; font-size: 12px; background: #f1f5f9; color: #1e40af; padding: 1px 5px; border-radius: 4px; }
+.dm-message :deep(.tg-spoiler) { background: #1e293b; color: #f8fafc; border-radius: 4px; padding: 0 3px; }
 .dm-media-badge { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; padding: 6px 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; font: 400 12px/1 var(--fn, sans-serif); color: #64748b; }
 .dm-media-badge-sub { color: #94a3b8; }
 .dm-stats-loading, .dm-stats-empty { display: flex; align-items: center; gap: 6px; font: 400 13px/1 var(--fn, sans-serif); color: #94a3b8; }
