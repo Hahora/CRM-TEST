@@ -620,19 +620,12 @@ const moscowLocalToUtc = (local: string): string =>
                         </div>
                         <div class="dm-stat-label">Отправлено</div>
                       </div>
-                      <div class="dm-stat dm-stat--purple">
+                      <div class="dm-stat dm-stat--amber">
                         <div class="dm-stat-value">
-                          {{ stats.delivery_rate.toFixed(1) }}%
+                          {{ stats.failed_messages.toLocaleString() }}
                         </div>
-                        <div class="dm-stat-label">Доставлено</div>
+                        <div class="dm-stat-label">Ошибок</div>
                       </div>
-                    </div>
-                    <div
-                      v-if="stats.failed_messages > 0"
-                      class="dm-stats-failed"
-                    >
-                      <AppIcon name="alert-circle" :size="13" /> Ошибок:
-                      {{ stats.failed_messages }}
                     </div>
                   </div>
                 </div>

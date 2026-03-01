@@ -122,10 +122,10 @@ const stats = computed(() => {
   const a = analytics.value;
   return {
     total:     totalMailings.value,
-    draft:     all.filter((m) => m.status === "draft").length,
-    scheduled: all.filter((m) => m.status === "scheduled").length,
-    sent:      a?.total_sent     ?? all.filter((m) => m.status === "sent").length,
-    failed:    a?.total_failed   ?? all.filter((m) => m.status === "failed").length,
+    draft:     a?.draft_campaigns     ?? all.filter((m) => m.status === "draft").length,
+    scheduled: a?.scheduled_campaigns ?? all.filter((m) => m.status === "scheduled").length,
+    sent:      a?.sent_campaigns      ?? all.filter((m) => m.status === "sent").length,
+    failed:    all.filter((m) => m.status === "failed").length,
   };
 });
 

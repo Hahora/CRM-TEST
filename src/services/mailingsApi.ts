@@ -52,11 +52,11 @@ export interface CampaignStats {
   campaign_name: string;
   total_messages: number;
   sent_messages: number;
-  delivered_messages: number;
-  read_messages: number;
   failed_messages: number;
-  delivery_rate: number;
-  read_rate: number;
+  delivered_messages?: number;
+  read_messages?: number;
+  delivery_rate?: number;
+  read_rate?: number;
 }
 
 export interface ScheduleResponse {
@@ -109,12 +109,12 @@ export interface MessageHistory {
 
 export interface Analytics {
   period: string;
-  total_sent: number;
-  total_delivered: number;
-  total_opened?: number;
-  total_failed?: number;
-  delivery_rate?: number;
-  open_rate?: number;
+  total_messages: number;
+  active_templates: number;
+  draft_campaigns: number;
+  scheduled_campaigns: number;
+  sent_campaigns: number;
+  cancelled_campaigns: number;
 }
 
 export interface ClientPreferences {
