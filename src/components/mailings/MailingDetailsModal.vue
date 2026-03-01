@@ -648,9 +648,12 @@ const moscowLocalToUtc = (local: string): string =>
                     </div>
                     <div v-if="mailing.scheduledAt" class="dm-info-row">
                       <span class="dm-info-label">Запланировано</span
-                      ><span class="dm-info-value dm-info-value--orange">{{
-                        fmt(mailing.scheduledAt)
-                      }}</span>
+                      ><span
+                        class="dm-info-value"
+                        :class="mailing.status === 'cancelled'
+                          ? 'line-through text-slate-400'
+                          : 'dm-info-value--orange'"
+                      >{{ fmt(mailing.scheduledAt) }}</span>
                     </div>
                     <div v-if="mailing.sentAt" class="dm-info-row">
                       <span class="dm-info-label">Отправлено</span
