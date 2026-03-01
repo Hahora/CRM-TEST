@@ -118,14 +118,17 @@ const onPageChange = (page: number) => { currentPage.value = page; loadData(); }
 // ── Статистика ───────────────────────────────────────────────────────────────
 
 const stats = computed(() => {
-  const all = mailings.value;
   const a = analytics.value;
+  const draft     = a?.draft_campaigns     ?? 0;
+  const scheduled = a?.scheduled_campaigns ?? 0;
+  const sent      = a?.sent_campaigns      ?? 0;
+  const cancelled = a?.cancelled_campaigns ?? 0;
   return {
-    total:     totalMailings.value,
-    draft:     a?.draft_campaigns     ?? all.filter((m) => m.status === "draft").length,
-    scheduled: a?.scheduled_campaigns ?? all.filter((m) => m.status === "scheduled").length,
-    sent:      a?.sent_campaigns      ?? all.filter((m) => m.status === "sent").length,
-    failed:    all.filter((m) => m.status === "failed").length,
+    total: a ? draft + scheduled + sent + cancelled : totalMailings.value,
+    draft,
+    scheduled,
+    sent,
+    cancelled,
   };
 });
 
