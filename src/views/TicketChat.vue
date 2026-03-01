@@ -56,6 +56,13 @@ const telegramFileUrl = (fileId: string) => leadsApi.telegramFileUrl(fileId);
 const stickersOf = (msg: Message): MessageAttachment[] =>
   msg.attachments?.filter((a) => a.type === "sticker") ?? [];
 
+const photoOf     = (msg: Message): MessageAttachment | null =>
+  msg.attachments?.find((a) => a.type === "photo") ?? null;
+const voiceOf     = (msg: Message): MessageAttachment | null =>
+  msg.attachments?.find((a) => a.type === "voice") ?? null;
+const videoNoteOf = (msg: Message): MessageAttachment | null =>
+  msg.attachments?.find((a) => a.type === "video_note") ?? null;
+
 // ── Состояние ─────────────────────────────────────────────────────────────────
 
 const route  = useRoute();
@@ -732,7 +739,7 @@ onUnmounted(() => {
                       alt="Стикер"
                       loading="lazy"
                     />
-                    <!-- Анимированный TGS (gzip Lottie) — нужен tgs-player, lottie-player не умеет распаковывать gzip -->
+                    <!-- Анимированный TGS (gzip Lottie) -->
                     <tgs-player
                       v-else-if="sticker.is_animated && !sticker.is_video"
                       :src="telegramFileUrl(sticker.file_id)"
@@ -750,7 +757,68 @@ onUnmounted(() => {
                       playsinline
                       class="tc-sticker"
                     />
-                    <!-- Время под стикером -->
+                    <div class="text-[11px] text-gray-400 px-1">
+                      {{ format(new Date(msg.timestamp), "HH:mm", { locale: ru }) }}
+                    </div>
+                  </div>
+                </template>
+
+                <!-- Фото -->
+                <template v-else-if="photoOf(msg)">
+                  <div
+                    class="flex flex-col gap-1"
+                    :class="msg.sender === 'support' ? 'items-end' : 'items-start'"
+                  >
+                    <img
+                      :src="telegramFileUrl(photoOf(msg)?.file_id ?? '')"
+                      class="tc-photo"
+                      alt="Фото"
+                      loading="lazy"
+                    />
+                    <!-- Подпись к фото (caption), если есть -->
+                    <p
+                      v-if="msg.text && msg.text !== '[Фото]'"
+                      class="tc-photo-caption text-sm break-words whitespace-pre-wrap px-3 py-1.5 rounded-xl"
+                      :class="msg.sender === 'support' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-900'"
+                    >{{ msg.text }}</p>
+                    <div class="text-[11px] text-gray-400 px-1">
+                      {{ format(new Date(msg.timestamp), "HH:mm", { locale: ru }) }}
+                    </div>
+                  </div>
+                </template>
+
+                <!-- Голосовое сообщение -->
+                <div
+                  v-else-if="voiceOf(msg)"
+                  class="max-w-[80%] sm:max-w-sm px-3 py-2.5 rounded-2xl"
+                  :class="msg.sender === 'support' ? 'bg-blue-600 rounded-br-sm' : 'bg-gray-100 rounded-bl-sm'"
+                >
+                  <audio
+                    controls
+                    :src="telegramFileUrl(voiceOf(msg)?.file_id ?? '')"
+                    class="tc-audio"
+                  />
+                  <div
+                    class="text-[11px] mt-1 flex items-center gap-1"
+                    :class="msg.sender === 'support' ? 'text-blue-200 justify-end' : 'text-gray-400'"
+                  >
+                    <span v-if="voiceOf(msg)?.duration">{{ voiceOf(msg)?.duration }}с · </span>
+                    {{ format(new Date(msg.timestamp), "HH:mm", { locale: ru }) }}
+                  </div>
+                </div>
+
+                <!-- Кружочек (video_note) -->
+                <template v-else-if="videoNoteOf(msg)">
+                  <div
+                    class="flex flex-col gap-0.5"
+                    :class="msg.sender === 'support' ? 'items-end' : 'items-start'"
+                  >
+                    <video
+                      controls
+                      :src="telegramFileUrl(videoNoteOf(msg)?.file_id ?? '')"
+                      class="tc-video-note"
+                      playsinline
+                    />
                     <div class="text-[11px] text-gray-400 px-1">
                       {{ format(new Date(msg.timestamp), "HH:mm", { locale: ru }) }}
                     </div>
@@ -1022,6 +1090,35 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+/* ── Фото ────────────────────────────────────── */
+.tc-photo {
+  max-width: 300px;
+  max-height: 400px;
+  border-radius: 14px;
+  display: block;
+  object-fit: cover;
+}
+
+.tc-photo-caption {
+  max-width: 300px;
+}
+
+/* ── Голосовое ───────────────────────────────── */
+.tc-audio {
+  width: 220px;
+  display: block;
+  height: 36px;
+}
+
+/* ── Кружочек (video_note) ───────────────────── */
+.tc-video-note {
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+}
+
 /* ── Стикеры ─────────────────────────────────── */
 .tc-sticker {
   width: 160px;

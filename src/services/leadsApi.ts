@@ -94,14 +94,23 @@ export interface LeadsStats {
 }
 
 export interface MessageAttachment {
-  type: string;         // "sticker" | "photo" | "document" | ...
+  type: string;           // "sticker" | "photo" | "voice" | "video_note" | ...
   file_id: string;
-  is_animated: boolean;
-  is_video: boolean;
+  file_unique_id?: string;
+  file_size?: number;
+  // sticker
+  is_animated?: boolean;
+  is_video?: boolean;
   emoji?: string;
-  mime_type?: string;
+  set_name?: string;
+  // photo
   width?: number;
   height?: number;
+  // voice / video_note
+  duration?: number;
+  mime_type?: string;
+  // video_note
+  length?: number;        // размер стороны квадрата в пикселях
 }
 
 export interface LeadMessage {
@@ -335,10 +344,11 @@ class LeadsApiService {
     return `${wsBase}/api/v1/leads/ws/${userId}${tokenQs}`;
   }
 
-  /** Прокси-URL для получения файла из Telegram по file_id (с токеном) */
+  /** Прокси-URL для получения файла из Telegram по file_id (с токеном).
+   *  file_id кодируется т.к. может содержать +, / и другие спецсимволы. */
   telegramFileUrl(fileId: string): string {
     const token = authService.getAccessToken();
-    const base  = `${this.baseUrl}/api/v1/telegram-files/${fileId}`;
+    const base  = `${this.baseUrl}/api/v1/telegram-files/${encodeURIComponent(fileId)}`;
     return token ? `${base}?token=${encodeURIComponent(token)}` : base;
   }
 }
