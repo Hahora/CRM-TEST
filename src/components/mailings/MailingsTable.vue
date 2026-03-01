@@ -161,14 +161,7 @@ const displayDate = (m: Mailing): { label: string; sub: string; orange: boolean 
               @click="emit('view-mailing', mailing)"
             >
               <td class="px-4 py-3">
-                <div class="min-w-0">
-                  <div class="text-sm font-medium text-gray-900 truncate max-w-[200px]">{{ mailing.name }}</div>
-                  <div v-if="mailing.templateName" class="text-xs text-gray-500 truncate max-w-[200px]">{{ mailing.templateName }}</div>
-                  <div v-if="mailing.mediaType" class="text-xs text-gray-400 flex items-center gap-1">
-                    <AppIcon :name="mailing.mediaType === 'photo' ? 'package' : mailing.mediaType === 'video' ? 'play-circle' : 'file-text'" :size="10" />
-                    {{ mailing.mediaType === 'photo' ? 'Фото' : mailing.mediaType === 'video' ? 'Видео' : 'Файл' }}
-                  </div>
-                </div>
+                <div class="text-sm font-medium text-gray-900 truncate max-w-[200px]">{{ mailing.name }}</div>
               </td>
               <td class="px-4 py-3">
                 <div
