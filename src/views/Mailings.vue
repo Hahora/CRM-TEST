@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, watch, onMounted } from "vue";
 import AppIcon from "@/components/AppIcon.vue";
 import MailingsStats from "@/components/mailings/MailingsStats.vue";
 import MailingsFilters from "@/components/mailings/MailingsFilters.vue";
@@ -43,11 +43,32 @@ function mapStatus(status?: string): Mailing["status"] {
   }
 }
 
+// ── Фильтры ──────────────────────────────────────────────────────────────────
+
+const filters = ref<TFilters>({
+  search: "",
+  type: "all",
+  status: "all",
+  dateFrom: "",
+  dateTo: "",
+});
+
+/** UI-статус → статус API */
+function toApiStatus(s: string): string | undefined {
+  if (s === "all") return undefined;
+  if (s === "sent") return "completed";
+  return s;
+}
+
 const loadData = async () => {
   isLoading.value = true;
   try {
     const [campaigns, analyticsData] = await Promise.allSettled([
-      mailingsApi.getCampaigns(),
+      mailingsApi.getCampaigns({
+        status:   toApiStatus(filters.value.status),
+        bot_type: filters.value.type !== "all" ? filters.value.type : undefined,
+        search:   filters.value.search || undefined,
+      }),
       mailingsApi.getAnalytics("month"),
     ]);
 
@@ -80,40 +101,8 @@ const loadData = async () => {
   }
 };
 
+watch(filters, loadData, { deep: true });
 onMounted(loadData);
-
-// ── Фильтры ──────────────────────────────────────────────────────────────────
-
-const filters = ref<TFilters>({
-  search: "",
-  type: "all",
-  status: "all",
-  dateFrom: "",
-  dateTo: "",
-});
-
-const filteredMailings = computed(() => {
-  let result = mailings.value;
-
-  if (filters.value.search) {
-    const q = filters.value.search.toLowerCase();
-    result = result.filter(
-      (m) =>
-        m.name.toLowerCase().includes(q) ||
-        m.message.toLowerCase().includes(q)
-    );
-  }
-
-  if (filters.value.type !== "all") {
-    result = result.filter((m) => m.type === filters.value.type);
-  }
-
-  if (filters.value.status !== "all") {
-    result = result.filter((m) => m.status === filters.value.status);
-  }
-
-  return result;
-});
 
 // ── Статистика ───────────────────────────────────────────────────────────────
 
@@ -262,7 +251,7 @@ const refresh = () => loadData();
       />
 
       <MailingsTable
-        :mailings="filteredMailings"
+        :mailings="mailings"
         :loading="isLoading"
         @view-mailing="openDetails"
       />

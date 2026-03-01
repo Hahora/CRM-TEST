@@ -245,9 +245,21 @@ class MailingsApiService {
 
   // ── Кампании ──────────────────────────────────────────────────────────────
 
-  getCampaigns(skip = 0, limit = 100): Promise<{ campaigns: Campaign[]; total: number }> {
+  getCampaigns(params: {
+    skip?: number;
+    limit?: number;
+    status?: string;
+    bot_type?: string;
+    search?: string;
+  } = {}): Promise<{ campaigns: Campaign[]; total: number }> {
+    const q = new URLSearchParams();
+    q.set("skip",  String(params.skip  ?? 0));
+    q.set("limit", String(params.limit ?? 200));
+    if (params.status)   q.set("status",   params.status);
+    if (params.bot_type) q.set("bot_type", params.bot_type);
+    if (params.search)   q.set("search",   params.search);
     return this.request<{ campaigns: Campaign[]; total: number }>(
-      `/api/v1/bot-communications/campaigns?skip=${skip}&limit=${limit}`
+      `/api/v1/bot-communications/campaigns?${q}`
     );
   }
 
