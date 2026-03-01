@@ -125,7 +125,7 @@ const displayDate = (m: Mailing): { label: string; sub: string; orange: boolean 
               </div>
               <!-- Meta -->
               <div class="text-xs text-gray-400 mt-1">
-                {{ displayDate(mailing).sub }}: {{ displayDate(mailing).label }}
+                {{ displayDate(mailing).sub }}: <span :class="mailing.status === 'cancelled' ? 'line-through' : ''">{{ displayDate(mailing).label }}</span>
                 <template v-if="mailing.recipients > 0"> · {{ mailing.recipients.toLocaleString() }} чел.</template>
               </div>
             </div>
@@ -176,7 +176,10 @@ const displayDate = (m: Mailing): { label: string; sub: string; orange: boolean 
               <td class="px-4 py-3">
                 <div
                   class="text-xs"
-                  :class="displayDate(mailing).orange ? 'text-orange-600 font-medium' : 'text-gray-600'"
+                  :class="[
+                    mailing.status === 'cancelled' ? 'line-through text-gray-400' :
+                    displayDate(mailing).orange ? 'text-orange-600 font-medium' : 'text-gray-600'
+                  ]"
                 >
                   {{ displayDate(mailing).label }}
                 </div>
