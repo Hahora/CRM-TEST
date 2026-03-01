@@ -74,8 +74,9 @@ const isDragging      = ref(false);
 const editForm = ref({ name: "", type: "telegram" as "telegram" | "max", message: "", scheduledAt: "", sendNow: false });
 const isEmpty   = ref(true);
 const charCount = ref(0);
-const mediaFiles    = ref<File[]>([]);
-const mediaPreviews = ref<string[]>([]);
+const mediaFiles        = ref<File[]>([]);
+const mediaPreviews     = ref<string[]>([]);
+const clearExistingMedia = ref(false);
 const isSubmitting  = ref(false);
 const submitStep    = ref("");
 const submitError   = ref("");
@@ -90,6 +91,7 @@ const startEditing = () => {
   };
   isEmpty.value = !props.mailing.message.trim();
   charCount.value = props.mailing.message.length;
+  clearExistingMedia.value = false;
   isEditing.value = true;
   setTimeout(() => { if (editorRef.value) editorRef.value.innerHTML = tgMdToHtml(props.mailing!.message); }, 50);
 };
@@ -99,6 +101,7 @@ const cancelEditing = () => {
   mediaFiles.value = [];
   mediaPreviews.value.forEach(p => { if (p) URL.revokeObjectURL(p); });
   mediaPreviews.value = []; showEmojiPicker.value = false;
+  clearExistingMedia.value = false;
 };
 
 // ── Форматирование ───────────────────────────────────────────────────────────
@@ -248,7 +251,8 @@ const handleSave = async () => {
       submitStep.value = "Обновление шаблона...";
       await mailingsApi.updateTemplate(m.templateId, {
         name: editForm.value.name, content, bot_type: editForm.value.type,
-        ...(mediaUrl ? { media_url: mediaUrl, media_type: mediaType } : {}),
+        ...(mediaUrl ? { media_url: mediaUrl, media_type: mediaType }
+        : clearExistingMedia.value ? { media_url: null, media_type: null } : {}),
       });
     }
     submitStep.value = "Сохранение...";
@@ -262,7 +266,15 @@ const handleSave = async () => {
       submitStep.value = "Планирование...";
       await mailingsApi.scheduleCampaign(props.mailing.campaignId, { campaign_id: props.mailing.campaignId, send_immediately: false, scheduled_at: editForm.value.scheduledAt });
     }
-    emit("updated", { ...props.mailing, name: updated.name, type: editForm.value.type, message: content, scheduledAt: updated.scheduled_at ?? undefined });
+    emit("updated", {
+      ...props.mailing,
+      name: updated.name,
+      type: editForm.value.type,
+      message: content,
+      scheduledAt: updated.scheduled_at ?? undefined,
+      ...(mediaUrl ? { mediaUrl, mediaType } : clearExistingMedia.value ? { mediaUrl: undefined, mediaType: undefined } : {}),
+    });
+    clearExistingMedia.value = false;
     isEditing.value = false;
   } catch (err) {
     submitError.value = (err as Error).message || "Ошибка при сохранении";
@@ -407,9 +419,12 @@ const handleOverlay = (e: MouseEvent) => {
                     <div class="dm-dropzone" :class="{ 'dm-dropzone--drag': isDragging }" @click="mediaInputRef?.click()" @dragover.prevent="isDragging = true" @dragleave.prevent="isDragging = false" @drop.prevent="onDrop">
                       <AppIcon name="paperclip" :size="16" /><span>Перетащите или <u>выберите файлы</u></span><span class="dm-dropzone-sub">Фото, видео, документы</span>
                     </div>
-                    <div v-if="mailing.mediaType && !mediaFiles.length" class="dm-existing-media">
+                    <div v-if="mailing.mediaType && !mediaFiles.length && !clearExistingMedia" class="dm-existing-media">
                       <AppIcon :name="mediaIcon(mailing.mediaType)" :size="13" />
                       <span>Прикреплено: {{ mailing.mediaType === 'photo' ? 'Фото' : mailing.mediaType === 'video' ? 'Видео' : 'Документ' }}</span>
+                      <button type="button" class="dm-existing-media-rm" title="Убрать медиа" @click="clearExistingMedia = true">
+                        <AppIcon name="x" :size="11" />
+                      </button>
                     </div>
                     <div v-if="mediaFiles.length" class="dm-media-list">
                       <div v-for="(f, i) in mediaFiles" :key="i" class="dm-media-item">
@@ -572,6 +587,8 @@ const handleOverlay = (e: MouseEvent) => {
 .dm-dropzone:hover, .dm-dropzone--drag { border-color: #2563eb; background: #eff6ff; color: #2563eb; }
 .dm-dropzone-sub { font: 400 10px/1 var(--fn, sans-serif); color: #94a3b8; margin-top: 2px; }
 .dm-existing-media { display: flex; align-items: center; gap: 6px; margin-top: 8px; padding: 7px 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; font: 400 12px/1 var(--fn, sans-serif); color: #64748b; }
+.dm-existing-media-rm { margin-left: auto; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; border: none; border-radius: 4px; background: none; color: #94a3b8; cursor: pointer; transition: all 150ms; padding: 0; flex-shrink: 0; }
+.dm-existing-media-rm:hover { background: #fee2e2; color: #dc2626; }
 .dm-media-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(68px, 1fr)); gap: 8px; margin-top: 10px; }
 .dm-media-item { position: relative; border-radius: 8px; overflow: hidden; border: 1.5px solid #e2e8f0; background: #f8fafc; aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
 .dm-media-thumb { width: 100%; height: 100%; object-fit: cover; display: block; }

@@ -22,8 +22,8 @@ export interface CreateTemplateData {
   bot_type: string;
   language: string;
   is_active: boolean;
-  media_url?: string;
-  media_type?: string;
+  media_url?: string | null;
+  media_type?: string | null;
 }
 
 export interface Campaign {
