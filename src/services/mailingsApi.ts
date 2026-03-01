@@ -287,6 +287,12 @@ class MailingsApiService {
     });
   }
 
+  cancelCampaign(id: number): Promise<void> {
+    return this.request<void>(`/api/v1/bot-communications/campaigns/${id}/cancel`, {
+      method: "POST",
+    });
+  }
+
   // ── Отправка сообщений ────────────────────────────────────────────────────
 
   sendMessage(data: SendMessageData): Promise<void> {

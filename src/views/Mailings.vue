@@ -41,6 +41,8 @@ function mapStatus(status?: string): Mailing["status"] {
       return "sent";
     case "failed":
       return "failed";
+    case "cancelled":
+      return "cancelled";
     default:
       return "draft";
   }
@@ -267,6 +269,10 @@ const refresh = () => loadData();
       @sent="(id) => {
         const m = mailings.find(x => x.id === id);
         if (m) m.status = 'sending';
+      }"
+      @cancelled="(id) => {
+        const m = mailings.find(x => x.id === id);
+        if (m) m.status = 'cancelled';
       }"
       @updated="(m) => {
         const idx = mailings.findIndex(x => x.id === m.id);

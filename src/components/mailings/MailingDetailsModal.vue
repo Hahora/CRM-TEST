@@ -21,6 +21,7 @@ const emit = defineEmits<{
   close: [];
   sent: [id: string];
   updated: [mailing: Mailing];
+  cancelled: [id: string];
 }>();
 
 // ── Режим ────────────────────────────────────────────────────────────────────
@@ -77,6 +78,26 @@ const sendNow = async () => {
     sendError.value = (err as Error).message || "Ошибка при отправке";
   } finally {
     isSending.value = false;
+  }
+};
+
+// ── Отмена ───────────────────────────────────────────────────────────────────────────────
+
+const isCancelling = ref(false);
+const cancelError = ref("");
+
+const cancelCampaign = async () => {
+  if (!props.mailing || isCancelling.value) return;
+  isCancelling.value = true;
+  cancelError.value = "";
+  try {
+    await mailingsApi.cancelCampaign(props.mailing.campaignId);
+    emit("cancelled", props.mailing.id);
+    emit("close");
+  } catch (err) {
+    cancelError.value = (err as Error).message || "Ошибка при отмене";
+  } finally {
+    isCancelling.value = false;
   }
 };
 
@@ -460,6 +481,7 @@ const getStatus = (s: string) => {
     sending: { label: "Отправляется", cls: "bg-blue-100 text-blue-700" },
     sent: { label: "Отправлено", cls: "bg-green-100 text-green-700" },
     failed: { label: "Ошибка", cls: "bg-red-100 text-red-700" },
+    cancelled: { label: "Отменена", cls: "bg-slate-100 text-slate-600" },
   };
   return m[s] ?? { label: "Неизвестно", cls: "bg-gray-100 text-gray-600" };
 };
@@ -907,6 +929,23 @@ const moscowLocalToUtc = (local: string): string =>
                     class="dm-spin"
                   /><AppIcon v-else name="send" :size="13" />
                   {{ isSending ? "Отправка..." : "Отправить" }}
+                </button>
+                <div v-if="cancelError" class="dm-footer-error">
+                  <AppIcon name="alert-circle" :size="13" /> {{ cancelError }}
+                </div>
+                <button
+                  v-if="mailing.status === 'scheduled'"
+                  class="dm-btn dm-btn--danger"
+                  :disabled="isCancelling"
+                  @click="cancelCampaign"
+                >
+                  <AppIcon
+                    v-if="isCancelling"
+                    name="refresh-cw"
+                    :size="13"
+                    class="dm-spin"
+                  /><AppIcon v-else name="x-circle" :size="13" />
+                  {{ isCancelling ? "Отмена..." : "Отменить рассылку" }}
                 </button>
                 <button
                   v-if="mailing.status !== 'draft'"
@@ -1704,6 +1743,14 @@ const moscowLocalToUtc = (local: string): string =>
 .dm-btn--green:hover:not(:disabled) {
   background: #15803d;
   box-shadow: 0 4px 12px rgba(22, 163, 74, 0.3);
+}
+.dm-btn--danger {
+  background: #dc2626;
+  color: #fff;
+}
+.dm-btn--danger:hover:not(:disabled) {
+  background: #b91c1c;
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
 }
 
 /* Transitions */

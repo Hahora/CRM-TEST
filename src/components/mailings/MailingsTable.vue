@@ -9,7 +9,7 @@ export interface Mailing {
   campaignId: number;
   name: string;
   type: "telegram" | "max";
-  status: "draft" | "scheduled" | "sending" | "sent" | "failed";
+  status: "draft" | "scheduled" | "sending" | "sent" | "failed" | "cancelled";
   message: string;
   templateName?: string;
   mediaUrl?: string;
@@ -51,6 +51,7 @@ const getStatus = (s: string): { label: string; cls: string } => {
     case "sending":   return { label: "Отправляется",  cls: "bg-blue-100 text-blue-700"    };
     case "sent":      return { label: "Отправлено",    cls: "bg-green-100 text-green-700"  };
     case "failed":    return { label: "Ошибка",        cls: "bg-red-100 text-red-700"      };
+    case "cancelled": return { label: "Отменена",      cls: "bg-slate-100 text-slate-600"  };
     default:          return { label: "Неизвестно",    cls: "bg-gray-100 text-gray-600"    };
   }
 };
