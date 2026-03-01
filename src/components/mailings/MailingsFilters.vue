@@ -40,6 +40,7 @@ const statuses = [
   { value: "scheduled", label: "Запланировано" },
   { value: "sent",      label: "Отправлено" },
   { value: "failed",    label: "Ошибка" },
+  { value: "cancelled", label: "Отменена" },
 ];
 
 const showMore = ref(false);
