@@ -38,7 +38,6 @@ const statuses = [
   { value: "all", label: "Все статусы" },
   { value: "draft", label: "Черновик" },
   { value: "scheduled", label: "Запланировано" },
-  { value: "sending", label: "Отправляется" },
   { value: "sent", label: "Отправлено" },
   { value: "failed", label: "Ошибка" },
 ];
