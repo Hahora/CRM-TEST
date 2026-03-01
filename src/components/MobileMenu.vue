@@ -47,8 +47,9 @@ const allSections: MenuSection[] = [
   {
     title: "Коммуникация",
     items: [
-      { id: "mailings", title: "Рассылки", icon: "send", route: "/mailings" },
-      { id: "tickets", title: "Тикеты", icon: "message-circle", route: "/tickets" },
+      { id: "mailings", title: "Рассылки",        icon: "send",           route: "/mailings" },
+      { id: "tickets",  title: "Тикеты",          icon: "message-circle", route: "/tickets"  },
+      { id: "blocked",  title: "Заблокированные", icon: "ban",            route: "/blocked"  },
     ],
   },
   {
