@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from "vue";
+import { computed } from "vue";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import AppIcon from "@/components/AppIcon.vue";
@@ -26,25 +26,23 @@ export interface Mailing {
 interface Props {
   mailings: Mailing[];
   loading?: boolean;
+  total?: number;
+  currentPage?: number;
+  pageSize?: number;
 }
 
 const props = defineProps<Props>();
 
 const emit = defineEmits<{
   "view-mailing": [mailing: Mailing];
+  "page-change": [page: number];
 }>();
 
-const PAGE_SIZE = 10;
-const currentPage = ref(1);
+const totalPages = computed(() =>
+  Math.max(1, Math.ceil((props.total ?? props.mailings.length) / (props.pageSize ?? 10)))
+);
 
-watch(() => props.mailings.length, () => { currentPage.value = 1; });
-
-const totalPages = computed(() => Math.max(1, Math.ceil(props.mailings.length / PAGE_SIZE)));
-
-const paginated = computed(() => {
-  const start = (currentPage.value - 1) * PAGE_SIZE;
-  return props.mailings.slice(start, start + PAGE_SIZE);
-});
+const page = computed(() => props.currentPage ?? 1);
 
 const getStatus = (s: string): { label: string; cls: string } => {
   switch (s) {
@@ -80,7 +78,7 @@ const displayDate = (m: Mailing): { label: string; sub: string; orange: boolean 
     <!-- Header -->
     <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
       <h3 class="text-sm font-semibold text-gray-900">Список рассылок</h3>
-      <span class="text-xs text-gray-400 font-medium">{{ mailings.length }} рассылок</span>
+      <span class="text-xs text-gray-400 font-medium">{{ total ?? mailings.length }} рассылок</span>
     </div>
 
     <!-- Loading -->
@@ -99,7 +97,7 @@ const displayDate = (m: Mailing): { label: string; sub: string; orange: boolean 
       <!-- ── Мобильные карточки (< md) ── -->
       <div class="md:hidden divide-y divide-gray-100">
         <div
-          v-for="mailing in paginated"
+          v-for="mailing in mailings"
           :key="mailing.id"
           class="px-4 py-3 cursor-pointer hover:bg-gray-50 active:bg-gray-100 transition-colors"
           @click="emit('view-mailing', mailing)"
@@ -149,7 +147,7 @@ const displayDate = (m: Mailing): { label: string; sub: string; orange: boolean 
           </thead>
           <tbody class="divide-y divide-gray-50">
             <tr
-              v-for="mailing in paginated"
+              v-for="mailing in mailings"
               :key="mailing.id"
               class="hover:bg-gray-50 cursor-pointer transition-colors group"
               @click="emit('view-mailing', mailing)"
@@ -196,17 +194,17 @@ const displayDate = (m: Mailing): { label: string; sub: string; orange: boolean 
       <!-- Пагинация -->
       <div v-if="totalPages > 1" class="flex items-center justify-between px-4 py-3 border-t border-gray-100">
         <button
-          @click="currentPage--"
-          :disabled="currentPage === 1"
+          @click="emit('page-change', page - 1)"
+          :disabled="page === 1"
           class="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           <AppIcon name="chevron-left" :size="14" />
           Назад
         </button>
-        <span class="text-xs text-gray-500">Страница {{ currentPage }} из {{ totalPages }}</span>
+        <span class="text-xs text-gray-500">Страница {{ page }} из {{ totalPages }}</span>
         <button
-          @click="currentPage++"
-          :disabled="currentPage === totalPages"
+          @click="emit('page-change', page + 1)"
+          :disabled="page === totalPages"
           class="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           Вперёд

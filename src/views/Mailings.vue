@@ -13,6 +13,9 @@ import type { Analytics, Campaign } from "@/services/mailingsApi";
 
 // ── Данные ──────────────────────────────────────────────────────────────────
 
+const PAGE_SIZE = 10;
+const currentPage = ref(1);
+const totalMailings = ref(0);
 const mailings = ref<Mailing[]>([]);
 const isLoading = ref(false);
 const analytics = ref<Analytics | null>(null);
@@ -65,6 +68,8 @@ const loadData = async () => {
   try {
     const [campaigns, analyticsData] = await Promise.allSettled([
       mailingsApi.getCampaigns({
+        skip:     (currentPage.value - 1) * PAGE_SIZE,
+        limit:    PAGE_SIZE,
         status:   toApiStatus(filters.value.status),
         bot_type: filters.value.type !== "all" ? filters.value.type : undefined,
         search:   filters.value.search || undefined,
@@ -73,6 +78,7 @@ const loadData = async () => {
     ]);
 
     if (campaigns.status === "fulfilled") {
+      totalMailings.value = campaigns.value.total;
       mailings.value = campaigns.value.campaigns.map((c) => ({
         id:           String(c.id),
         campaignId:   c.id,
@@ -101,8 +107,10 @@ const loadData = async () => {
   }
 };
 
-watch(filters, loadData, { deep: true });
+watch(filters, () => { currentPage.value = 1; loadData(); }, { deep: true });
 onMounted(loadData);
+
+const onPageChange = (page: number) => { currentPage.value = page; loadData(); };
 
 // ── Статистика ───────────────────────────────────────────────────────────────
 
@@ -116,7 +124,7 @@ const stats = computed(() => {
   const totalOpened = a?.total_opened ?? 0;
 
   return {
-    total: all.length,
+    total: totalMailings.value,
     draft: all.filter((m) => m.status === "draft").length,
     scheduled: all.filter((m) => m.status === "scheduled").length,
     sent: all.filter((m) => m.status === "sent").length,
@@ -152,26 +160,10 @@ const closeDetails = () => {
   selectedMailing.value = null;
 };
 
-const handleCreate = (campaign: Campaign) => {
-  mailings.value.unshift({
-    id:           String(campaign.id),
-    campaignId:   campaign.id,
-    name:         campaign.name,
-    type:         mapBotType(campaign.bot_type),
-    status:       mapStatus(campaign.status),
-    message:      campaign.template?.content ?? "",
-    templateName: campaign.template?.name,
-    mediaUrl:     campaign.template?.media_url,
-    mediaType:    campaign.template?.media_type,
-    recipients:   0,
-    sent:         0,
-    delivered:    0,
-    failed:       0,
-    scheduledAt:  campaign.scheduled_at ?? undefined,
-    sentAt:       campaign.sent_at ?? undefined,
-    createdAt:    campaign.created_at ?? new Date().toISOString(),
-  });
+const handleCreate = (_campaign: Campaign) => {
   isCreateModalOpen.value = false;
+  currentPage.value = 1;
+  loadData();
 };
 
 const refresh = () => loadData();
@@ -253,7 +245,11 @@ const refresh = () => loadData();
       <MailingsTable
         :mailings="mailings"
         :loading="isLoading"
+        :total="totalMailings"
+        :current-page="currentPage"
+        :page-size="PAGE_SIZE"
         @view-mailing="openDetails"
+        @page-change="onPageChange"
       />
     </div>
 
