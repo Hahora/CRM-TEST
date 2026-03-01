@@ -65,10 +65,6 @@ const getType = (t: string): { label: string; cls: string } => {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const getTypeIcon = (t: string): any => (t === "telegram" ? "send" : "message-circle");
 
-const getDeliveryRate = (m: Mailing) => {
-  if (m.sent === 0) return 0;
-  return Math.round((m.delivered / m.sent) * 100);
-};
 
 const displayDate = (m: Mailing): { label: string; sub: string; orange: boolean } => {
   if (m.sentAt)
@@ -147,8 +143,6 @@ const displayDate = (m: Mailing): { label: string; sub: string; orange: boolean 
               <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Рассылка</th>
               <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Тип</th>
               <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Статус</th>
-              <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Получатели</th>
-              <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Доставляемость</th>
               <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Дата</th>
               <th class="px-4 py-2.5 w-10"></th>
             </tr>
@@ -179,22 +173,6 @@ const displayDate = (m: Mailing): { label: string; sub: string; orange: boolean 
                 >
                   {{ getStatus(mailing.status).label }}
                 </span>
-              </td>
-              <td class="px-4 py-3">
-                <div class="text-sm font-medium text-gray-900">{{ mailing.recipients.toLocaleString() }}</div>
-                <div v-if="mailing.sent > 0" class="text-xs text-gray-400">
-                  отправлено: {{ mailing.sent.toLocaleString() }}
-                </div>
-              </td>
-              <td class="px-4 py-3">
-                <div v-if="mailing.sent > 0">
-                  <div class="text-sm font-medium text-gray-900">{{ getDeliveryRate(mailing) }}%</div>
-                  <div v-if="mailing.failed > 0" class="flex items-center gap-1 text-xs text-red-400">
-                    <AppIcon name="alert-circle" :size="11" />
-                    {{ mailing.failed }} ошибок
-                  </div>
-                </div>
-                <div v-else class="text-sm text-gray-400">—</div>
               </td>
               <td class="px-4 py-3">
                 <div
