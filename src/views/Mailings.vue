@@ -9,7 +9,7 @@ import type { Mailing } from "@/components/mailings/MailingsTable.vue";
 import CreateMailingModal from "@/components/mailings/CreateMailingModal.vue";
 import MailingDetailsModal from "@/components/mailings/MailingDetailsModal.vue";
 import { mailingsApi } from "@/services/mailingsApi";
-import type { Analytics } from "@/services/mailingsApi";
+import type { Analytics, Campaign } from "@/services/mailingsApi";
 
 // ── Данные ──────────────────────────────────────────────────────────────────
 
@@ -52,21 +52,23 @@ const loadData = async () => {
     ]);
 
     if (campaigns.status === "fulfilled") {
-      mailings.value = campaigns.value.map((c) => ({
-        id: String(c.id),
-        name: c.name,
-        type: mapBotType(c.bot_type),
-        status: mapStatus(c.status),
-        message: "",
-        recipients: 0,
-        sent: 0,
-        delivered: 0,
-        failed: 0,
-        scheduledAt: c.scheduled_at ?? undefined,
-        createdAt: c.created_at ?? new Date().toISOString(),
-        createdBy: "",
-        branch: "",
-        targetAudience: [],
+      mailings.value = campaigns.value.campaigns.map((c) => ({
+        id:           String(c.id),
+        campaignId:   c.id,
+        name:         c.name,
+        type:         mapBotType(c.bot_type),
+        status:       mapStatus(c.status),
+        message:      c.template?.content ?? "",
+        templateName: c.template?.name,
+        mediaUrl:     c.template?.media_url,
+        mediaType:    c.template?.media_type,
+        recipients:   0,
+        sent:         0,
+        delivered:    0,
+        failed:       0,
+        scheduledAt:  c.scheduled_at ?? undefined,
+        sentAt:       c.sent_at ?? undefined,
+        createdAt:    c.created_at ?? new Date().toISOString(),
       }));
     }
 
@@ -98,7 +100,6 @@ const filteredMailings = computed(() => {
     result = result.filter(
       (m) =>
         m.name.toLowerCase().includes(q) ||
-        (m.subject && m.subject.toLowerCase().includes(q)) ||
         m.message.toLowerCase().includes(q)
     );
   }
@@ -123,8 +124,7 @@ const stats = computed(() => {
   const totalSent = a?.total_sent ?? all.reduce((s, m) => s + m.sent, 0);
   const totalDelivered =
     a?.total_delivered ?? all.reduce((s, m) => s + m.delivered, 0);
-  const totalOpened =
-    a?.total_opened ?? all.reduce((s, m) => s + (m.opened || 0), 0);
+  const totalOpened = a?.total_opened ?? 0;
 
   return {
     total: all.length,
@@ -163,44 +163,25 @@ const closeDetails = () => {
   selectedMailing.value = null;
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const handleCreate = async (data: any) => {
-  try {
-    const campaign = await mailingsApi.createCampaign({
-      name: data.name,
-      template_id: data.template_id ?? 0,
-      bot_type: data.type ?? "telegram",
-      scheduled_at: data.scheduledAt ?? null,
-    });
-    mailings.value.unshift({
-      id: String(campaign.id),
-      name: campaign.name,
-      type: mapBotType(campaign.bot_type),
-      status: mapStatus(campaign.status),
-      message: data.message ?? "",
-      recipients: 0,
-      sent: 0,
-      delivered: 0,
-      failed: 0,
-      scheduledAt: campaign.scheduled_at ?? undefined,
-      createdAt: campaign.created_at ?? new Date().toISOString(),
-      createdBy: "",
-      branch: "",
-      targetAudience: [],
-    });
-  } catch {
-    // При ошибке добавляем локально как черновик
-    mailings.value.unshift({
-      id: Date.now().toString(),
-      ...data,
-      recipients: 0,
-      sent: 0,
-      delivered: 0,
-      failed: 0,
-      status: "draft",
-      createdAt: new Date().toISOString(),
-    });
-  }
+const handleCreate = (campaign: Campaign) => {
+  mailings.value.unshift({
+    id:           String(campaign.id),
+    campaignId:   campaign.id,
+    name:         campaign.name,
+    type:         mapBotType(campaign.bot_type),
+    status:       mapStatus(campaign.status),
+    message:      campaign.template?.content ?? "",
+    templateName: campaign.template?.name,
+    mediaUrl:     campaign.template?.media_url,
+    mediaType:    campaign.template?.media_type,
+    recipients:   0,
+    sent:         0,
+    delivered:    0,
+    failed:       0,
+    scheduledAt:  campaign.scheduled_at ?? undefined,
+    sentAt:       campaign.sent_at ?? undefined,
+    createdAt:    campaign.created_at ?? new Date().toISOString(),
+  });
   isCreateModalOpen.value = false;
 };
 
@@ -298,6 +279,7 @@ const refresh = () => loadData();
       :is-open="isDetailsModalOpen"
       :mailing="selectedMailing"
       @close="closeDetails"
+      @sent="loadData"
     />
   </div>
 </template>

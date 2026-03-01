@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { ref, computed, watch } from "vue";
+import { ref, computed } from "vue";
 import AppIcon from "@/components/AppIcon.vue";
 import { type IconName } from "@/components/icons";
 import EmojiPicker from "vue3-emoji-picker";
 import "vue3-emoji-picker/css";
+import { mailingsApi } from "@/services/mailingsApi";
+import type { Campaign } from "@/services/mailingsApi";
 
 interface Props {
   isOpen: boolean;
@@ -231,14 +233,26 @@ const typeOptions: Array<{ value: "telegram" | "max"; label: string; icon: IconN
   { value: "max",      label: "МАКС",     icon: "message-circle" },
 ];
 
+const submitStep  = ref("");
+const submitError = ref("");
+
 const canSubmit = computed(() =>
   !!form.value.name.trim() && !isEmpty.value
 );
 
+const getMediaType = (file: File): "photo" | "video" | "document" | "audio" => {
+  if (file.type.startsWith("image/")) return "photo";
+  if (file.type.startsWith("video/")) return "video";
+  if (file.type.startsWith("audio/")) return "audio";
+  return "document";
+};
+
 const resetForm = () => {
   form.value = { name: "", type: "telegram", message: "", scheduledAt: "", sendNow: false };
-  isEmpty.value   = true;
-  charCount.value = 0;
+  isEmpty.value    = true;
+  charCount.value  = 0;
+  submitStep.value = "";
+  submitError.value = "";
   if (editorRef.value) editorRef.value.innerHTML = "";
   showEmojiPicker.value = false;
   mediaPreviews.value.forEach((p) => { if (p) URL.revokeObjectURL(p); });
@@ -251,6 +265,7 @@ const handleOverlay = (e: MouseEvent) => {
 };
 
 const closeModal = () => {
+  if (isSubmitting.value) return;
   emit("close");
   resetForm();
 };
@@ -258,32 +273,70 @@ const closeModal = () => {
 const handleSubmit = async () => {
   if (!canSubmit.value || isSubmitting.value) return;
   isSubmitting.value = true;
+  submitError.value  = "";
+
   try {
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    const mailingData = {
-      name:        form.value.name,
-      type:        form.value.type,
-      message:     htmlToTgMd(form.value.message),   // Telegram Markdown
-      messageHtml: form.value.message,                // raw HTML (для превью)
-      sendNow:     form.value.sendNow,
-      scheduledAt: form.value.scheduledAt,
-      status: form.value.sendNow
-        ? "sending"
-        : form.value.scheduledAt
-        ? "scheduled"
-        : "draft",
-      media:       mediaFiles.value,
-      createdBy: "Текущий пользователь",
-    };
-    emit("create", mailingData);
+    // 1. Загрузка медиа (только первый файл — Telegram принимает 1 медиа на сообщение)
+    let mediaUrl: string | undefined;
+    let mediaType: "photo" | "video" | "document" | "audio" | undefined;
+
+    const firstFile = mediaFiles.value[0];
+    if (firstFile) {
+      submitStep.value = "Загрузка медиа...";
+      const mt = getMediaType(firstFile);
+      const uploaded = await mailingsApi.uploadMedia(firstFile, mt);
+      mediaUrl  = uploaded.media_url;
+      mediaType = mt;
+    }
+
+    // 2. Создание шаблона
+    submitStep.value = "Создание шаблона...";
+    const template = await mailingsApi.createTemplate({
+      name:      form.value.name,
+      content:   htmlToTgMd(form.value.message),
+      category:  "marketing",
+      bot_type:  form.value.type,
+      language:  "ru",
+      is_active: true,
+      ...(mediaUrl ? { media_url: mediaUrl, media_type: mediaType } : {}),
+    });
+
+    // 3. Создание кампании
+    submitStep.value = "Создание кампании...";
+    const campaign = await mailingsApi.createCampaign({
+      name:           form.value.name,
+      template_id:    template.id,
+      bot_type:       form.value.type,
+      segment_filter: { has_telegram: form.value.type === "telegram" },
+      scheduled_at:   form.value.scheduledAt || null,
+    });
+
+    // 4. Запуск / планирование
+    if (form.value.sendNow) {
+      submitStep.value = "Запуск рассылки...";
+      await mailingsApi.scheduleCampaign(campaign.id, {
+        campaign_id:      campaign.id,
+        send_immediately: true,
+      });
+    } else if (form.value.scheduledAt) {
+      submitStep.value = "Планирование рассылки...";
+      await mailingsApi.scheduleCampaign(campaign.id, {
+        campaign_id:      campaign.id,
+        send_immediately: false,
+        scheduled_at:     form.value.scheduledAt,
+      });
+    }
+
+    const result: Campaign = { ...campaign, template };
+    emit("create", result);
     resetForm();
+  } catch (err) {
+    submitError.value = (err as Error).message || "Ошибка при создании рассылки";
   } finally {
     isSubmitting.value = false;
+    submitStep.value   = "";
   }
 };
-
-// Сбрасываем при закрытии
-watch(() => form.value.sendNow, () => {/* just reactive */});
 </script>
 
 <template>
@@ -498,8 +551,21 @@ watch(() => form.value.sendNow, () => {/* just reactive */});
               </form>
             </div>
 
+            <!-- Прогресс отправки -->
+            <Transition name="cm-fade">
+              <div v-if="isSubmitting" class="cm-progress-overlay">
+                <AppIcon name="refresh-cw" :size="22" class="cm-spin text-blue-500" />
+                <span>{{ submitStep || "Обработка..." }}</span>
+              </div>
+            </Transition>
+
             <!-- Footer -->
             <div class="cm-footer">
+              <!-- Ошибка -->
+              <div v-if="submitError" class="cm-submit-error">
+                <AppIcon name="alert-circle" :size="13" />
+                {{ submitError }}
+              </div>
               <button type="button" class="cm-btn cm-btn--ghost" @click="closeModal">
                 Отмена
               </button>
@@ -535,6 +601,7 @@ watch(() => form.value.sendNow, () => {/* just reactive */});
 
 /* ── Panel ───────────────────────────────────────────── */
 .cm-panel {
+  position: relative;
   width: min(480px, 100vw);
   height: 100%;
   background: #fff;
@@ -840,6 +907,32 @@ watch(() => form.value.sendNow, () => {/* just reactive */});
 }
 .cm-media-item:hover .cm-media-rm { opacity: 1; }
 .cm-media-rm:hover { background: #dc2626; }
+
+/* ── Progress overlay ───────────────────────────────── */
+.cm-progress-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  background: rgba(255,255,255,0.85);
+  backdrop-filter: blur(2px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font: 500 13px/1 var(--fn, sans-serif);
+  color: #334155;
+  pointer-events: all;
+}
+
+.cm-submit-error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: 400 12px/1.4 var(--fn, sans-serif);
+  color: #dc2626;
+  flex: 1;
+}
 
 /* ── Footer ──────────────────────────────────────────── */
 .cm-footer {

@@ -6,23 +6,21 @@ import AppIcon from "@/components/AppIcon.vue";
 
 export interface Mailing {
   id: string;
+  campaignId: number;
   name: string;
   type: "telegram" | "max";
   status: "draft" | "scheduled" | "sending" | "sent" | "failed";
-  subject?: string;
   message: string;
+  templateName?: string;
+  mediaUrl?: string;
+  mediaType?: string;
   recipients: number;
   sent: number;
   delivered: number;
-  opened?: number;
-  clicked?: number;
   failed: number;
   scheduledAt?: string;
   sentAt?: string;
   createdAt: string;
-  createdBy: string;
-  branch: string;
-  targetAudience: string[];
 }
 
 interface Props {
@@ -165,9 +163,10 @@ const displayDate = (m: Mailing): { label: string; sub: string; orange: boolean 
               <td class="px-4 py-3">
                 <div class="min-w-0">
                   <div class="text-sm font-medium text-gray-900 truncate max-w-[200px]">{{ mailing.name }}</div>
-                  <div v-if="mailing.subject" class="text-xs text-gray-500 truncate max-w-[200px]">{{ mailing.subject }}</div>
-                  <div v-if="mailing.createdBy || mailing.branch" class="text-xs text-gray-400">
-                    {{ [mailing.createdBy, mailing.branch].filter(Boolean).join(" · ") }}
+                  <div v-if="mailing.templateName" class="text-xs text-gray-500 truncate max-w-[200px]">{{ mailing.templateName }}</div>
+                  <div v-if="mailing.mediaType" class="text-xs text-gray-400 flex items-center gap-1">
+                    <AppIcon :name="mailing.mediaType === 'photo' ? 'package' : mailing.mediaType === 'video' ? 'play-circle' : 'file-text'" :size="10" />
+                    {{ mailing.mediaType === 'photo' ? 'Фото' : mailing.mediaType === 'video' ? 'Видео' : 'Файл' }}
                   </div>
                 </div>
               </td>
@@ -197,9 +196,9 @@ const displayDate = (m: Mailing): { label: string; sub: string; orange: boolean 
               <td class="px-4 py-3">
                 <div v-if="mailing.sent > 0">
                   <div class="text-sm font-medium text-gray-900">{{ getDeliveryRate(mailing) }}%</div>
-                  <div v-if="mailing.opened" class="flex items-center gap-1 text-xs text-gray-400">
-                    <AppIcon name="mail-open" :size="11" />
-                    {{ mailing.opened }} открыли
+                  <div v-if="mailing.failed > 0" class="flex items-center gap-1 text-xs text-red-400">
+                    <AppIcon name="alert-circle" :size="11" />
+                    {{ mailing.failed }} ошибок
                   </div>
                 </div>
                 <div v-else class="text-sm text-gray-400">—</div>

@@ -10,6 +10,9 @@ export interface BotTemplate {
   bot_type: string;
   language: string;
   is_active: boolean;
+  media_url?: string;
+  media_type?: string;
+  created_at?: string;
 }
 
 export interface CreateTemplateData {
@@ -19,18 +22,21 @@ export interface CreateTemplateData {
   bot_type: string;
   language: string;
   is_active: boolean;
+  media_url?: string;
+  media_type?: string;
 }
 
 export interface Campaign {
   id: number;
   name: string;
-  template_id: number;
   bot_type: string;
-  segment_filter: Record<string, unknown>;
-  scheduled_at: string | null;
   status?: string;
+  scheduled_at: string | null;
+  sent_at?: string | null;
   created_at?: string;
-  updated_at?: string;
+  template?: BotTemplate;
+  template_id?: number;
+  segment_filter?: Record<string, unknown>;
 }
 
 export interface CreateCampaignData {
@@ -42,14 +48,29 @@ export interface CreateCampaignData {
 }
 
 export interface CampaignStats {
-  total: number;
-  sent: number;
-  delivered: number;
-  opened?: number;
-  clicked?: number;
-  failed: number;
-  delivery_rate?: number;
-  open_rate?: number;
+  campaign_id: number;
+  campaign_name: string;
+  total_messages: number;
+  sent_messages: number;
+  delivered_messages: number;
+  read_messages: number;
+  failed_messages: number;
+  delivery_rate: number;
+  read_rate: number;
+}
+
+export interface ScheduleResponse {
+  campaign_id: number;
+  total_recipients: number;
+  messages_queued: number;
+  scheduled_at: string;
+  estimated_completion: string | null;
+}
+
+export interface UploadMediaResponse {
+  media_url: string;
+  media_type: string;
+  filename: string;
 }
 
 export interface ScheduleCampaignData {
@@ -158,11 +179,54 @@ class MailingsApiService {
     return response.json();
   }
 
+  // ── Медиа ─────────────────────────────────────────────────────────────────
+
+  async uploadMedia(
+    file: File,
+    mediaType: "photo" | "video" | "document" | "audio"
+  ): Promise<UploadMediaResponse> {
+    const doFetch = async (): Promise<Response> => {
+      const token = authService.getAccessToken();
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("media_type", mediaType);
+      return fetch(`${this.baseUrl}/api/v1/bot-communications/upload-media`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+    };
+
+    let response = await doFetch();
+
+    if (response.status === 401) {
+      try {
+        const newTokens = await authService.refreshToken();
+        authService.setTokens(newTokens.access_token, newTokens.refresh_token);
+        response = await doFetch();
+      } catch {
+        authService.clearTokens();
+        throw new Error("Сессия истекла");
+      }
+    }
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      let msg = `Ошибка загрузки медиа: ${response.status}`;
+      try { const j = JSON.parse(text); if (j.detail) msg = j.detail; } catch { /* ignore */ }
+      throw new Error(msg);
+    }
+
+    return response.json();
+  }
+
   // ── Шаблоны ───────────────────────────────────────────────────────────────
 
-  getTemplates(botType?: string): Promise<BotTemplate[]> {
+  getTemplates(botType?: string): Promise<{ templates: BotTemplate[]; total: number }> {
     const qs = botType ? `?bot_type=${encodeURIComponent(botType)}` : "";
-    return this.request<BotTemplate[]>(`/api/v1/bot-communications/templates${qs}`);
+    return this.request<{ templates: BotTemplate[]; total: number }>(
+      `/api/v1/bot-communications/templates${qs}`
+    );
   }
 
   createTemplate(data: CreateTemplateData): Promise<BotTemplate> {
@@ -174,8 +238,8 @@ class MailingsApiService {
 
   // ── Кампании ──────────────────────────────────────────────────────────────
 
-  getCampaigns(skip = 0, limit = 100): Promise<Campaign[]> {
-    return this.request<Campaign[]>(
+  getCampaigns(skip = 0, limit = 100): Promise<{ campaigns: Campaign[]; total: number }> {
+    return this.request<{ campaigns: Campaign[]; total: number }>(
       `/api/v1/bot-communications/campaigns?skip=${skip}&limit=${limit}`
     );
   }
@@ -191,8 +255,8 @@ class MailingsApiService {
     return this.request<CampaignStats>(`/api/v1/bot-communications/campaigns/${id}/stats`);
   }
 
-  scheduleCampaign(id: number, data: ScheduleCampaignData): Promise<void> {
-    return this.request<void>(`/api/v1/bot-communications/campaigns/${id}/schedule`, {
+  scheduleCampaign(id: number, data: ScheduleCampaignData): Promise<ScheduleResponse> {
+    return this.request<ScheduleResponse>(`/api/v1/bot-communications/campaigns/${id}/schedule`, {
       method: "POST",
       body: JSON.stringify(data),
     });
