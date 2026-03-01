@@ -359,6 +359,9 @@ let removeWsListener: (() => void) | null = null;
 
 onMounted(async () => {
   await Promise.all([loadTickets(), loadStats(), loadBlocked()]);
+  // loadTickets и loadBlocked шли параллельно — blockedIds мог не успеть заполниться
+  // до вызова applyBlockedStatus внутри loadTickets. Повторяем после обоих.
+  applyBlockedStatus(tickets.value);
   removeWsListener = addListener(handleWsEvent);
 });
 
