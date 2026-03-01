@@ -21,6 +21,7 @@ type EventListener = (data: GwsEvent) => void;
 // ── Singleton state ────────────────────────────────────────────────────────────
 
 let ws: WebSocket | null = null;
+let wsConnecting = false; // флаг: идёт попытка установить соединение
 let wsAttempt = 0;
 let wsTimer: ReturnType<typeof setTimeout> | null = null;
 let wsStabilityTimer: ReturnType<typeof setTimeout> | null = null;
@@ -105,11 +106,15 @@ function handleMsg(event: MessageEvent) {
 function doConnect(userId: number) {
   // CONNECTING(0) или OPEN(1) — уже подключены
   if (ws && ws.readyState < WebSocket.CLOSING) return;
+  // Уже идёт попытка подключения (race condition при нескольких вызовах до onopen)
+  if (wsConnecting) return;
+  wsConnecting = true;
   ws = null; // сбросить stale CLOSED-ссылку если вдруг осталась
   if (wsTimer) { clearTimeout(wsTimer); wsTimer = null; }
   try {
     ws = new WebSocket(leadsApi.getWsUrl(userId));
     ws.onopen = () => {
+      wsConnecting = false;
       // Сбрасываем backoff только если соединение продержалось 30+ секунд.
       // Это предотвращает flood тоннельных подключений при нестабильном канале.
       if (wsStabilityTimer) clearTimeout(wsStabilityTimer);
@@ -119,6 +124,7 @@ function doConnect(userId: number) {
     ws.onmessage = handleMsg;
     ws.onerror = () => { /* no-op — onclose всегда срабатывает после error */ };
     ws.onclose = (e) => {
+      wsConnecting = false;
       ws = null;
       // Отменяем таймер стабильности — соединение не было стабильным
       if (wsStabilityTimer) { clearTimeout(wsStabilityTimer); wsStabilityTimer = null; }
@@ -130,7 +136,9 @@ function doConnect(userId: number) {
       wsAttempt++;
       wsTimer = setTimeout(() => doConnect(userId), delay);
     };
-  } catch { /* WS unavailable */ }
+  } catch {
+    wsConnecting = false; // WS unavailable — снимаем флаг чтобы retry сработал
+  }
 }
 
 // ── Public composable ──────────────────────────────────────────────────────────
@@ -162,6 +170,7 @@ export function useGlobalWs() {
     if (wsTimer) { clearTimeout(wsTimer); wsTimer = null; }
     if (wsStabilityTimer) { clearTimeout(wsStabilityTimer); wsStabilityTimer = null; }
     wsAttempt = 0;
+    wsConnecting = false;
     newLeadIdSet.clear();
     toastedLeadIds.clear();
     ws?.close();
@@ -210,6 +219,7 @@ if (import.meta.hot) {
     if (wsTimer) { clearTimeout(wsTimer); wsTimer = null; }
     if (wsStabilityTimer) { clearTimeout(wsStabilityTimer); wsStabilityTimer = null; }
     if (ws) { ws.onclose = null; ws.onerror = null; ws.onmessage = null; ws.close(); ws = null; }
+    wsConnecting = false;
     wsUserId = null;
     wsAttempt = 0;
     newLeadIdSet.clear();
