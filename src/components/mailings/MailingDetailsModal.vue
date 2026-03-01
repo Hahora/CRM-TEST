@@ -348,7 +348,6 @@ const handleOverlay = (e: MouseEvent) => {
                       <div class="dm-stat dm-stat--blue"><div class="dm-stat-value">{{ stats.total_messages.toLocaleString() }}</div><div class="dm-stat-label">Всего</div></div>
                       <div class="dm-stat dm-stat--green"><div class="dm-stat-value">{{ stats.sent_messages.toLocaleString() }}</div><div class="dm-stat-label">Отправлено</div></div>
                       <div class="dm-stat dm-stat--purple"><div class="dm-stat-value">{{ stats.delivery_rate.toFixed(1) }}%</div><div class="dm-stat-label">Доставлено</div><div class="dm-stat-sub">{{ stats.delivered_messages }}</div></div>
-                      <div class="dm-stat dm-stat--amber"><div class="dm-stat-value">{{ stats.read_rate.toFixed(1) }}%</div><div class="dm-stat-label">Прочитано</div><div class="dm-stat-sub">{{ stats.read_messages }}</div></div>
                     </div>
                     <div v-if="stats.failed_messages > 0" class="dm-stats-failed"><AppIcon name="alert-circle" :size="13" /> Ошибок: {{ stats.failed_messages }}</div>
                   </div>
@@ -518,7 +517,7 @@ const handleOverlay = (e: MouseEvent) => {
 .dm-media-badge { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; padding: 6px 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; font: 400 12px/1 var(--fn, sans-serif); color: #64748b; }
 .dm-media-badge-sub { color: #94a3b8; }
 .dm-stats-loading, .dm-stats-empty { display: flex; align-items: center; gap: 6px; font: 400 13px/1 var(--fn, sans-serif); color: #94a3b8; }
-.dm-stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.dm-stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .dm-stat { text-align: center; border-radius: 10px; padding: 12px 8px; }
 .dm-stat--blue { background: #eff6ff; } .dm-stat--green { background: #f0fdf4; } .dm-stat--purple { background: #faf5ff; } .dm-stat--amber { background: #fffbeb; }
 .dm-stat-value { font: 700 18px/1 var(--fn, sans-serif); }
