@@ -63,6 +63,7 @@ export interface Lead {
   appointment_datetime: string | null;
   notes: string | null;
   is_new: boolean;               // true — менеджер ещё не ответил
+  is_blocked: boolean;           // true — пользователь заблокирован в боте
   created_at: string;
   updated_at: string;
   status: LeadStatus;

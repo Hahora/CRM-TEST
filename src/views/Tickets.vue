@@ -9,7 +9,6 @@ import type { Ticket } from "@/components/tickets/TicketsTable.vue";
 import type { TicketsFilters as TFilters } from "@/components/tickets/TicketsFilters.vue";
 import { leadsApi, resolveClientName } from "@/services/leadsApi";
 import type { Lead, LeadStatus, LeadsParams } from "@/services/leadsApi";
-import { mailingsApi } from "@/services/mailingsApi";
 import { useGlobalWs } from "@/composables/useGlobalWs";
 import type { GwsEvent } from "@/composables/useGlobalWs";
 import { useToast } from "@/composables/useToast";
@@ -17,22 +16,6 @@ import { useToast } from "@/composables/useToast";
 const router = useRouter();
 const { addListener } = useGlobalWs();
 const { showSuccess, showError } = useToast();
-
-// ── Заблокированные ───────────────────────────────────────────────────────────
-const blockedIds = ref<Set<string>>(new Set());
-
-const loadBlocked = async () => {
-  try {
-    const list = await mailingsApi.getBlocked();
-    blockedIds.value = new Set(list.map((u) => u.telegram_user_id));
-  } catch { /* ignore */ }
-};
-
-const applyBlockedStatus = (list: Ticket[]) => {
-  for (const t of list) {
-    t.isBlocked = !!(t.telegramId && blockedIds.value.has(t.telegramId));
-  }
-};
 
 // Модальное подтверждение блокировки
 const ticketToBlock = ref<Ticket | null>(null);
@@ -94,6 +77,7 @@ function leadToTicket(lead: Lead): Ticket {
     messagesCount: 0,
     isUnread: lead.is_new,
     isNew: lead.is_new,
+    isBlocked: lead.is_blocked,
   };
 }
 
@@ -263,7 +247,6 @@ const loadTickets = async () => {
 
     const res = await leadsApi.getList(params);
     tickets.value = res.leads.map(leadToTicket);
-    applyBlockedStatus(tickets.value);
     total.value = res.total;
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Ошибка загрузки";
@@ -326,10 +309,6 @@ const confirmBlock = async () => {
   isBlocking.value = true;
   try {
     await leadsApi.blockClient(Number(ticket.id));
-    // Обновляем локальный Set и флаг тикета
-    if (ticket.telegramId) {
-      blockedIds.value = new Set([...blockedIds.value, ticket.telegramId]);
-    }
     ticket.isBlocked = true;
     showSuccess("Заблокировано", `Пользователь из тикета #${ticket.number} заблокирован`);
     showBlockConfirm.value = false;
@@ -342,12 +321,8 @@ const confirmBlock = async () => {
 };
 
 const unblockTicket = async (ticket: Ticket) => {
-  if (!ticket.telegramId) return;
   try {
-    await mailingsApi.unblockByTelegramUserId(ticket.telegramId);
-    const s = new Set(blockedIds.value);
-    s.delete(ticket.telegramId);
-    blockedIds.value = s;
+    await leadsApi.unblockClient(Number(ticket.id));
     ticket.isBlocked = false;
     showSuccess("Разблокировано", `Пользователь из тикета #${ticket.number} разблокирован`);
   } catch (e) {
@@ -358,10 +333,7 @@ const unblockTicket = async (ticket: Ticket) => {
 let removeWsListener: (() => void) | null = null;
 
 onMounted(async () => {
-  await Promise.all([loadTickets(), loadStats(), loadBlocked()]);
-  // loadTickets и loadBlocked шли параллельно — blockedIds мог не успеть заполниться
-  // до вызова applyBlockedStatus внутри loadTickets. Повторяем после обоих.
-  applyBlockedStatus(tickets.value);
+  await Promise.all([loadTickets(), loadStats()]);
   removeWsListener = addListener(handleWsEvent);
 });
 
