@@ -351,6 +351,34 @@ class MailingsApiService {
       body: JSON.stringify({ client_id: clientId, bot_type: botType }),
     });
   }
+
+  // ── Заблокированные пользователи ──────────────────────────────────────────
+
+  getBlocked(): Promise<BlockedUser[]> {
+    return this.request<BlockedUser[]>("/api/v1/bot-communications/blocked");
+  }
+
+  blockByTelegramUserId(telegramUserId: string): Promise<void> {
+    return this.request<void>("/api/v1/bot-communications/blocked", {
+      method: "POST",
+      body: JSON.stringify({ telegram_user_id: telegramUserId }),
+    });
+  }
+
+  unblockByTelegramUserId(telegramUserId: string): Promise<void> {
+    return this.request<void>(
+      `/api/v1/bot-communications/blocked/${encodeURIComponent(telegramUserId)}`,
+      { method: "DELETE" }
+    );
+  }
+}
+
+export interface BlockedUser {
+  telegram_user_id: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  username?: string | null;
+  last_active_at?: string | null;
 }
 
 export const mailingsApi = new MailingsApiService();

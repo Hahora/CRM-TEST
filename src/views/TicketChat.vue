@@ -7,7 +7,9 @@ import AppIcon from "@/components/AppIcon.vue";
 import "@lottiefiles/lottie-player/dist/tgs-player.js"; // Регистрирует <tgs-player> (поддерживает gzip TGS)
 import { leadsApi, resolveClientName } from "@/services/leadsApi";
 import type { LeadStatus, LeadMessage, MessageAttachment } from "@/services/leadsApi";
+import { mailingsApi } from "@/services/mailingsApi";
 import { clientsApi } from "@/services/clientsApi";
+import { useToast } from "@/composables/useToast";
 import ClientCreateModal from "@/components/clients/ClientCreateModal.vue";
 import type { NewClientData } from "@/components/clients/ClientCreateModal.vue";
 import ClientSearchModal from "@/components/clients/ClientSearchModal.vue";
@@ -89,6 +91,13 @@ const textareaEl    = ref<HTMLTextAreaElement>();
 const clientLinked    = ref(true);
 const showSearchModal = ref(false); // поиск существующего клиента
 const showCreateModal = ref(false); // создание нового клиента
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+const { showSuccess, showError } = useToast();
+
+// ── Блокировка клиента ────────────────────────────────────────────────────────
+const isBlocked  = ref(false);
+const isBlocking = ref(false);
 
 // ── Эмодзи-пикер ─────────────────────────────────────────────────────────────
 const showEmojiPicker = ref(false);
@@ -213,10 +222,11 @@ const mapMessage = (m: LeadMessage): Message => ({
 const load = async () => {
   isLoading.value = true;
   try {
-    const [lead, leadStatuses, msgResponse] = await Promise.all([
+    const [lead, leadStatuses, msgResponse, blockedList] = await Promise.all([
       leadsApi.getById(Number(ticketId.value)),
       leadsApi.getStatuses(),
       leadsApi.getMessages(Number(ticketId.value), { limit: 50 }),
+      mailingsApi.getBlocked().catch(() => []),
     ]);
     statuses.value = leadStatuses;
 
@@ -267,6 +277,15 @@ const load = async () => {
     messages.value     = msgResponse.messages.map(mapMessage);
     hasMore.value      = msgResponse.total > msgResponse.messages.length;
     clientLinked.value = lead.client_id != null;
+
+    // Проверяем, заблокирован ли текущий пользователь
+    const telegramId = lead.client?.telegram_id
+      ? String(lead.client.telegram_id)
+      : (lead.source_type === "telegram" || lead.source_type === "telegram_channel")
+        ? lead.source_id ?? undefined
+        : undefined;
+    const blockedSet = new Set(blockedList.map((b) => b.telegram_user_id));
+    isBlocked.value = !!(telegramId && blockedSet.has(telegramId));
 
     subscribeToLead();
   } catch {
@@ -331,6 +350,26 @@ const closeTicket = async () => {
     /* ignore */
   } finally {
     isClosing.value = false;
+  }
+};
+
+const toggleBlock = async () => {
+  if (isBlocking.value || !ticket.value) return;
+  isBlocking.value = true;
+  try {
+    if (isBlocked.value) {
+      await leadsApi.unblockClient(Number(ticketId.value));
+      isBlocked.value = false;
+      showSuccess("Разблокировано", "Пользователь разблокирован");
+    } else {
+      await leadsApi.blockClient(Number(ticketId.value));
+      isBlocked.value = true;
+      showSuccess("Заблокировано", "Пользователь заблокирован");
+    }
+  } catch (e) {
+    showError("Ошибка", e instanceof Error ? e.message : "Не удалось изменить блокировку");
+  } finally {
+    isBlocking.value = false;
   }
 };
 
@@ -682,7 +721,19 @@ onUnmounted(() => {
           </div>
 
           <!-- Actions -->
-          <div class="p-4 mt-auto">
+          <div class="p-4 mt-auto space-y-2">
+            <button
+              @click="toggleBlock"
+              :disabled="isBlocking"
+              class="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              :class="isBlocked
+                ? 'bg-green-600 text-white hover:bg-green-700'
+                : 'bg-orange-600 text-white hover:bg-orange-700'"
+            >
+              <AppIcon v-if="isBlocking" name="refresh-cw" :size="14" class="animate-spin" />
+              <AppIcon v-else :name="isBlocked ? 'user-check' : 'ban'" :size="14" />
+              {{ isBlocking ? "..." : isBlocked ? "Разблокировать" : "Заблокировать" }}
+            </button>
             <button
               @click="showCloseConfirm = true"
               :disabled="isClosing || ticket.status !== 'active'"
@@ -1022,8 +1073,20 @@ onUnmounted(() => {
                   </div>
                 </div>
 
-                <!-- Close action -->
-                <div>
+                <!-- Actions -->
+                <div class="space-y-2">
+                  <button
+                    @click="toggleBlock"
+                    :disabled="isBlocking"
+                    class="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    :class="isBlocked
+                      ? 'bg-green-600 text-white hover:bg-green-700'
+                      : 'bg-orange-600 text-white hover:bg-orange-700'"
+                  >
+                    <AppIcon v-if="isBlocking" name="refresh-cw" :size="14" class="animate-spin" />
+                    <AppIcon v-else :name="isBlocked ? 'user-check' : 'ban'" :size="14" />
+                    {{ isBlocking ? "..." : isBlocked ? "Разблокировать" : "Заблокировать" }}
+                  </button>
                   <button
                     @click="showInfo = false; showCloseConfirm = true"
                     :disabled="isClosing || ticket.status !== 'active'"

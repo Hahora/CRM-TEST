@@ -50,6 +50,7 @@ const props = defineProps<Props>();
 
 const emit = defineEmits<{
   "view-ticket": [ticket: Ticket];
+  "block-ticket": [ticket: Ticket];
   "update:page": [page: number];
 }>();
 
@@ -168,6 +169,13 @@ const rowBg = (ticket: Ticket) => {
                 {{ format(new Date(ticket.createdAt), "dd.MM.yy · HH:mm", { locale: ru }) }}
               </div>
             </div>
+            <button
+              class="flex-shrink-0 p-1.5 rounded-lg text-orange-500 hover:bg-orange-50 transition-colors"
+              title="Заблокировать"
+              @click.stop="emit('block-ticket', ticket)"
+            >
+              <AppIcon name="ban" :size="16" />
+            </button>
             <AppIcon name="chevron-right" :size="16" class="text-gray-300 flex-shrink-0 mt-1" />
           </div>
         </div>
@@ -266,7 +274,14 @@ const rowBg = (ticket: Ticket) => {
               </td>
 
               <td class="px-4 py-3 text-right">
-                <div class="opacity-0 group-hover:opacity-100 transition-opacity">
+                <div class="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    class="p-1.5 rounded-lg text-orange-500 hover:bg-orange-50 transition-colors"
+                    title="Заблокировать"
+                    @click.stop="emit('block-ticket', ticket)"
+                  >
+                    <AppIcon name="ban" :size="14" />
+                  </button>
                   <AppIcon name="chevron-right" :size="16" class="text-gray-400" />
                 </div>
               </td>

@@ -11,9 +11,11 @@ import { leadsApi, resolveClientName } from "@/services/leadsApi";
 import type { Lead, LeadStatus, LeadsParams } from "@/services/leadsApi";
 import { useGlobalWs } from "@/composables/useGlobalWs";
 import type { GwsEvent } from "@/composables/useGlobalWs";
+import { useToast } from "@/composables/useToast";
 
 const router = useRouter();
 const { addListener } = useGlobalWs();
+const { showSuccess, showError } = useToast();
 
 // ── Маппинг Lead → Ticket ────────────────────────────────────────────────────
 
@@ -290,6 +292,15 @@ const openTicket = (ticket: Ticket) => {
   router.push(`/tickets/${ticket.id}`);
 };
 
+const blockTicket = async (ticket: Ticket) => {
+  try {
+    await leadsApi.blockClient(Number(ticket.id));
+    showSuccess("Заблокировано", `Пользователь из тикета #${ticket.number} заблокирован`);
+  } catch (e) {
+    showError("Ошибка", e instanceof Error ? e.message : "Не удалось заблокировать");
+  }
+};
+
 let removeWsListener: (() => void) | null = null;
 
 onMounted(async () => {
@@ -384,6 +395,7 @@ onUnmounted(() => {
         :total-pages="totalPages"
         :total-count="displayTotal"
         @view-ticket="openTicket"
+        @block-ticket="blockTicket"
         @update:page="page = $event"
       />
     </div>

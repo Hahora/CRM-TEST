@@ -344,6 +344,14 @@ class LeadsApiService {
     return `${wsBase}/api/v1/leads/ws/${userId}${tokenQs}`;
   }
 
+  blockClient(id: number): Promise<void> {
+    return this.request<void>(`/api/v1/leads/${id}/block-client`, { method: "POST" });
+  }
+
+  unblockClient(id: number): Promise<void> {
+    return this.request<void>(`/api/v1/leads/${id}/block-client`, { method: "DELETE" });
+  }
+
   /** Прокси-URL для получения файла из Telegram по file_id (с токеном).
    *  file_id кодируется т.к. может содержать +, / и другие спецсимволы. */
   telegramFileUrl(fileId: string): string {

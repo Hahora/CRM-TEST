@@ -148,6 +148,15 @@ const router = createRouter({
       },
     },
     {
+      path: "/blocked",
+      name: "blocked",
+      component: () => import("@/views/BlockedUsers.vue"),
+      meta: {
+        title: "Заблокированные",
+        requiresAuth: true,
+      },
+    },
+    {
       path: "/settings",
       name: "settings",
       component: UnderDevelopment,
