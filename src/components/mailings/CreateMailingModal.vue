@@ -314,17 +314,10 @@ const handleSubmit = async () => {
     // 4. Запуск / планирование
     if (form.value.sendNow) {
       submitStep.value = "Запуск рассылки...";
-      await mailingsApi.scheduleCampaign(campaign.id, {
-        campaign_id:      campaign.id,
-        send_immediately: true,
-      });
+      await mailingsApi.scheduleCampaign(campaign.id, { send_immediately: true });
     } else if (form.value.scheduledAt) {
       submitStep.value = "Планирование рассылки...";
-      await mailingsApi.scheduleCampaign(campaign.id, {
-        campaign_id:      campaign.id,
-        send_immediately: false,
-        scheduled_at:     form.value.scheduledAt,
-      });
+      await mailingsApi.scheduleCampaign(campaign.id, { scheduled_at: form.value.scheduledAt });
     }
 
     const result: Campaign = { ...campaign, template };

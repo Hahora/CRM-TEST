@@ -74,7 +74,6 @@ export interface UploadMediaResponse {
 }
 
 export interface ScheduleCampaignData {
-  campaign_id: number;
   send_immediately?: boolean;
   scheduled_at?: string | null;
 }

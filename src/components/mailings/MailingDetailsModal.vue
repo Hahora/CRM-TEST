@@ -55,9 +55,7 @@ const sendNow = async () => {
   if (!props.mailing || isSending.value) return;
   isSending.value = true; sendError.value = "";
   try {
-    await mailingsApi.scheduleCampaign(props.mailing.campaignId, {
-      campaign_id: props.mailing.campaignId, send_immediately: true,
-    });
+    await mailingsApi.scheduleCampaign(props.mailing.campaignId, { send_immediately: true });
     emit("sent", props.mailing.id); emit("close");
   } catch (err) {
     sendError.value = (err as Error).message || "Ошибка при отправке";
@@ -261,10 +259,10 @@ const handleSave = async () => {
     });
     if (editForm.value.sendNow) {
       submitStep.value = "Запуск рассылки...";
-      await mailingsApi.scheduleCampaign(props.mailing.campaignId, { campaign_id: props.mailing.campaignId, send_immediately: true });
+      await mailingsApi.scheduleCampaign(props.mailing.campaignId, { send_immediately: true });
     } else if (editForm.value.scheduledAt) {
       submitStep.value = "Планирование...";
-      await mailingsApi.scheduleCampaign(props.mailing.campaignId, { campaign_id: props.mailing.campaignId, send_immediately: false, scheduled_at: editForm.value.scheduledAt });
+      await mailingsApi.scheduleCampaign(props.mailing.campaignId, { scheduled_at: editForm.value.scheduledAt });
     }
     emit("updated", {
       ...props.mailing,
