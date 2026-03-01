@@ -34,7 +34,7 @@ const emit = defineEmits<{
   "view-mailing": [mailing: Mailing];
 }>();
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 10;
 const currentPage = ref(1);
 
 watch(() => props.mailings.length, () => { currentPage.value = 1; });
