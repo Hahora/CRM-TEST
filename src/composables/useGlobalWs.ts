@@ -30,13 +30,8 @@ let wsUserId: number | null = null;
 /** Lead IDs currently marked as is_new=true (source of truth for badge). */
 const newLeadIdSet = new Set<number>();
 
-/**
- * Time-based dedup guard for toast notifications.
- * Persists across reconnect cycles (unlike newLeadIdSet which gets cleared on disconnect).
- * Prevents the same lead_id from triggering a toast more than once per TOAST_TTL ms.
- */
-const recentToastAt = new Map<number, number>();
-const TOAST_TTL = 30_000; // 30 seconds
+/** Lead IDs for which a toast was already shown in this session. */
+const toastedLeadIds = new Set<number>();
 
 /** Page-level subscribers (Tickets.vue etc.) */
 const listeners = new Set<EventListener>();
@@ -54,17 +49,15 @@ function handleMsg(event: MessageEvent) {
     const { addToast } = useToast();
 
     if (data.type === "new_lead") {
-      const now = Date.now();
-      const lastToastAt = recentToastAt.get(data.lead_id) ?? 0;
-      const alreadyToasted = now - lastToastAt < TOAST_TTL;
-
+      // Показываем тост только если тикет реально новый для нас (не известен с инициализации
+      // и не из прошлого события). При переподключении бэкенд может прислать new_lead для
+      // уже известных тикетов — их игнорируем.
       if (!newLeadIdSet.has(data.lead_id)) {
         newLeadIdSet.add(data.lead_id);
         badgeCount.value += 1;
       }
-
-      if (!alreadyToasted) {
-        recentToastAt.set(data.lead_id, now);
+      if (!toastedLeadIds.has(data.lead_id)) {
+        toastedLeadIds.add(data.lead_id);
         addToast({
           type: "info",
           title: "Новый тикет",
@@ -96,6 +89,8 @@ function handleMsg(event: MessageEvent) {
         newLeadIdSet.delete(data.lead_id);
         badgeCount.value = Math.max(0, badgeCount.value - 1);
       }
+      // Сбрасываем флаг «тост показан» — если тикет снова станет новым, покажем тост заново
+      toastedLeadIds.delete(data.lead_id);
     }
 
     // Broadcast to page-level subscribers
@@ -168,6 +163,7 @@ export function useGlobalWs() {
     if (wsStabilityTimer) { clearTimeout(wsStabilityTimer); wsStabilityTimer = null; }
     wsAttempt = 0;
     newLeadIdSet.clear();
+    toastedLeadIds.clear();
     ws?.close();
     ws = null;
     wsUserId = null;
@@ -217,7 +213,7 @@ if (import.meta.hot) {
     wsUserId = null;
     wsAttempt = 0;
     newLeadIdSet.clear();
-    recentToastAt.clear();
+    toastedLeadIds.clear();
     listeners.clear();
     connectedCallbacks.clear();
   });
