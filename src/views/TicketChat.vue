@@ -83,6 +83,7 @@ const isSending     = ref(false);
 const isClosing     = ref(false);
 const showInfo      = ref(false);
 const showCloseConfirm = ref(false);
+const showBlockConfirm = ref(false);
 const sendError     = ref("");
 const messagesEl    = ref<HTMLElement>();
 const textareaEl    = ref<HTMLTextAreaElement>();
@@ -259,7 +260,7 @@ const load = async () => {
                       : (lead.source_type === "telegram" || lead.source_type === "telegram_channel") && lead.source_id
                       ? lead.source_id
                       : undefined,
-      telegramUsername: lead.source_username ?? null,
+      telegramUsername: lead.source_username ?? undefined,
       status, priority: "medium",
       source:       lead.source_type === "telegram" ? "telegram"
                   : lead.source_type === "telegram_channel" ? "telegram_channel"
@@ -723,7 +724,7 @@ onUnmounted(() => {
           <!-- Actions -->
           <div class="p-4 mt-auto space-y-2">
             <button
-              @click="toggleBlock"
+              @click="isBlocked ? toggleBlock() : (showBlockConfirm = true)"
               :disabled="isBlocking"
               class="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               :class="isBlocked
@@ -1118,6 +1119,42 @@ onUnmounted(() => {
       @close="showCreateModal = false"
       @create="createAndLinkClient"
     />
+
+    <!-- ── Подтверждение блокировки ── -->
+    <Transition name="fade">
+      <div
+        v-if="showBlockConfirm"
+        class="fixed inset-0 z-50 flex items-center justify-center px-4"
+        @click.self="showBlockConfirm = false"
+      >
+        <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="showBlockConfirm = false" />
+        <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 flex flex-col gap-4">
+          <div class="flex flex-col gap-1">
+            <div class="flex items-center gap-2 mb-1">
+              <div class="w-8 h-8 rounded-lg bg-orange-100 flex items-center justify-center flex-shrink-0">
+                <AppIcon name="ban" :size="16" class="text-orange-600" />
+              </div>
+              <h3 class="text-base font-semibold text-gray-900">Заблокировать?</h3>
+            </div>
+            <p class="text-sm text-gray-500">Пользователь больше не сможет писать боту. Вы всегда сможете разблокировать его.</p>
+          </div>
+          <div class="flex gap-2 justify-end">
+            <button
+              @click="showBlockConfirm = false"
+              class="px-4 py-2 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              Отмена
+            </button>
+            <button
+              @click="showBlockConfirm = false; toggleBlock()"
+              class="px-4 py-2 text-sm font-medium text-white bg-orange-600 rounded-lg hover:bg-orange-700 transition-colors"
+            >
+              Да, заблокировать
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
 
     <!-- ── Подтверждение закрытия тикета ── -->
     <Transition name="fade">
