@@ -9,7 +9,7 @@ import type { Mailing } from "@/components/mailings/MailingsTable.vue";
 import CreateMailingModal from "@/components/mailings/CreateMailingModal.vue";
 import MailingDetailsModal from "@/components/mailings/MailingDetailsModal.vue";
 import { mailingsApi } from "@/services/mailingsApi";
-import type { Campaign } from "@/services/mailingsApi";
+import type { Analytics, Campaign } from "@/services/mailingsApi";
 
 // ── Данные ──────────────────────────────────────────────────────────────────
 
@@ -18,6 +18,7 @@ const currentPage = ref(1);
 const totalMailings = ref(0);
 const mailings = ref<Mailing[]>([]);
 const isLoading = ref(false);
+const analytics = ref<Analytics | null>(null);
 const showStatsPanel = ref(false);
 
 /** Маппинг bot_type API → тип рассылки UI */
@@ -67,13 +68,23 @@ function toApiStatus(s: string): string | undefined {
 const loadData = async () => {
   isLoading.value = true;
   try {
-    const campaigns = await mailingsApi.getCampaigns({
-      skip:     (currentPage.value - 1) * PAGE_SIZE,
-      limit:    PAGE_SIZE,
-      status:   toApiStatus(filters.value.status),
-      bot_type: filters.value.type !== "all" ? filters.value.type : undefined,
-      search:   filters.value.search || undefined,
-    });
+    const [campaignsRes, analyticsRes] = await Promise.allSettled([
+      mailingsApi.getCampaigns({
+        skip:     (currentPage.value - 1) * PAGE_SIZE,
+        limit:    PAGE_SIZE,
+        status:   toApiStatus(filters.value.status),
+        bot_type: filters.value.type !== "all" ? filters.value.type : undefined,
+        search:   filters.value.search || undefined,
+      }),
+      mailingsApi.getAnalytics("all"),
+    ]);
+
+    if (analyticsRes.status === "fulfilled") {
+      analytics.value = analyticsRes.value;
+    }
+
+    const campaigns = campaignsRes.status === "fulfilled" ? campaignsRes.value : null;
+    if (!campaigns) return;
 
     totalMailings.value = campaigns.total;
     mailings.value = campaigns.campaigns.map((c) => ({
@@ -108,12 +119,13 @@ const onPageChange = (page: number) => { currentPage.value = page; loadData(); }
 
 const stats = computed(() => {
   const all = mailings.value;
+  const a = analytics.value;
   return {
     total:     totalMailings.value,
     draft:     all.filter((m) => m.status === "draft").length,
     scheduled: all.filter((m) => m.status === "scheduled").length,
-    sent:      all.filter((m) => m.status === "sent").length,
-    failed:    all.filter((m) => m.status === "failed").length,
+    sent:      a?.total_sent     ?? all.filter((m) => m.status === "sent").length,
+    failed:    a?.total_failed   ?? all.filter((m) => m.status === "failed").length,
   };
 });
 
