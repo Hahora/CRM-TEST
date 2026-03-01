@@ -280,6 +280,11 @@ const refresh = () => loadData();
       :mailing="selectedMailing"
       @close="closeDetails"
       @sent="loadData"
+      @updated="(m) => {
+        const idx = mailings.findIndex(x => x.id === m.id);
+        if (idx !== -1) mailings[idx] = m;
+        selectedMailing = m;
+      }"
     />
   </div>
 </template>

@@ -236,6 +236,13 @@ class MailingsApiService {
     });
   }
 
+  updateTemplate(id: number, data: Partial<CreateTemplateData>): Promise<BotTemplate> {
+    return this.request<BotTemplate>(`/api/v1/bot-communications/templates/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+
   // ── Кампании ──────────────────────────────────────────────────────────────
 
   getCampaigns(skip = 0, limit = 100): Promise<{ campaigns: Campaign[]; total: number }> {
@@ -247,6 +254,13 @@ class MailingsApiService {
   createCampaign(data: CreateCampaignData): Promise<Campaign> {
     return this.request<Campaign>("/api/v1/bot-communications/campaigns", {
       method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  updateCampaign(id: number, data: { name?: string; scheduled_at?: string | null }): Promise<Campaign> {
+    return this.request<Campaign>(`/api/v1/bot-communications/campaigns/${id}`, {
+      method: "PUT",
       body: JSON.stringify(data),
     });
   }
