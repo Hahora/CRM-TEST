@@ -7,7 +7,6 @@ import AppIcon from "@/components/AppIcon.vue";
 import "@lottiefiles/lottie-player/dist/tgs-player.js"; // Регистрирует <tgs-player> (поддерживает gzip TGS)
 import { leadsApi, resolveClientName } from "@/services/leadsApi";
 import type { LeadStatus, LeadMessage, MessageAttachment } from "@/services/leadsApi";
-import { mailingsApi } from "@/services/mailingsApi";
 import { clientsApi } from "@/services/clientsApi";
 import { useToast } from "@/composables/useToast";
 import ClientCreateModal from "@/components/clients/ClientCreateModal.vue";
@@ -223,11 +222,10 @@ const mapMessage = (m: LeadMessage): Message => ({
 const load = async () => {
   isLoading.value = true;
   try {
-    const [lead, leadStatuses, msgResponse, blockedList] = await Promise.all([
+    const [lead, leadStatuses, msgResponse] = await Promise.all([
       leadsApi.getById(Number(ticketId.value)),
       leadsApi.getStatuses(),
       leadsApi.getMessages(Number(ticketId.value), { limit: 50 }),
-      mailingsApi.getBlocked().catch(() => []),
     ]);
     statuses.value = leadStatuses;
 
@@ -279,15 +277,7 @@ const load = async () => {
     hasMore.value      = msgResponse.total > msgResponse.messages.length;
     clientLinked.value = lead.client_id != null;
 
-    // Проверяем, заблокирован ли текущий пользователь
-    const telegramId = lead.client?.telegram_id
-      ? String(lead.client.telegram_id)
-      : (lead.source_type === "telegram" || lead.source_type === "telegram_channel")
-        ? lead.source_id ?? undefined
-        : undefined;
-    const safeBlockedList = Array.isArray(blockedList) ? blockedList : [];
-    const blockedSet = new Set(safeBlockedList.map((b) => b.telegram_user_id));
-    isBlocked.value = !!(telegramId && blockedSet.has(telegramId));
+    isBlocked.value = lead.is_blocked;
 
     subscribeToLead();
   } catch {
