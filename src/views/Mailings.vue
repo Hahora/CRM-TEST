@@ -119,16 +119,12 @@ const onPageChange = (page: number) => { currentPage.value = page; loadData(); }
 
 const stats = computed(() => {
   const a = analytics.value;
-  const draft     = a?.draft_campaigns     ?? 0;
-  const scheduled = a?.scheduled_campaigns ?? 0;
-  const sent      = a?.sent_campaigns      ?? 0;
-  const cancelled = a?.cancelled_campaigns ?? 0;
   return {
-    total: a ? draft + scheduled + sent + cancelled : totalMailings.value,
-    draft,
-    scheduled,
-    sent,
-    cancelled,
+    total:     a?.total_messages      ?? totalMailings.value,
+    draft:     a?.draft_campaigns     ?? 0,
+    scheduled: a?.scheduled_campaigns ?? 0,
+    sent:      a?.sent_campaigns      ?? 0,
+    cancelled: a?.cancelled_campaigns ?? 0,
   };
 });
 
