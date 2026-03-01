@@ -285,7 +285,8 @@ const load = async () => {
       : (lead.source_type === "telegram" || lead.source_type === "telegram_channel")
         ? lead.source_id ?? undefined
         : undefined;
-    const blockedSet = new Set(blockedList.map((b) => b.telegram_user_id));
+    const safeBlockedList = Array.isArray(blockedList) ? blockedList : [];
+    const blockedSet = new Set(safeBlockedList.map((b) => b.telegram_user_id));
     isBlocked.value = !!(telegramId && blockedSet.has(telegramId));
 
     subscribeToLead();

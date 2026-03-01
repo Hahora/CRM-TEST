@@ -354,8 +354,11 @@ class MailingsApiService {
 
   // ── Заблокированные пользователи ──────────────────────────────────────────
 
-  getBlocked(): Promise<BlockedUser[]> {
-    return this.request<BlockedUser[]>("/api/v1/bot-communications/blocked");
+  async getBlocked(): Promise<BlockedUser[]> {
+    const res = await this.request<{ users: BlockedUser[]; total: number } | BlockedUser[]>(
+      "/api/v1/bot-communications/blocked"
+    );
+    return Array.isArray(res) ? res : (res as { users: BlockedUser[] }).users ?? [];
   }
 
   blockByTelegramUserId(telegramUserId: string): Promise<void> {
@@ -374,11 +377,17 @@ class MailingsApiService {
 }
 
 export interface BlockedUser {
+  id?: number;
   telegram_user_id: string;
   first_name?: string | null;
   last_name?: string | null;
   username?: string | null;
+  language_code?: string | null;
+  is_blocked?: boolean;
   last_active_at?: string | null;
+  client_id?: number | null;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export const mailingsApi = new MailingsApiService();
