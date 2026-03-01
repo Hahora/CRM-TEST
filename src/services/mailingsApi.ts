@@ -238,7 +238,7 @@ class MailingsApiService {
 
   updateTemplate(id: number, data: Partial<CreateTemplateData>): Promise<BotTemplate> {
     return this.request<BotTemplate>(`/api/v1/bot-communications/templates/${id}`, {
-      method: "PUT",
+      method: "PATCH",
       body: JSON.stringify(data),
     });
   }
@@ -260,7 +260,7 @@ class MailingsApiService {
 
   updateCampaign(id: number, data: { name?: string; scheduled_at?: string | null }): Promise<Campaign> {
     return this.request<Campaign>(`/api/v1/bot-communications/campaigns/${id}`, {
-      method: "PUT",
+      method: "PATCH",
       body: JSON.stringify(data),
     });
   }
