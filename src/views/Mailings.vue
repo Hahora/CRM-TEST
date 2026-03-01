@@ -271,7 +271,6 @@ const refresh = () => loadData();
       @sent="(id) => {
         const m = mailings.find(x => x.id === id);
         if (m) m.status = 'sending';
-        loadData();
       }"
       @updated="(m) => {
         const idx = mailings.findIndex(x => x.id === m.id);
