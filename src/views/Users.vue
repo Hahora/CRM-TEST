@@ -4,6 +4,7 @@ import { usersApi, type ApiUser, type CreateUserPayload, type UpdateUserPayload 
 import { visitsApi, type Branch } from "@/services/visitsApi";
 import { useAuth } from "@/composables/useAuth";
 import { useToast } from "@/composables/useToast";
+import AppIcon from "@/components/AppIcon.vue";
 
 const { user, userRole } = useAuth();
 const { showSuccess, showError } = useToast();
@@ -452,139 +453,126 @@ onMounted(loadData);
 
     <!-- MODAL -->
     <Teleport to="body">
-      <Transition name="up-modal">
-        <div v-if="showModal" class="up-overlay" @click.self="closeModal">
-          <div class="up-modal">
-            <!-- Modal header -->
-            <div class="up-modal-header">
-              <h2 class="up-modal-title">
+      <Transition
+        enter-active-class="transition-opacity duration-200 ease-out"
+        enter-from-class="opacity-0"
+        leave-active-class="transition-opacity duration-150 ease-in"
+        leave-to-class="opacity-0"
+      >
+        <div
+          v-if="showModal"
+          class="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+          @click.self="closeModal"
+        >
+          <div class="bg-white rounded-2xl shadow-2xl w-full max-w-[520px] flex flex-col max-h-[calc(100dvh-32px)] overflow-hidden border border-gray-200">
+
+            <!-- Header -->
+            <div class="flex items-center justify-between px-5 py-4 border-b border-gray-200 flex-shrink-0">
+              <h2 class="text-base font-bold text-gray-900 tracking-tight">
                 {{ isEditing ? "Редактировать пользователя" : "Новый пользователь" }}
               </h2>
-              <button class="up-modal-close" @click="closeModal">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                </svg>
+              <button
+                class="w-7 h-7 flex items-center justify-center rounded-lg border border-gray-200 text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition-colors"
+                @click="closeModal"
+              >
+                <AppIcon name="x" :size="14" />
               </button>
             </div>
 
-            <!-- Modal body -->
-            <div class="up-modal-body">
+            <!-- Body -->
+            <div class="px-5 py-5 overflow-y-auto flex flex-col gap-3.5">
+
               <!-- Фамилия + Имя -->
-              <div class="up-form-row">
-                <div class="up-field up-field--req">
-                  <label class="up-label">Фамилия</label>
-                  <input v-model="form.last_name" type="text" class="up-input" placeholder="Иванова" />
+              <div class="grid grid-cols-2 gap-3">
+                <div class="flex flex-col gap-1.5">
+                  <label class="up-mlabel">Фамилия <span class="text-red-500">*</span></label>
+                  <input v-model="form.last_name" type="text" class="up-minput" placeholder="Иванова" />
                 </div>
-                <div class="up-field up-field--req">
-                  <label class="up-label">Имя</label>
-                  <input v-model="form.first_name" type="text" class="up-input" placeholder="Карина" />
+                <div class="flex flex-col gap-1.5">
+                  <label class="up-mlabel">Имя <span class="text-red-500">*</span></label>
+                  <input v-model="form.first_name" type="text" class="up-minput" placeholder="Карина" />
                 </div>
               </div>
 
               <!-- Отчество + Логин (только при создании) -->
-              <div class="up-form-row">
-                <div class="up-field">
-                  <label class="up-label">Отчество</label>
-                  <input v-model="form.middle_name" type="text" class="up-input" placeholder="Сергеевна" />
+              <div class="grid gap-3" :class="!isEditing ? 'grid-cols-2' : 'grid-cols-1'">
+                <div class="flex flex-col gap-1.5">
+                  <label class="up-mlabel">Отчество</label>
+                  <input v-model="form.middle_name" type="text" class="up-minput" placeholder="Сергеевна" />
                 </div>
-                <div v-if="!isEditing" class="up-field up-field--req">
-                  <label class="up-label">Логин</label>
-                  <input v-model="form.login" type="text" class="up-input" placeholder="ivanova_k" autocomplete="off" />
+                <div v-if="!isEditing" class="flex flex-col gap-1.5">
+                  <label class="up-mlabel">Логин <span class="text-red-500">*</span></label>
+                  <input v-model="form.login" type="text" class="up-minput" placeholder="ivanova_k" autocomplete="off" />
                 </div>
               </div>
 
               <!-- Пароль: только при создании -->
-              <div v-if="!isEditing" class="up-form-row">
-                <div class="up-field up-field--req">
-                  <label class="up-label">Пароль</label>
-                  <div class="up-pw-wrap">
-                    <input
-                      v-model="form.password"
-                      :type="showPassword ? 'text' : 'password'"
-                      class="up-input up-input--pw"
-                      placeholder="••••••••"
-                      autocomplete="new-password"
-                    />
-                    <button type="button" class="up-pw-eye" @click="showPassword = !showPassword" tabindex="-1">
-                      <svg v-if="!showPassword" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
-                      </svg>
-                      <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
-                        <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
-                        <line x1="1" y1="1" x2="23" y2="23"/>
-                      </svg>
-                    </button>
-                  </div>
+              <div v-if="!isEditing" class="flex flex-col gap-1.5">
+                <label class="up-mlabel">Пароль <span class="text-red-500">*</span></label>
+                <div class="relative">
+                  <input
+                    v-model="form.password"
+                    :type="showPassword ? 'text' : 'password'"
+                    class="up-minput pr-9"
+                    placeholder="••••••••"
+                    autocomplete="new-password"
+                  />
+                  <button type="button" class="up-pw-eye" @click="showPassword = !showPassword" tabindex="-1">
+                    <AppIcon :name="showPassword ? 'eye-off' : 'eye'" :size="14" />
+                  </button>
                 </div>
               </div>
 
               <!-- Логин + Роль (read-only при редактировании) -->
-              <div v-if="isEditing" class="up-form-row">
-                <div class="up-field">
-                  <label class="up-label">Логин</label>
-                  <div class="up-info-val up-info-val--mono">{{ form.login }}</div>
+              <div v-if="isEditing" class="grid grid-cols-2 gap-3">
+                <div class="flex flex-col gap-1.5">
+                  <label class="up-mlabel">Логин</label>
+                  <div class="up-mreadonly font-mono text-xs">{{ form.login }}</div>
                 </div>
-                <div class="up-field">
-                  <label class="up-label">Роль</label>
-                  <div class="up-info-val">
+                <div class="flex flex-col gap-1.5">
+                  <label class="up-mlabel">Роль</label>
+                  <div class="up-mreadonly">
                     <span class="up-role-badge" :class="getRoleClass(editingRoleName)">{{ editingRoleLabel }}</span>
                   </div>
                 </div>
               </div>
 
               <!-- Новый пароль (только при редактировании, необязательный) -->
-              <div v-if="isEditing" class="up-form-row">
-                <div class="up-field up-field--full">
-                  <label class="up-label">
-                    Новый пароль
-                    <span class="up-label-hint">(оставьте пустым, чтобы не менять)</span>
-                  </label>
-                  <div class="up-pw-wrap">
-                    <input
-                      v-model="form.password"
-                      :type="showPassword ? 'text' : 'password'"
-                      class="up-input up-input--pw"
-                      placeholder="••••••••"
-                      autocomplete="new-password"
-                    />
-                    <button type="button" class="up-pw-eye" @click="showPassword = !showPassword" tabindex="-1">
-                      <svg v-if="!showPassword" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
-                      </svg>
-                      <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
-                        <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
-                        <line x1="1" y1="1" x2="23" y2="23"/>
-                      </svg>
-                    </button>
-                  </div>
+              <div v-if="isEditing" class="flex flex-col gap-1.5">
+                <label class="up-mlabel flex items-center gap-1.5">
+                  Новый пароль
+                  <span class="font-normal text-gray-400 text-[10px] normal-case tracking-normal">(оставьте пустым, чтобы не менять)</span>
+                </label>
+                <div class="relative">
+                  <input
+                    v-model="form.password"
+                    :type="showPassword ? 'text' : 'password'"
+                    class="up-minput pr-9"
+                    placeholder="••••••••"
+                    autocomplete="new-password"
+                  />
+                  <button type="button" class="up-pw-eye" @click="showPassword = !showPassword" tabindex="-1">
+                    <AppIcon :name="showPassword ? 'eye-off' : 'eye'" :size="14" />
+                  </button>
                 </div>
               </div>
 
-              <div class="up-divider"></div>
+              <hr class="border-t border-gray-100 -mx-5 my-0" />
 
               <!-- Роль (select, только создание) + Филиал -->
-              <div class="up-form-row">
-                <div v-if="!isEditing" class="up-field up-field--req">
-                  <label class="up-label">Роль</label>
-                  <select v-model="form.role_id" class="up-select" :disabled="isAdmin">
+              <div class="grid gap-3" :class="!isEditing ? 'grid-cols-2' : 'grid-cols-1'">
+                <div v-if="!isEditing" class="flex flex-col gap-1.5">
+                  <label class="up-mlabel">Роль <span class="text-red-500">*</span></label>
+                  <select v-model="form.role_id" class="up-mselect" :disabled="isAdmin">
                     <option v-for="r in availableRoles" :key="r.id" :value="r.id">{{ r.label }}</option>
                   </select>
                 </div>
-                <div
-                  class="up-field"
-                  :class="[
-                    form.role_id === ROLE_IDS.branch ? 'up-field--req' : '',
-                    isEditing ? 'up-field--full' : '',
-                  ]"
-                >
-                  <label class="up-label">Филиал</label>
-                  <select
-                    v-model="form.branch_id"
-                    class="up-select"
-                    :disabled="form.role_id !== ROLE_IDS.branch"
-                  >
+                <div class="flex flex-col gap-1.5">
+                  <label class="up-mlabel">
+                    Филиал
+                    <span v-if="form.role_id === ROLE_IDS.branch" class="text-red-500">*</span>
+                  </label>
+                  <select v-model="form.branch_id" class="up-mselect" :disabled="form.role_id !== ROLE_IDS.branch">
                     <option :value="null">— не указан —</option>
                     <option v-for="b in activeBranches" :key="b.local_id" :value="b.local_id">{{ b.name }}</option>
                   </select>
@@ -592,34 +580,44 @@ onMounted(loadData);
               </div>
 
               <!-- Статус -->
-              <div class="up-form-row">
-                <div class="up-field">
-                  <label class="up-label">Статус</label>
-                  <div class="up-toggle-row">
-                    <button
-                      type="button"
-                      class="up-toggle"
-                      :class="form.is_active ? 'up-toggle--on' : 'up-toggle--off'"
-                      @click="form.is_active = !form.is_active"
-                    >
-                      <span class="up-toggle-knob"></span>
-                    </button>
+              <div class="flex flex-col gap-1.5">
+                <label class="up-mlabel">Статус</label>
+                <div class="flex items-center gap-2.5 py-1">
+                  <button
+                    type="button"
+                    class="relative w-9 h-[22px] rounded-full transition-colors flex-shrink-0 border-0 cursor-pointer"
+                    :class="form.is_active ? 'bg-emerald-500' : 'bg-gray-300'"
+                    @click="form.is_active = !form.is_active"
+                  >
                     <span
-                      class="up-toggle-label"
-                      :class="form.is_active ? 'up-toggle-label--on' : 'up-toggle-label--off'"
-                    >
-                      {{ form.is_active ? "Активен" : "Неактивен" }}
-                    </span>
-                  </div>
+                      class="absolute w-4 h-4 rounded-full bg-white shadow-sm top-[3px] transition-all"
+                      :class="form.is_active ? 'left-[19px]' : 'left-[3px]'"
+                    />
+                  </button>
+                  <span
+                    class="text-sm font-semibold transition-colors"
+                    :class="form.is_active ? 'text-emerald-600' : 'text-gray-400'"
+                  >
+                    {{ form.is_active ? "Активен" : "Неактивен" }}
+                  </span>
                 </div>
               </div>
             </div>
 
-            <!-- Modal footer -->
-            <div class="up-modal-footer">
-              <button class="up-btn-cancel" @click="closeModal">Отмена</button>
-              <button class="up-btn-save" :disabled="!formValid || isSaving" @click="handleSave">
-                <span v-if="isSaving" class="up-spinner"></span>
+            <!-- Footer -->
+            <div class="flex justify-end gap-2 px-5 py-3.5 border-t border-gray-200 flex-shrink-0">
+              <button
+                class="px-4 py-2 border border-gray-200 rounded-lg bg-white text-gray-600 text-xs font-semibold hover:bg-gray-50 hover:border-gray-300 transition-colors cursor-pointer"
+                @click="closeModal"
+              >
+                Отмена
+              </button>
+              <button
+                class="px-5 py-2 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm flex items-center gap-1.5 min-w-[80px] justify-center transition-colors"
+                :disabled="!formValid || isSaving"
+                @click="handleSave"
+              >
+                <span v-if="isSaving" class="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 <span v-else>{{ isEditing ? "Сохранить" : "Создать" }}</span>
               </button>
             </div>
@@ -904,77 +902,43 @@ onMounted(loadData);
 }
 .up-footer b { color: var(--tx); font-family: var(--fm); }
 
-/* ── Modal ── */
-.up-overlay {
-  position: fixed; inset: 0;
-  background: rgba(15, 23, 42, 0.4);
-  backdrop-filter: blur(4px);
-  display: flex; align-items: center; justify-content: center;
-  z-index: 1000; padding: 16px;
-}
-
-.up-modal {
-  background: var(--sf);
-  border: 1px solid var(--bd);
-  border-radius: 16px;
-  width: 100%; max-width: 520px;
-  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.2);
-  display: flex; flex-direction: column;
-  max-height: calc(100dvh - 32px);
-  overflow: hidden;
-}
-
-.up-modal-header {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 18px 20px 14px;
-  border-bottom: 1px solid var(--bd);
-  flex-shrink: 0;
-}
-
-.up-modal-title { font-size: 15px; font-weight: 800; letter-spacing: -0.01em; margin: 0; }
-
-.up-modal-close {
-  width: 28px; height: 28px;
-  display: flex; align-items: center; justify-content: center;
-  border: 1px solid var(--bd); border-radius: var(--rs);
-  background: none; color: var(--txm); cursor: pointer; transition: all var(--tr);
-}
-.up-modal-close:hover { background: var(--sfh); color: var(--tx); }
-
-.up-modal-body {
-  padding: 20px; overflow-y: auto;
-  display: flex; flex-direction: column; gap: 14px;
-}
-
-.up-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-
-.up-field { display: flex; flex-direction: column; gap: 5px; }
-.up-field--full { grid-column: 1 / -1; }
-
-.up-label {
+/* ── Modal form helpers ── */
+.up-mlabel {
   font: 700 10px/1 var(--fn); color: var(--tx2);
   text-transform: uppercase; letter-spacing: 0.04em;
   display: flex; align-items: center; gap: 4px;
 }
 
-.up-field--req .up-label::after { content: "*"; color: var(--er); font-size: 11px; }
-.up-label-hint { font: 400 10px var(--fn); text-transform: none; letter-spacing: 0; color: var(--txm); }
-
-.up-input, .up-select {
-  padding: 9px 10px;
-  border: 1.5px solid var(--bd); border-radius: var(--rs);
+.up-minput {
+  width: 100%; padding: 8px 10px; box-sizing: border-box;
+  border: 1px solid var(--bd); border-radius: var(--rs);
   font: 500 13px var(--fn); color: var(--tx);
   background: var(--bg); outline: none; transition: all var(--tr);
 }
-.up-input:focus, .up-select:focus {
+.up-minput::placeholder { color: var(--txm); font-weight: 400; }
+.up-minput:focus {
   border-color: var(--pr); background: var(--sf);
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
 }
-.up-input::placeholder { color: var(--txm); font-weight: 400; }
-.up-select:disabled    { opacity: 0.45; cursor: not-allowed; }
 
-.up-pw-wrap { position: relative; }
-.up-input--pw { width: 100%; padding-right: 36px; box-sizing: border-box; }
+.up-mselect {
+  width: 100%; padding: 8px 10px; box-sizing: border-box;
+  border: 1px solid var(--bd); border-radius: var(--rs);
+  font: 500 13px var(--fn); color: var(--tx);
+  background: var(--bg); outline: none; transition: all var(--tr); cursor: pointer;
+}
+.up-mselect:focus {
+  border-color: var(--pr); background: var(--sf);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
+}
+.up-mselect:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.up-mreadonly {
+  height: 38px; display: flex; align-items: center;
+  padding: 0 10px;
+  border: 1px solid var(--bd); border-radius: var(--rs);
+  background: var(--sfh); font: 500 13px var(--fn); color: var(--tx2);
+}
 
 .up-pw-eye {
   position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
@@ -983,80 +947,6 @@ onMounted(loadData);
   cursor: pointer; padding: 2px; border-radius: 4px; transition: color var(--tr);
 }
 .up-pw-eye:hover { color: var(--tx2); }
-
-/* Info display (read-only fields) */
-.up-info-val {
-  height: 38px;
-  display: flex; align-items: center;
-  padding: 0 10px;
-  border: 1.5px solid var(--bd); border-radius: var(--rs);
-  background: var(--sfh);
-  font: 500 13px var(--fn); color: var(--tx2);
-}
-.up-info-val--mono { font-family: var(--fm); font-size: 12px; }
-
-.up-divider { border: none; border-top: 1px solid var(--bd); margin: 0 -20px; }
-
-/* Toggle */
-.up-toggle-row { display: flex; align-items: center; gap: 10px; padding: 4px 0; }
-
-.up-toggle {
-  width: 38px; height: 22px; border-radius: 11px;
-  border: none; cursor: pointer; position: relative;
-  transition: background var(--tr); flex-shrink: 0;
-}
-.up-toggle--on  { background: var(--ok); }
-.up-toggle--off { background: var(--bds); }
-
-.up-toggle-knob {
-  position: absolute; width: 16px; height: 16px;
-  background: #fff; border-radius: 50%; top: 3px;
-  transition: left var(--tr);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
-}
-.up-toggle--on  .up-toggle-knob { left: 19px; }
-.up-toggle--off .up-toggle-knob { left: 3px; }
-
-.up-toggle-label      { font: 600 13px var(--fn); transition: color var(--tr); }
-.up-toggle-label--on  { color: var(--ok); }
-.up-toggle-label--off { color: var(--txm); }
-
-/* Modal footer */
-.up-modal-footer {
-  display: flex; justify-content: flex-end; gap: 8px;
-  padding: 14px 20px; border-top: 1px solid var(--bd); flex-shrink: 0;
-}
-
-.up-btn-cancel {
-  padding: 8px 16px; border: 1px solid var(--bd); border-radius: var(--rs);
-  background: var(--sf); color: var(--tx2);
-  font: 600 12px var(--fn); cursor: pointer; transition: all var(--tr);
-}
-.up-btn-cancel:hover { background: var(--sfh); border-color: var(--bds); }
-
-.up-btn-save {
-  padding: 8px 20px;
-  background: var(--pr); color: #fff;
-  border: none; border-radius: var(--rs);
-  font: 600 12px var(--fn); cursor: pointer; transition: all var(--tr);
-  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
-  display: flex; align-items: center; gap: 7px;
-  min-width: 80px; justify-content: center;
-}
-.up-btn-save:hover:not(:disabled) {
-  background: var(--prh);
-  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
-}
-.up-btn-save:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
-
-/* Modal transition */
-.up-modal-enter-active { transition: all 200ms ease-out; }
-.up-modal-leave-active { transition: all 150ms ease-in; }
-.up-modal-enter-from { opacity: 0; }
-.up-modal-enter-from .up-modal { transform: scale(0.96) translateY(8px); }
-.up-modal-enter-to   .up-modal { transform: scale(1) translateY(0); }
-.up-modal-leave-to { opacity: 0; }
-.up-modal-leave-to   .up-modal { transform: scale(0.96) translateY(8px); }
 
 /* ── Responsive ── */
 @media (max-width: 768px) {
@@ -1067,6 +957,5 @@ onMounted(loadData);
   .up-td--branch::before { content: "Филиал: "; font-weight: 600; color: var(--tx2); font-size: 11px; }
   .up-td--created { display: none; }
   .up-actions { opacity: 1; }
-  .up-form-row { grid-template-columns: 1fr; }
 }
 </style>
