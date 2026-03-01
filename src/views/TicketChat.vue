@@ -610,7 +610,7 @@ onUnmounted(() => {
             <div class="flex items-center justify-between mb-3">
               <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wide">Клиент</h3>
               <button
-                v-if="!clientLinked || !ticket?.clientPhone"
+                v-if="!clientLinked"
                 @click="showSearchModal = true"
                 class="flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100 transition-colors"
               >
@@ -908,7 +908,7 @@ onUnmounted(() => {
                   <div class="flex items-center justify-between mb-2">
                     <h4 class="text-xs font-semibold text-gray-400 uppercase tracking-wide">Клиент</h4>
                     <button
-                      v-if="!clientLinked || !ticket?.clientPhone"
+                      v-if="!clientLinked"
                       @click="showInfo = false; showSearchModal = true"
                       class="flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100 transition-colors"
                     >
