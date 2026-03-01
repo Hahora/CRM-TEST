@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import AppIcon from "@/components/AppIcon.vue";
@@ -9,9 +9,21 @@ import { useToast } from "@/composables/useToast";
 
 const { showSuccess, showError } = useToast();
 
-const users    = ref<BlockedUser[]>([]);
-const isLoading = ref(true);
+const users      = ref<BlockedUser[]>([]);
+const isLoading  = ref(true);
 const unblocking = ref<Set<string>>(new Set());
+const search     = ref("");
+
+const filteredUsers = computed(() => {
+  const q = search.value.trim().toLowerCase().replace(/^@/, "");
+  if (!q) return users.value;
+  return users.value.filter((u) => {
+    const name = [u.first_name, u.last_name].filter(Boolean).join(" ").toLowerCase();
+    const username = (u.username ?? "").toLowerCase();
+    const tgId = u.telegram_user_id.toLowerCase();
+    return name.includes(q) || username.includes(q) || tgId.includes(q);
+  });
+});
 
 const load = async () => {
   isLoading.value = true;
@@ -75,6 +87,26 @@ onMounted(load);
       </div>
     </div>
 
+    <!-- Search -->
+    <div class="bg-white border-b border-gray-100 px-3 md:px-6 py-2 flex-shrink-0">
+      <div class="relative">
+        <AppIcon name="search" :size="15" class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+        <input
+          v-model="search"
+          type="text"
+          placeholder="Поиск по имени, @username или TG ID..."
+          class="w-full pl-9 pr-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 placeholder-gray-400 transition-colors"
+        />
+        <button
+          v-if="search"
+          @click="search = ''"
+          class="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-gray-400 hover:text-gray-600"
+        >
+          <AppIcon name="x" :size="13" />
+        </button>
+      </div>
+    </div>
+
     <!-- Content -->
     <div class="flex-1 overflow-y-auto p-3 md:p-6">
       <!-- Loading -->
@@ -89,8 +121,8 @@ onMounted(load);
         </div>
       </div>
 
-      <!-- Empty -->
-      <div v-else-if="users.length === 0" class="bu-card py-14 flex flex-col items-center gap-3">
+      <!-- Empty — нет вообще -->
+      <div v-else-if="filteredUsers.length === 0 && !search" class="bu-card py-14 flex flex-col items-center gap-3">
         <div class="w-14 h-14 rounded-full bg-green-50 flex items-center justify-center">
           <AppIcon name="user-check" :size="24" class="text-green-500" />
         </div>
@@ -98,15 +130,24 @@ onMounted(load);
         <p class="text-xs text-gray-400">Все пользователи могут писать боту</p>
       </div>
 
+      <!-- Empty — поиск без результатов -->
+      <div v-else-if="filteredUsers.length === 0 && search" class="bu-card py-14 flex flex-col items-center gap-3">
+        <div class="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center">
+          <AppIcon name="search" :size="22" class="text-gray-400" />
+        </div>
+        <p class="text-sm font-medium text-gray-600">Ничего не найдено</p>
+        <p class="text-xs text-gray-400">Попробуйте изменить запрос</p>
+      </div>
+
       <!-- List -->
       <div v-else class="bu-card">
         <div class="flex items-center justify-between px-4 py-2.5 border-b border-gray-100">
           <h2 class="text-sm font-semibold text-gray-900">Список заблокированных</h2>
-          <span class="text-xs text-gray-400 font-medium">{{ users.length }}</span>
+          <span class="text-xs text-gray-400 font-medium">{{ filteredUsers.length }}</span>
         </div>
         <ul class="divide-y divide-gray-50">
           <li
-            v-for="u in users"
+            v-for="u in filteredUsers"
             :key="u.telegram_user_id"
             class="flex items-center gap-3 px-3 py-3 sm:px-4 hover:bg-gray-50 transition-colors"
           >
